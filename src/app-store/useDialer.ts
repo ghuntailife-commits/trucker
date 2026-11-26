@@ -10,10 +10,24 @@ import { learnFreshScores } from '../rules/score';
 import { buildToday, buildAppointments, type TodayRow, type ApptRow } from '../rules/today';
 import { TAGS } from '../rules/tags';
 import { sameDay } from '../rules/time';
-import { demoContacts } from './demoData';
+import { addNote } from '../rules/engine';
+import { saleNote, noSaleNote, saleDate, type SaleRecord, type NoSaleRecord } from '../rules/results';
+import { demoContacts, demoHistory } from './demoData';
 
-export interface Sale { at: number; contactId: string; trialAlp: number; standardAlp: number; monthly: number; note: string; calledInto: boolean }
-export interface NoSale { at: number; contactId: string; objection: string; note: string; calledInto: boolean }
+export type Sale = SaleRecord;
+export type NoSale = NoSaleRecord;
+
+/** Older demo data stored a trial and a standard ALP and one objection: bring it up to the form's fields. */
+function normalize(st: Saved): Saved {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sales = (st.sales ?? []).map((x: any) => x.alpType ? x : ({ at: x.at, contactId: x.contactId,
+    alpType: x.standardAlp ? 'Standard' : 'Trial', alp: (x.standardAlp || x.trialAlp || 0), monthly: x.monthly ?? 0, wholeLife: 0, adb: 0,
+    email: '', note: x.note ?? '', calledInto: !!x.calledInto }));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const noSales = (st.noSales ?? []).map((x: any) => x.objections ? x : ({ at: x.at, contactId: x.contactId,
+    objections: x.objection ? [x.objection] : [], reason: x.note ?? '', followUp: '', followUpNote: '', calledInto: !!x.calledInto }));
+  return { ...st, sales, noSales };
+}
 
 /** What Undo puts back: earlier copies of changed or deleted contacts, and the IDs of contacts that were added. */
 interface Snapshot { label: string; contact?: Contact; before?: Contact[]; added?: string[]; logLen: number; salesLen: number; noSalesLen: number }
@@ -36,7 +50,9 @@ interface Saved {
 const KEY = 'trucker-demo-v1';
 
 function fresh(now: number): Saved {
-  return { v: 1, contacts: demoContacts(now, CFG.tz), log: [], sales: [], noSales: [], snap: 0, savedOrder: [], savedAppts: [],
+  const contacts = demoContacts(now, CFG.tz);
+  const h = demoHistory(contacts, now, CFG.tz);
+  return { v: 1, contacts, log: h.log, sales: h.sales, noSales: h.noSales, snap: 0, savedOrder: [], savedAppts: [],
     skips: [], undo: [], lastBackupTry: {} };
 }
 
@@ -68,6 +84,7 @@ export function useDialer() {
     let loaded: Saved | null = null;
     try { const raw = localStorage.getItem(KEY); if (raw) loaded = JSON.parse(raw); } catch { /* private window */ }
     if (!loaded || loaded.v !== 1) loaded = fresh(t);
+    loaded = normalize(loaded);
     if (!sameDay(loaded.snap, t, CFG.tz)) loaded = resort(loaded, t);
     setS(loaded);
     const id = setInterval(() => setNow(Date.now()), 30_000);   // the list clock (was Order!H2)
@@ -136,14 +153,29 @@ export function useDialer() {
   const confirm = useCallback((id: string) => commit(id, 'confirm', (c, t) => confirmAppt(c, t, CFG)), [commit]);
   const qual = useCallback((id: string, q: string) => commit(id, 'tag', c => toggleQual(c, q)), [commit]);
 
-  const outcome = useCallback((id: string, key: 'sold' | 'presented' | 'noshow' | 'reschedule', form?: Partial<Sale & NoSale> & { when?: number }) => {
+  type SaleIn = Omit<SaleRecord, 'at' | 'contactId' | 'calledInto'>;
+  type NoSaleIn = Omit<NoSaleRecord, 'at' | 'contactId' | 'calledInto'>;
+  /** Closes out an appointment or a called-into presentation. Sold and Presented come with their checked form. */
+  const outcome = useCallback((id: string, key: 'sold' | 'presented' | 'noshow' | 'reschedule',
+                               form?: { sale?: SaleIn; noSale?: NoSaleIn; when?: number }) => {
     const tag = key === 'sold' ? TAGS.sold : key === 'presented' ? TAGS.presented : key === 'noshow' ? TAGS.noshow : TAGS.scheduled;
-    const ci = byId.get(id)?.tag.startsWith('CALLED INTO') ?? false;
-    commit(id, key, (c, t) => disposition(c, tag, t, CFG, { when: form?.when ?? null }), st => {
+    const before = byId.get(id);
+    const ci = before?.tag.startsWith('CALLED INTO') ?? false;
+    const apptAt = before?.callAt ?? null;
+    commit(id, key, (c, t) => {
+      const r = disposition(c, tag, t, CFG, { when: form?.when ?? null });
+      const line = key === 'sold' && form?.sale ? saleNote(form.sale, t, CFG.tz)
+        : key === 'presented' && form?.noSale ? noSaleNote(form.noSale, t, CFG.tz) : '';
+      let contact = line ? { ...r.contact, notes: addNote(r.contact.notes, line) } : r.contact;
+      if (form?.sale?.email) contact = { ...contact, email: form.sale.email };
+      const who = `${c.first} ${c.last}`;
+      const message = key === 'sold' && form?.sale ? `${who}: sale saved, ${form.sale.alpType} ALP $${form.sale.alp.toLocaleString('en-US')}.`
+        : key === 'presented' ? `${who}: no-sale saved.` : key === 'noshow' ? `${who}: no-show saved.` : `${who}: appointment moved.`;
+      return { ...r, contact, message };
+    }, st => {
       const at = Date.now();
-      if (key === 'sold') return { sales: [...st.sales, { at, contactId: id, trialAlp: form?.trialAlp ?? 0, standardAlp: form?.standardAlp ?? 0,
-        monthly: form?.monthly ?? 0, note: form?.note ?? '', calledInto: ci }] };
-      if (key === 'presented') return { noSales: [...st.noSales, { at, contactId: id, objection: form?.objection ?? 'Other', note: form?.note ?? '', calledInto: ci }] };
+      if (key === 'sold' && form?.sale) return { sales: [...st.sales, { ...form.sale, at: saleDate(apptAt, at), contactId: id, calledInto: ci }] };
+      if (key === 'presented' && form?.noSale) return { noSales: [...st.noSales, { ...form.noSale, at, contactId: id, calledInto: ci }] };
       return {};
     });
   }, [commit, byId]);

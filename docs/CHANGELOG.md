@@ -43,3 +43,12 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 - Quick qualifier tags on the call screen (Married, Kids, age range, Union, Has coverage, Homeowner), saved on the contact and in the CSV export.
 - Reach by dial number chart (dials 1 to 10 shown separately, then 11+) next to the by-hour chart.
 - Bad-number matching now compares digits, so formatting differences no longer hide a known bad number.
+
+## 2026-11-26: Calendar and result forms (stage 5)
+- Sale form matches the sheet's popup: Trial or Standard, ALP, monthly premium, whole life coverage, ADB (blank = none), optional email and notes. Same checks and the same dated note, shown as a preview before saving. A sale is dated at its appointment when that was in the last 7 days.
+- No-sale form matches the sheet's: the 8 objections (pick any), what stopped it, optional follow-up date and notes. Follow-ups show on the calendar.
+- Booking an appointment takes an optional email for the calendar invite. Calendar events use the sheet's title and details (30 min appointments, 10 min callbacks, "CALL BACK -" prefix).
+- New Appointments page: the week at a glance (appointments with confirm status, callbacks, follow-ups, sold / presented / no-show), week stats (booked ahead, confirmed, show rate, sold), a details panel with Confirm, Text reminder, Sold, Presented, No-show, Move, and a "Needs a result" list (called into, past appointments with no result, appointments with no time).
+- "Add to my calendar" downloads .ics files until Google Calendar is connected at go-live.
+- Calendar sync rules ported from syncAppointments: match by phone, soonest upcoming time, never write back to a contact that is not Scheduled. Change: callback events are skipped (v27 reported them as "not tagged Scheduled").
+- Database: migration 0002 adds the new sale, no-sale and contact fields and a calendar sync log.

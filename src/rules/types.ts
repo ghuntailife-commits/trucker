@@ -40,6 +40,8 @@ export interface Contact {
   confirmedAt?: number | null;
   /** Quick qualifier tags picked on the call screen: Married, Kids, Union... (v2) */
   quals?: string[];
+  /** Email given when booking or selling (calendar invite, policy email). */
+  email?: string;
 }
 
 export type EventKind = 'Dial' | 'Tag' | 'Swap' | 'Note' | 'Import';

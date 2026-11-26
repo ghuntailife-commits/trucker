@@ -364,3 +364,89 @@ select { appearance: auto; }
 .stack.rate { background: var(--bar-c); }
 @media (max-width: 760px) { .chartnote { margin: -4px 16px 0; } }
 
+
+/* ---------- stage 5: result forms ---------- */
+.modal .sub { margin: -6px 0 6px; color: var(--muted); font-size: 13.5px; }
+.rform .fld { display: block; margin: 0; }
+.rform .fld > span { display: block; font-size: 12px; color: var(--muted); margin: 12px 0 5px; }
+.rform .fld em, .fieldset .opt { font-style: normal; color: var(--faint); font-weight: 400; text-transform: none; letter-spacing: 0; }
+.rform input, .rform textarea { width: 100%; }
+.rform .money { position: relative; display: block; }
+.rform .money i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-style: normal; color: var(--muted); }
+.rform .money input { padding-left: 22px; font-variant-numeric: tabular-nums; }
+.rform .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.seg.two { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg.two button { border: 0; background: var(--panel2); padding: 8px; font-weight: 500; }
+.seg.two button + button { border-left: 1px solid var(--line); }
+.seg.two button.on { background: var(--accent); color: var(--accent-ink); }
+.rform .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rform .chips button { border: 1px solid var(--line); background: var(--panel2); border-radius: 999px; padding: 5px 11px; font-size: 13px; }
+.rform .chips button.on { background: var(--amber-bg); color: var(--amber); border-color: transparent; font-weight: 600; }
+.rform .preview { margin-top: 14px; padding: 10px 12px; background: var(--panel2); border-radius: 8px; font-size: 13px; color: var(--muted); line-height: 1.45; }
+.rform .preview b { color: var(--text); font-weight: 500; }
+.rform .preview .err { color: var(--red); }
+.btn.go { background: var(--green); color: #fff; border-color: var(--green); }
+.fieldset input + label, .fieldset .sugg + label { margin-top: 12px; }
+.fieldset > input { width: 100%; }
+
+/* ---------- stage 5: appointments page ---------- */
+.title .lede { margin: 0; color: var(--muted); max-width: 46ch; }
+.strip.s7 { grid-template-columns: repeat(7, minmax(80px, auto)); }
+.weekbar { display: flex; align-items: center; gap: 12px; padding: 0 28px 14px; flex-wrap: wrap; }
+.weekbar .seg.mini button { font-size: 13.5px; padding: 4px 12px; }
+.weekbar .wk { font: 600 18px var(--serif); }
+.weekbar .grow { flex: 1; }
+.gcal { font-size: 12.5px; color: var(--muted); border: 1px dashed var(--line); border-radius: 999px; padding: 3px 10px; }
+.apptwork { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 20px; padding: 0 28px 24px; align-items: start; }
+.week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); overflow: hidden; }
+.wday { border-left: 1px solid var(--line2); min-height: 420px; padding: 0 8px 12px; display: flex; flex-direction: column; gap: 6px; }
+.wday:first-child { border-left: 0; }
+.wday.today { background: var(--cur); }
+.wday.past .ev { opacity: .85; }
+.wh { display: flex; align-items: baseline; gap: 6px; padding: 12px 4px 8px; border-bottom: 1px solid var(--line2); margin: 0 -8px 4px; padding-left: 12px; }
+.wh span { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.wh b { font: 600 22px var(--serif); }
+.wh em { font-style: normal; font-size: 11.5px; font-weight: 600; color: var(--link); margin-left: auto; padding-right: 4px; }
+.wday .none { margin: 6px 4px; font-size: 12.5px; color: var(--faint); }
+.ev { display: grid; gap: 2px; text-align: left; border: 1px solid var(--line); border-left: 3px solid var(--blue); border-radius: 7px; background: var(--panel); padding: 7px 8px; font-size: 13px; min-width: 0; }
+.ev:hover { border-color: var(--faint); }
+.ev.on { outline: 2px solid var(--link); outline-offset: -1px; }
+.ev .t { font-weight: 600; font-variant-numeric: tabular-nums; font-size: 12.5px; }
+.ev .n { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev .co { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev .spill { justify-self: start; margin-top: 3px; font-size: 11.5px; padding: 1px 8px; }
+.ev.callback { border-left-color: var(--amber); }
+.ev.followup { border-left-color: var(--faint); border-style: dashed; border-left-style: solid; }
+.ev.sold { border-left-color: var(--green); }
+.ev.presented { border-left-color: var(--violet); }
+.ev.noshow { border-left-color: var(--red); }
+.spill.red { background: var(--red-bg); color: var(--red); }
+.apptside { display: grid; gap: 20px; }
+.adetail .dn { font: 600 28px/1.15 var(--serif); margin: 6px 0 2px; }
+.adetail .dsub { margin: 0 0 12px; color: var(--muted); }
+.dl { display: grid; grid-template-columns: 70px 1fr; gap: 6px 12px; margin: 0; font-size: 14px; }
+.dl dt { color: var(--muted); }
+.dl dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.dacts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.dacts a.btn { text-decoration: none; color: inherit; display: inline-block; }
+.dacts.sub2 { gap: 16px; margin-top: 12px; }
+.adetail .hist { margin: 16px -16px -16px; padding: 14px 16px 16px; }
+.needs2 .aline { grid-template-columns: 52px minmax(0, 1fr) auto; }
+.aacts.show { display: inline-flex; }
+@media (max-width: 1180px) {
+  .apptwork { grid-template-columns: minmax(0, 1fr); }
+  .strip.s7 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .strip.s7 .cell:nth-child(5) { border-left: 0; }
+  .strip.s7 .cell:nth-child(n+5) { border-top: 1px solid var(--line); }
+}
+@media (max-width: 760px) {
+  .weekbar, .apptwork { padding-left: 16px; padding-right: 16px; }
+  .weekbar .gcal { display: none; }
+  .week { grid-template-columns: minmax(0, 1fr); }
+  .wday { min-height: 0; border-left: 0; border-top: 1px solid var(--line2); }
+  .wday:first-child { border-top: 0; }
+  .wday.blank:not(.today) { display: none; }
+  .rform .grid2 { grid-template-columns: 1fr; }
+}
+.rform textarea, .modal textarea { font: inherit; }
+@media (max-width: 1440px) and (min-width: 1181px) { .apptwork { grid-template-columns: minmax(0, 1fr) 340px; } .ev .co { display: none; } }

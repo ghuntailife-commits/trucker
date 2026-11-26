@@ -10,11 +10,13 @@ import { parseWhen } from '../src/rules/parseWhen';
 import { reachByDial } from '../src/rules/stats';
 import { QUALIFIERS } from '../src/rules/engine';
 
-const OBJECTIONS = ['Price', 'Needs to Think', 'Spouse / Family', 'Existing Coverage', 'Trust / Skepticism', 'Timing', 'Affordability', 'Other'];
 import { ContactsPage } from './ui/contacts';
 import { NeedsPage } from './ui/needs';
+import { AppointmentsPage } from './ui/appointments';
+import { ResultForm, type ResultKind } from './ui/forms';
+import { saleAlp } from '../src/rules/results';
 import { TZ, ZONE_TZ, chipClass, localTime, Ico, IC, fmtSecs, ZONE_NAME, timeOnly, saveText } from './ui/shared';
-type Modal = null | { kind: 'sold' | 'presented' | 'reschedule'; id: string };
+type Modal = null | { kind: ResultKind; id: string };
 const UNDO_LABEL: Record<string, string> = { noanswer: 'No answer', voicemail: 'Voicemail', callback: 'Callback', notint: 'Not interested',
   bad: 'Bad number', appt: 'Appointment', note: 'note', sold: 'Sold', presented: 'Presented', noshow: 'No-show', reschedule: 'Move', confirm: 'Confirmed', tag: 'Qualifier' };
 type Filter = 'All' | 'Callback' | 'NoShow' | 'NewNumber' | 'Retry' | 'Fresh';
@@ -33,6 +35,7 @@ export default function Today() {
   const [picked, setPicked] = useState<string | null>(null);
   const [pending, setPending] = useState<null | 'callback' | 'appt'>(null);
   const [when, setWhen] = useState('');
+  const [email, setEmail] = useState('');
   const [noteText, setNoteText] = useState('');
   const [backupMode, setBackupMode] = useState(false);
   const [q, setQ] = useState('');
@@ -42,7 +45,7 @@ export default function Today() {
   const [auto, setAuto] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [filter, setFilter] = useState<Filter>('All');
-  const [page, setPage] = useState<'today' | 'contacts' | 'needs'>('today');
+  const [page, setPage] = useState<'today' | 'contacts' | 'needs' | 'appts'>('today');
   const [chartBy, setChartBy] = useState<'hour' | 'dial'>('hour');
   const [, tick] = useState(0);
   const whenRef = useRef<HTMLInputElement>(null);
@@ -68,7 +71,7 @@ export default function Today() {
 
   // reset the action area when the contact changes, and keep its row in view inside the table
   useEffect(() => {
-    setPending(null); setWhen(''); setNoteText(''); setBackupMode(false);
+    setPending(null); setWhen(''); setEmail(''); setNoteText(''); setBackupMode(false);
     if (!current?.id || !tableRef.current) return;
     const el = tableRef.current.querySelector<HTMLElement>(`[data-row="${current.id}"]`);
     if (el) {
@@ -92,7 +95,7 @@ export default function Today() {
   const act = (key: DialerKey) => {
     if (!current) return;
     if ((key === 'callback' || key === 'appt') && !when.trim()) { setPending(key); setTimeout(() => whenRef.current?.focus(), 0); return; }
-    d.press(current.id, key, { when: key === 'callback' || key === 'appt' ? when : '', note: noteText, backupMode });
+    d.press(current.id, key, { when: key === 'callback' || key === 'appt' ? when : '', email: key === 'appt' ? email : '', note: noteText, backupMode });
     endCall(current.id);
     setPicked(null);
     if (auto) setCountdown(3);
@@ -154,7 +157,7 @@ export default function Today() {
   const calledInto = useMemo(() => new Set(todayLog.filter(e => e.kind === 'Tag' && e.tag.startsWith('CALLED INTO')).map(e => e.contactId)).size
     + d.appts.filter(a => tagKind(a.contact.tag) === 'calledInto').length, [todayLog, d.appts]);
   const salesToday = d.sales.filter(x => sameDay(x.at, d.now, TZ));
-  const alp = salesToday.reduce((a, x) => a + (x.standardAlp || x.trialAlp), 0);
+  const alp = salesToday.reduce((a, x) => a + saleAlp(x), 0);
   const hours = useMemo(() => {
     const h: { h: number; dials: number; connects: number }[] = [];
     for (let i = 9; i <= 21; i++) h.push({ h: i, dials: 0, connects: 0 });
@@ -228,10 +231,10 @@ export default function Today() {
       <header className="top">
         <div className="brand"><span className="dot">T</span><span className="wordmark">Truckers</span><span className="who">Demo Agent · Direct</span></div>
         <nav className="nav">
-          {([['today', 'Today'], ['contacts', 'Contacts'], ['needs', 'Needs Number']] as const).map(([p, label]) => (
+          {([['today', 'Today'], ['appts', 'Appointments'], ['contacts', 'Contacts'], ['needs', 'Needs Number']] as const).map(([p, label]) => (
             <button key={p} className={page === p ? 'on' : ''} aria-current={page === p ? 'page' : undefined} onClick={() => setPage(p)}>{label}</button>
           ))}
-          {['Appointments', 'Results', 'Team'].map(x => <button key={x} title="Coming in the next stages" disabled>{x}</button>)}
+          {['Results', 'Team'].map(x => <button key={x} title="Coming in the next stages" disabled>{x}</button>)}
         </nav>
         <div className="tools">
           <div className="search">
@@ -258,6 +261,7 @@ export default function Today() {
 
       {page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} />}
       {page === 'needs' && <NeedsPage d={d} />}
+      {page === 'appts' && <AppointmentsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id) => setModal({ kind, id })} />}
       {page === 'today' && <>
       <section className="hero">
         <div className="title">
@@ -459,6 +463,11 @@ export default function Today() {
                     {farOut && <span className="warnline">More than 2 days out. Try to book it within 2 days.</span>}
                     {['tomorrow 10am', 'tomorrow 6pm', 'fri 2pm', 'mon 9am'].map(x => <button key={x} onClick={() => setWhen(x)}>{x}</button>)}
                   </div>
+                  {pending === 'appt' && <>
+                    <label>Email for the calendar invite <span className="opt">optional</span></label>
+                    <input inputMode="email" autoComplete="off" placeholder="name@example.com" value={email} onChange={e => setEmail(e.target.value)}
+                           onKeyDown={e => { if (e.key === 'Enter') act('appt'); if (e.key === 'Escape') setPending(null); }} />
+                  </>}
                 </div>
               )}
               <div className="fieldset">
@@ -506,55 +515,12 @@ export default function Today() {
       <footer className="foot">
         <span><i className="dotok" />All changes saved in this browser{lastSave ? ` · last save ${timeOnly(lastSave)}` : ''}</span>
         {d.canUndo && <button className="linkish undo" onClick={d.undo}>Undo {UNDO_LABEL[d.undoLabel ?? ''] ?? d.undoLabel}</button>}
-        <span className="keyshelp">1–6 result · C call · N note · / search · U undo · R re-sort · S skip</span>
+        {page === 'today' && <span className="keyshelp">1–6 result · C call · N note · / search · U undo · R re-sort · S skip</span>}
       </footer>
 
-      {modal && <ResultModal modal={modal} contact={d.byId.get(modal.id)} onClose={() => setModal(null)}
-        onSave={(form) => { d.outcome(modal.id, modal.kind, form); setModal(null); }} now={d.now} />}
+      {modal && <ResultForm kind={modal.kind} contact={d.byId.get(modal.id)} now={d.now} onClose={() => setModal(null)}
+        onSave={(form) => { d.outcome(modal.id, modal.kind, form); setModal(null); }} />}
       {d.toast && <div className={`toast ${d.toast.kind}`}>{d.toast.text}</div>}
-    </div>
-  );
-}
-
-function ResultModal({ modal, contact, onClose, onSave, now }: {
-  modal: NonNullable<Modal>; contact?: Contact; now: number; onClose: () => void;
-  onSave: (f: { trialAlp?: number; standardAlp?: number; monthly?: number; objection?: string; note?: string; when?: number }) => void;
-}) {
-  const [trial, setTrial] = useState(''); const [std, setStd] = useState(''); const [mo, setMo] = useState('');
-  const [obj, setObj] = useState(OBJECTIONS[0]); const [note, setNote] = useState(''); const [when, setWhen] = useState('');
-  const [err, setErr] = useState('');
-  const money = (v: string) => Number(v.replace(/[$,\s]/g, '')) || 0;
-  const save = () => {
-    if (modal.kind === 'sold') {
-      if (!money(trial) && !money(std)) return setErr('Enter the trial or standard ALP.');
-      onSave({ trialAlp: money(trial), standardAlp: money(std), monthly: money(mo), note });
-    } else if (modal.kind === 'presented') onSave({ objection: obj, note });
-    else {
-      const w = parseWhen(when, now, TZ, false);
-      if (!w || 'error' in w) return setErr(w && 'error' in w ? w.error : 'Could not read that time.');
-      onSave({ when: w.date });
-    }
-  };
-  return (
-    <div className="modal-bg" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <h2>{modal.kind === 'sold' ? 'Sold' : modal.kind === 'presented' ? 'Presented, not sold' : 'Reschedule'}: {contact?.first} {contact?.last}</h2>
-        {modal.kind === 'sold' && <>
-          <label>Trial ALP ($)</label><input inputMode="decimal" value={trial} onChange={e => setTrial(e.target.value)} autoFocus />
-          <label>Standard ALP ($)</label><input inputMode="decimal" value={std} onChange={e => setStd(e.target.value)} />
-          <label>Monthly premium ($)</label><input inputMode="decimal" value={mo} onChange={e => setMo(e.target.value)} />
-        </>}
-        {modal.kind === 'presented' && <>
-          <label>What stopped it?</label>
-          <select value={obj} onChange={e => setObj(e.target.value)}>{OBJECTIONS.map(o => <option key={o}>{o}</option>)}</select>
-        </>}
-        {modal.kind === 'reschedule' && <>
-          <label>New appointment time</label><input value={when} onChange={e => setWhen(e.target.value)} placeholder="e.g. thu 6pm" autoFocus />
-        </>}
-        {modal.kind !== 'reschedule' && <><label>Note (optional)</label><textarea rows={2} value={note} onChange={e => setNote(e.target.value)} /></>}
-        {err && <p style={{ color: 'var(--bad)' }}>{err}</p>}
-        <div className="bar"><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save}>Save</button></div>
-      </div>
     </div>
   );
 }

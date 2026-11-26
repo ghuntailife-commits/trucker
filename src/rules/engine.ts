@@ -308,7 +308,7 @@ export const DIALER_TAG: Partial<Record<DialerKey, string>> = {
   callback: TAGS.callback, notint: TAGS.notInterested, bad: TAGS.bad, appt: TAGS.scheduled,
 };
 
-export interface DialerOpts { when?: string; note?: string; backupMode?: boolean; lastBackupTryAt?: number | null }
+export interface DialerOpts { when?: string; note?: string; email?: string; backupMode?: boolean; lastBackupTryAt?: number | null }
 
 export function dialerAction(c: Contact, key: DialerKey, now: number, cfg: Config = DEFAULT_CONFIG,
                              opts: DialerOpts = {}): Result {
@@ -324,6 +324,8 @@ export function dialerAction(c: Contact, key: DialerKey, now: number, cfg: Confi
   }
   if (key === 'callback' && !when) return { contact: c, events: [], refused: 'Enter a callback time first.', message: '' };
   if (key === 'appt' && !when) return { contact: c, events: [], refused: 'Enter the appointment time first.', message: '' };
+  const email = String(opts.email || '').trim();
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { contact: c, events: [], refused: 'That email does not look right.', message: '' };
   const k0 = tagKind(c.tag);
   if (key === 'callback' && !['none', 'callback', 'noshow', 'scheduled'].includes(k0))
     return { contact: c, events: [], refused: `${who} is already tagged (${c.tag.slice(0, 25)}...). Callback not set.`, message: '' };
@@ -346,6 +348,7 @@ export function dialerAction(c: Contact, key: DialerKey, now: number, cfg: Confi
   }
   if (note) parts.push(note);
   if (parts.length) r.contact = { ...r.contact, notes: addNote(r.contact.notes, `${md(now, tz)}: ${parts.join(' - ')}`) };
+  if (email && (key === 'appt' || key === 'callback')) r.contact = { ...r.contact, email };
   return r;
 }
 
