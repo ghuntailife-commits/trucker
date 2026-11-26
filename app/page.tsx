@@ -8,51 +8,13 @@ import { tagShort, tagKind } from '../src/rules/tags';
 import { mdTime, md, sameDay } from '../src/rules/time';
 import { parseWhen } from '../src/rules/parseWhen';
 
-const TZ = 'America/New_York';
-const ZONE_TZ: Record<string, string> = { ET: 'America/New_York', CT: 'America/Chicago', MT: 'America/Denver', PT: 'America/Los_Angeles' };
 const OBJECTIONS = ['Price', 'Needs to Think', 'Spouse / Family', 'Existing Coverage', 'Trust / Skepticism', 'Timing', 'Affordability', 'Other'];
-
-function chipClass(why: string) {
-  if (why.startsWith('DONE')) return 'Done';
-  if (why.startsWith('Callback')) return 'Callback';
-  if (why.startsWith('No-show') || why.startsWith('Did they')) return 'NoShow';
-  if (why.startsWith('New Number') || why.startsWith('New number')) return 'NewNumber';
-  if (why.startsWith('PM')) return 'PM';
-  if (why === 'Fresh') return 'Fresh';
-  if (why === 'Confirm') return 'Confirm';
-  return '';
-}
-const localTime = (zone: string, now: number) => {
-  const tz = ZONE_TZ[zone];
-  return tz ? new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' }).format(now) : '';
-};
-
-const Ico = ({ d, size = 18 }: { d: string; size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
-);
-const IC = {
-  phone: 'M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z',
-  list: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
-  connect: 'M16 3h5v5M21 3l-7 7M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z',
-  clock: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2',
-  cal: 'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z',
-  pres: 'M3 3h18v12H3zM8 21l4-6 4 6',
-  sold: 'M20 6 9 17l-5-5',
-  play: 'M6 4l14 8-14 8z',
-  pause: 'M7 4h4v16H7zM13 4h4v16h-4z',
-  reset: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5',
-  noans: 'M10.7 13.3a16 16 0 0 0 3.4 2.6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.8M22 2 2 22',
-  vm: 'M6 15a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7zM18 15a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7zM6 15h12',
-  cb: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2M17 2.5l2 2',
-  ni: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM4.9 4.9l14.2 14.2',
-  bad: 'M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',
-  appt: 'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 16l2 2 4-4',
-  skip: 'M5 4l10 8-10 8zM19 5v14',
-  undo: 'M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11',
-  end: 'M10.7 13.3a16 16 0 0 0 3.4 2.6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.8',
-};
-const fmtSecs = (n: number) => `${Math.floor(n / 60)}m ${String(n % 60).padStart(2, '0')}s`;
+import { ContactsPage } from './ui/contacts';
+import { NeedsPage } from './ui/needs';
+import { TZ, ZONE_TZ, chipClass, localTime, Ico, IC, fmtSecs, ZONE_NAME, timeOnly, saveText } from './ui/shared';
 type Modal = null | { kind: 'sold' | 'presented' | 'reschedule'; id: string };
+const UNDO_LABEL: Record<string, string> = { noanswer: 'No answer', voicemail: 'Voicemail', callback: 'Callback', notint: 'Not interested',
+  bad: 'Bad number', appt: 'Appointment', note: 'note', sold: 'Sold', presented: 'Presented', noshow: 'No-show', reschedule: 'Move' };
 type Filter = 'All' | 'Callback' | 'NoShow' | 'NewNumber' | 'Retry' | 'Fresh';
 const FILTERS: [Filter, string][] = [['All', 'All'], ['Callback', 'Callbacks'], ['NoShow', 'No-shows'], ['NewNumber', 'New numbers'], ['Retry', 'Retry'], ['Fresh', 'Fresh']];
 const baseWhy = (why: string) => why.replace(/^DONE TODAY - /, '');
@@ -61,10 +23,8 @@ const groupOf = (why: string): Filter => {
   return k === 'Callback' || k === 'NoShow' || k === 'NewNumber' || k === 'Fresh' ? k : 'Retry';
 };
 const money = (n: number) => '$' + Math.round(n).toLocaleString('en-US');
-const ZONE_NAME: Record<string, string> = { ET: 'Eastern', CT: 'Central', MT: 'Mountain', PT: 'Pacific' };
 const hourOf = (t: number) => Number(new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', hourCycle: 'h23' }).format(t));
 const hourLabel = (h: number) => (h % 12 || 12) + (h < 12 ? 'a' : 'p');
-const timeOnly = (t: number) => new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }).format(t);
 
 export default function Today() {
   const d = useDialer();
@@ -80,6 +40,7 @@ export default function Today() {
   const [auto, setAuto] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [filter, setFilter] = useState<Filter>('All');
+  const [page, setPage] = useState<'today' | 'contacts' | 'needs'>('today');
   const [, tick] = useState(0);
   const whenRef = useRef<HTMLInputElement>(null);
   const noteRef = useRef<HTMLInputElement>(null);
@@ -155,6 +116,8 @@ export default function Today() {
       const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); d.undo(); return; }
       if (typing || modal || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === '/') { e.preventDefault(); searchRef.current?.focus(); return; }
+      if (page !== 'today' || document.querySelector('.modal-bg')) return;
       const k = e.key.toLowerCase();
       const map: Record<string, DialerKey> = { '1': 'noanswer', '2': 'voicemail', '3': 'callback', '4': 'notint', '5': 'bad', '6': 'appt' };
       if (map[e.key]) { e.preventDefault(); act(map[e.key]); }
@@ -217,12 +180,7 @@ export default function Today() {
         c.lastDialed ? mdTime(c.lastDialed, TZ) : '', c.callAt ? mdTime(c.callAt, TZ) : r.nextAction ? md(r.nextAction, TZ) : '',
         notesNewestFirst(c.notes)[0] ?? ''].map(esc).join(',');
     });
-    const text = [head.join(','), ...lines].join('\n'), filename = `today-${md(d.now, TZ).replace('/', '-')}.csv`;
-    // In the hosted demo the viewer saves through its own download prompt; in the real app a normal file download.
-    const host = (window as unknown as { claude?: { use: (n: string) => Promise<{ save: (f: { filename: string; data: string }) => Promise<unknown> } | null> } }).claude;
-    if (host?.use) { host.use('downloads').then(dl => dl?.save({ filename, data: text })).catch(() => { /* viewer said no */ }); return; }
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv' })); a.download = filename; a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    saveText(`today-${md(d.now, TZ).replace('/', '-')}.csv`, [head.join(','), ...lines].join('\n'));
   };
 
   if (!d.ready) return <div className="empty">Loading…</div>;
@@ -257,8 +215,10 @@ export default function Today() {
       <header className="top">
         <div className="brand"><span className="dot">T</span><span className="wordmark">Truckers</span><span className="who">Demo Agent · Direct</span></div>
         <nav className="nav">
-          <button className="on">Today</button>
-          {['Contacts', 'Appointments', 'Needs Number', 'Results', 'Team'].map(x => <button key={x} title="Coming in the next stages" disabled>{x}</button>)}
+          {([['today', 'Today'], ['contacts', 'Contacts'], ['needs', 'Needs Number']] as const).map(([p, label]) => (
+            <button key={p} className={page === p ? 'on' : ''} aria-current={page === p ? 'page' : undefined} onClick={() => setPage(p)}>{label}</button>
+          ))}
+          {['Appointments', 'Results', 'Team'].map(x => <button key={x} title="Coming in the next stages" disabled>{x}</button>)}
         </nav>
         <div className="tools">
           <div className="search">
@@ -269,7 +229,7 @@ export default function Today() {
             {results.length > 0 && (
               <div className="results">
                 {results.map(c => (
-                  <button key={c.id} onClick={() => { setPicked(c.id); setQ(''); }}>
+                  <button key={c.id} onClick={() => { setPicked(c.id); setQ(''); setPage('today'); }}>
                     <b>{c.first} {c.last}</b> <span className="hint">· {c.company} · {c.list}{c.tag ? ' · ' + tagShort(c.tag) : ''}</span>
                   </button>
                 ))}
@@ -283,6 +243,9 @@ export default function Today() {
         </div>
       </header>
 
+      {page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} />}
+      {page === 'needs' && <NeedsPage d={d} />}
+      {page === 'today' && <>
       <section className="hero">
         <div className="title">
           <div className="eyebrow">{dateLine} · {states.size > 1 ? 'All states' : [...states][0] ?? 'All states'} · Pass {d.pass}</div>
@@ -492,9 +455,11 @@ export default function Today() {
           </section>
         </aside>
       </main>
+      </>}
 
       <footer className="foot">
         <span><i className="dotok" />All changes saved in this browser{lastSave ? ` · last save ${timeOnly(lastSave)}` : ''}</span>
+        {d.canUndo && <button className="linkish undo" onClick={d.undo}>Undo {UNDO_LABEL[d.undoLabel ?? ''] ?? d.undoLabel}</button>}
         <span className="keyshelp">1–6 result · C call · N note · / search · U undo · R re-sort · S skip</span>
       </footer>
 

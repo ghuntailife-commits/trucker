@@ -28,7 +28,11 @@ export const digits = (s: string) => String(s || '').replace(/\D/g, '');
 /** Has this number already been recorded as bad on this contact? */
 export function knownBad(notes: string, num: string): boolean {
   const n = String(num || '').trim();
-  return n !== '' && String(notes || '').indexOf('Bad number: ' + n) >= 0;
+  if (!n) return false;
+  const d = digits(n).slice(-10);
+  if (d.length < 10) return String(notes || '').indexOf('Bad number: ' + n) >= 0;
+  // compare digits, so "214-555-0101" and "(214) 555-0101" are the same number (like the sheet)
+  return (String(notes || '').match(/Bad number:[^|]*/gi) ?? []).some(q => digits(q).includes(d));
 }
 
 /** A connect: somebody real was reached (v27 Activity Log column K). */

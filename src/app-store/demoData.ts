@@ -54,5 +54,8 @@ export function demoContacts(now: number, tz: string, count = 160): Contact[] {
   }
   // a few with no number (Needs Number)
   for (let k = 0; k < 6; k++) Object.assign(out[k * 7 + 1], { phone: '', notes: 'No number found yet' });
+  // a few more with no number, and two nobody could find a number for
+  for (let k = 6; k < 12; k++) Object.assign(out[k * 7 + 1], { phone: '', backup: '', notes: '' });
+  for (const k of [12, 13]) Object.assign(out[k * 7 + 1], { phone: '', backup: '', status: 'Cannot Find', notes: 'CANNOT FIND - no match on Muse or LinkedIn' });
   return out;
 }

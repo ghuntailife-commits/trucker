@@ -26,3 +26,11 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 - "On the line" panel: big green Call button, backup number, result keys 1–6, note, history and research, plus Up Next.
 - Appointments & called into list with status pills (hover a row for Sold / Presented / No-show / Move), and a dials & connects by hour chart with the best window.
 - New shortcuts: N note, U undo, R re-sort (plus 1–6, C call, / search, S skip, B backup).
+
+## 2026-11-26: Contacts and Needs Number pages (stage 4)
+- Contacts: every contact on every list, with group tabs, list filter, search, sortable columns, and Export CSV of what is shown.
+- Contact details: edit any field. Every change is listed before it is saved; numbers are checked (10 digits, not already marked bad, not on another contact). Add a note, see notes and activity, Open in dialer, Delete (with a confirm; logged dials stay; Undo works).
+- Add contact and Import: the sheet's Import columns (First, Last, Phone, Job, Company, City, State, LinkedIn, Backup, Notes). Paste from a spreadsheet or pick a CSV. A check step shows each line's result (imports to which list, or skipped as a duplicate, Do Not Call, given to another agent, unknown state) before anything is saved. Hardcards import option.
+- Needs Number: three lists (needs a number, needs a new number after a bad number, cannot find). Type numbers in the rows; they are tied to the contact, so a list that changes while you type can't misplace them. Review and save shows what will and won't be saved and why. Cannot Find marks with a dated note; Return sends them back.
+- Bad numbers are now recognised however they are written (214-555-0101 and (214) 555-0101 are the same number).
+- Today: dialed rows are highlighted green again, like the sheet. Sold rows are a deeper green.

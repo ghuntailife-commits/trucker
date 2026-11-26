@@ -14,7 +14,8 @@ import { demoContacts } from './demoData';
 export interface Sale { at: number; contactId: string; trialAlp: number; standardAlp: number; monthly: number; note: string; calledInto: boolean }
 export interface NoSale { at: number; contactId: string; objection: string; note: string; calledInto: boolean }
 
-interface Snapshot { label: string; contact: Contact; logLen: number; salesLen: number; noSalesLen: number }
+/** What Undo puts back: earlier copies of changed or deleted contacts, and the IDs of contacts that were added. */
+interface Snapshot { label: string; contact?: Contact; before?: Contact[]; added?: string[]; logLen: number; salesLen: number; noSalesLen: number }
 interface Saved {
   v: 1;
   contacts: Contact[];
@@ -153,13 +154,37 @@ export function useDialer() {
     setS(prev => {
       if (!prev || !prev.undo.length) { say('Nothing to undo.', 'warn'); return prev; }
       const u = prev.undo[prev.undo.length - 1];
-      say(`Undid ${u.contact.first} ${u.contact.last} (${u.label}).`);
-      return { ...prev, contacts: prev.contacts.map(x => (x.id === u.contact.id ? u.contact : x)), log: prev.log.slice(0, u.logLen),
+      const before = u.before ?? (u.contact ? [u.contact] : []);
+      const back = new Map(before.map(c => [c.id, c])), added = new Set(u.added ?? []);
+      let contacts = prev.contacts.filter(x => !added.has(x.id)).map(x => back.get(x.id) ?? x);
+      const missing = before.filter(c => !contacts.some(x => x.id === c.id));
+      contacts = [...contacts, ...missing];
+      say(before.length === 1 && !added.size ? `Undid ${before[0].first} ${before[0].last} (${u.label}).` : `Undid ${u.label}.`);
+      return { ...prev, contacts, log: prev.log.slice(0, u.logLen),
         sales: prev.sales.slice(0, u.salesLen), noSales: prev.noSales.slice(0, u.noSalesLen), undo: prev.undo.slice(0, -1) };
     });
   }, [say]);
 
+  /** Change, add or delete several contacts as one step (Needs Number save, import, edits). One Undo puts it all back. */
+  const batch = useCallback((label: string, change: { changed?: Contact[]; added?: Contact[]; removed?: string[]; events?: LogEvent[] }, message: string) => {
+    setS(prev => {
+      if (!prev) return prev;
+      const changed = new Map((change.changed ?? []).map(c => [c.id, c]));
+      const removed = new Set(change.removed ?? []);
+      const before = prev.contacts.filter(c => changed.has(c.id) || removed.has(c.id));
+      const snap: Snapshot = { label, before, added: (change.added ?? []).map(c => c.id), logLen: prev.log.length,
+        salesLen: prev.sales.length, noSalesLen: prev.noSales.length };
+      const contacts = [...prev.contacts.filter(c => !removed.has(c.id)).map(c => changed.get(c.id) ?? c), ...(change.added ?? [])];
+      // contacts added today join the end of today's saved order, like the sheet's import
+      const savedOrder = change.added?.length ? [...prev.savedOrder, ...change.added.map(c => c.id)] : prev.savedOrder;
+      return { ...prev, contacts, savedOrder, log: [...prev.log, ...(change.events ?? [])], undo: [...prev.undo.slice(-19), snap] };
+    });
+    say(message);
+    setNow(Date.now());
+  }, [say]);
+
   const reSort = useCallback(() => { setS(p => (p ? resort(p, Date.now()) : p)); setNow(Date.now()); say('Today re-sorted: a fresh pass.'); }, [say]);
+  const say2 = say;
   const resetDemo = useCallback(() => { const t = Date.now(); setS(resort(fresh(t), t)); say('Demo data reset.'); }, [say]);
 
   const recent = useMemo(() => {
@@ -183,6 +208,6 @@ export function useDialer() {
     }).slice(0, 25);
   }, [s?.contacts]);
 
-  return { ready: !!s, now, today, appts, queue, stats, toast, byId, recent, log: s?.log ?? [], canUndo: !!s?.undo.length, pass: s?.pass ?? 1, noSales: s?.noSales ?? [],
+  return { ready: !!s, now, today, appts, queue, stats, toast, byId, recent, log: s?.log ?? [], canUndo: !!s?.undo.length, batch, say: say2, contacts: s?.contacts ?? [], pass: s?.pass ?? 1, noSales: s?.noSales ?? [],
     undoLabel: s?.undo.at(-1)?.label, press, note, outcome, skip, logCall, undo, reSort, resetDemo, find, sales: s?.sales ?? [] };
 }
