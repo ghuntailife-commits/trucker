@@ -21,11 +21,13 @@ const out = await build({
 const js = out.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
 const css = readFileSync('app/globals.css', 'utf8');
 mkdirSync('dist-demo', { recursive: true });
-writeFileSync('dist-demo/trucker-dialer.html', `<title>Trucker Dialer</title>
+const fav = 'data:image/svg+xml;base64,' + readFileSync('public/brand/favicon/favicon.svg').toString('base64');
+writeFileSync('dist-demo/trucker-dialer.html', `<title>Dispatch</title>
+<link rel="icon" href="${fav}" type="image/svg+xml">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap">
 <style>${css}
-.top, .hero, .work, .foot { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.top, .hero, .work, .foot, .home { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 .top { top: env(safe-area-inset-top, 0px); }
 </style>
 <div id="root"></div>

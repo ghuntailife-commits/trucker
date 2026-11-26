@@ -28,10 +28,16 @@ import { QuoText } from './ui/quo';
 import { ProfileMenu, ShortcutsDialog, IntegrationsPage } from './ui/profile';
 import { buildBrief, briefKind } from '../src/brief/brief';
 import { MENU_PAGES } from '../src/team/agents';
+import { Sidebar, useSidebar, Mark, Wordmark } from './ui/sidebar';
+import { HomePage } from './ui/home';
+import { dailyNote, waitingCounts } from '../src/home/dailyNote';
+import { mondayNote } from '../src/team/coaching';
+import { needsGroup } from '../src/contacts/needs';
+import { isOpen as sheetOpen, needsLook as sheetLook } from '../src/numbers/sheet';
 import { healthCheck, healthCount } from '../src/team/health';
 import type { TextKey } from '../src/quo/quo';
 
-const PAGE_LABEL: Record<Page, string> = { today: 'Today', appts: 'Appointments', contacts: 'Contacts', needs: 'Needs Number', results: 'Results', team: 'Team', settings: 'Settings', integrations: 'Integrations' };
+const PAGE_LABEL: Record<Page, string> = { home: 'Home', today: 'Today', appts: 'Appointments', contacts: 'Contacts', needs: 'Needs Number', results: 'Results', team: 'Team', settings: 'Settings', integrations: 'Integrations' };
 const ROLE_LABEL = { admin: 'admin', agent: 'agent', boss: 'results only' } as const;
 
 /** Day or night, remembered in this browser. */
@@ -59,7 +65,7 @@ export default function App() {
     <div className="shell">
       <div className="demo-banner">Demo: the boss&rsquo;s view. Results and totals for the team, no contact details. Austin&rsquo;s and Gracie&rsquo;s numbers are made up.</div>
       <header className="top">
-        <div className="brand"><span className="dot">T</span><span className="wordmark">Truckers</span><span className="who">Boss · results only</span></div>
+        <div className="brand"><Mark size={28} /><Wordmark height={22} /><span className="who">Boss · results only</span></div>
         <nav className="nav"><button className="on" aria-current="page">Team</button></nav>
         <div className="tools"><ProfileMenu t={t} theme={theme} setTheme={setTheme} items={[]} /></div>
       </header>
@@ -114,8 +120,9 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const [auto, setAuto] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [filter, setFilter] = useState<Filter>('All');
-  const [page, setPage0] = useState<Page>('today');
-  const setPage = (p: Page) => setPage0(pages.includes(p) ? p : 'today');
+  const [page, setPage0] = useState<Page>('home');
+  const setPage = (p: Page) => { setPage0(pages.includes(p) ? p : 'today'); window.scrollTo?.(0, 0); };
+  const sb = useSidebar();
   const [chartBy, setChartBy] = useState<'hour' | 'dial'>('hour');
   const [, tick] = useState(0);
   const whenRef = useRef<HTMLInputElement>(null);
@@ -278,6 +285,25 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       c.lastDialed ? mdTime(c.lastDialed, TZ) : '', c.email ?? '', c.notes].map(esc).join(','));
     saveText(`contacts-${me.name.toLowerCase()}-${md(d.now, TZ).replace('/', '-')}.csv`, [head.join(','), ...rowsOut].join('\n'));
   };
+  // Home
+  const sheetRowsAll = ns.sheet?.rows ?? [];
+  const sheetLookN = sheetRowsAll.filter(sheetLook).length, sheetWaitN = sheetRowsAll.filter(sheetOpen).length;
+  const needsN = useMemo(() => d.contacts.filter(c => { const g = needsGroup(c); return g === 'needs' || g === 'newNumber'; }).length, [d.contacts]);
+  const waiting = waitingCounts(d.today);
+  const newNums = d.queue.filter(r => /^New Number/.test(r.why)).length;
+  const showQ = d.appts.filter(a => a.status.includes('show')).length;
+  const coach = useMemo(() => d.ready ? mondayNote({ name: me.name, log: d.log, sales: d.sales, noSales: d.noSales, now: d.now, tz: TZ, goal: me.goal }) : null,
+    [d.ready, d.log, d.sales, d.noSales, d.now, me.name, me.goal]);
+  const { monthDays, daysInMonth } = useMemo(() => {
+    const f = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('en-US', { timeZone: TZ, ...o });
+    const ym = f({ year: 'numeric', month: '2-digit' }).format(d.now), today = Number(f({ day: 'numeric' }).format(d.now));
+    const [mm, yy] = ym.split('/').map(Number), dim = new Date(Date.UTC(yy, mm, 0)).getUTCDate();
+    const byDay = Array(today).fill(0);
+    for (const x of d.sales) if (f({ year: 'numeric', month: '2-digit' }).format(x.at) === ym) byDay[Number(f({ day: 'numeric' }).format(x.at)) - 1] += saleAlp(x);
+    let run = 0; return { monthDays: byDay.map(v => (run += v)), daysInMonth: dim };
+  }, [d.sales, d.now]);
+  const wins = useMemo(() => [...d.sales].sort((a, b) => b.at - a.at).slice(0, 4).map(x => { const c = d.byId.get(x.contactId);
+    return { id: x.contactId, name: c ? `${c.first} ${c.last}` : x.who ? `${x.who.first} ${x.who.last}` : 'Sale', alp: saleAlp(x), at: x.at }; }), [d.sales, d.byId]);
   if (!d.ready) return <div className="empty">Loading…</div>;
   const s = d.stats;
   const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
@@ -312,16 +338,23 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
     ...d.noSales.filter(x => sameDay(x.at, d.now, TZ)).map(x => { const c = d.byId.get(x.contactId); return { id: x.contactId, at: x.at, name: c ? `${c.first} ${c.last}` : '', company: c?.company ?? '', pill: 'Presented', tone: 'violet', open: false, ci: false }; }),
   ];
 
+  const homeAppts = apptLines.filter(a => a.at != null && sameDay(a.at, d.now, TZ)).sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
+  const note = dailyNote({ name: me.name, now: d.now, tz: TZ, goal: me.goal, sales: d.sales, stats: s,
+    apptsLeft: d.appts.filter(a => a.contact.callAt != null && a.contact.callAt >= d.now && sameDay(a.contact.callAt, d.now, TZ)).map(a => ({ name: `${a.contact.first} ${a.contact.last}`, at: a.contact.callAt! })).sort((a, b) => a.at - b.at),
+    apptsTomorrow: d.contacts.filter(c => tagKind(c.tag) === 'scheduled' && c.callAt != null && sameDay(c.callAt, d.now + 86_400_000, TZ)).length,
+    waiting });
   return (
     <div className="shell">
+      <div className={`frame ${sb.wide ? 'swide' : 'snarrow'}`}>
+      <Sidebar sb={sb} page={page} go={setPage} who={`${me.name} · ${me.team}`} items={pages.filter(p => !MENU_PAGES.includes(p)).map(p => ({ page: p, label: PAGE_LABEL[p],
+        ...(p === 'today' ? { badge: s.left } : p === 'needs' && sheetLookN ? { badge: sheetLookN, tone: 'red' as const } : p === 'appts' && showQ ? { badge: showQ, tone: 'amber' as const } : {}) }))} />
+      <div className="mainc">
       <div className="demo-banner">{REAL_SEED && agent === 'george' ? `Demo with your real contacts, copied from your sheet on ${md(REAL_SEED.builtAt, TZ)}. Changes stay in this browser and never touch your sheet.` : agent !== 'george' ? `Demo: ${me.name}\u2019s screen with made-up contacts on ${me.name}\u2019s states. Changes stay in this browser only.` : 'Demo with made-up contacts. Changes stay in this browser only.'}</div>
       <header className="top">
-        <div className="brand"><span className="dot">T</span><span className="wordmark">Truckers</span><span className="who">{me.name} · {me.team}</span></div>
-        <nav className="nav">
-          {pages.filter(p => !MENU_PAGES.includes(p)).map(p => (
-            <button key={p} className={page === p ? 'on' : ''} aria-current={page === p ? 'page' : undefined} onClick={() => setPage(p)}>{PAGE_LABEL[p]}</button>
-          ))}
-        </nav>
+        <button className="menubtn" aria-label="Open the menu" onClick={() => sb.setMobileOpen(true)}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg></button>
+        <button className="brand mob" onClick={() => setPage('home')} aria-label="Dispatch: go to Home"><Mark size={26} /></button>
+        <div className="pagetitle">{PAGE_LABEL[page]}</div>
         <div className="tools">
           <div className="search">
             <Ico d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3" size={15} />
@@ -353,6 +386,9 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
         </div>
       </header>
 
+      {page === 'home' && <HomePage note={note} stats={s} appts={homeAppts} waiting={{ ...waiting, newNumbers: newNums }} coach={coach}
+        health={hc} sheet={{ waiting: sheetWaitN, look: sheetLookN, needs: needsN }} wins={wins} monthDays={monthDays} daysInMonth={daysInMonth}
+        go={setPage} openHealth={() => setHealthOpen(true)} onDial={id => { setPicked(id); setPage('today'); }} timeOnly={timeOnly} md={x => md(x, TZ)} />}
       {page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} />}
       {page === 'needs' && <NeedsPage d={d} ns={ns} />}
       {page === 'team' && <TeamPage t={t} now={d.now} live={{ id: agent, data: { contacts: d.contacts, log: d.log, sales: d.sales, noSales: d.noSales } }}
@@ -627,6 +663,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
         {d.canUndo && <button className="linkish undo" onClick={d.undo}>Undo {UNDO_LABEL[d.undoLabel ?? ''] ?? d.undoLabel}</button>}
         {page === 'today' && <span className="keyshelp">1–6 result · C call · N note · / search · U undo · R re-sort · S skip</span>}
       </footer>
+      </div></div>
 
       {modal && <ResultForm kind={modal.kind} contact={d.byId.get(modal.id) ?? whoContact(modal)} now={d.now} initial={modal.initial} onClose={() => setModal(null)}
         onSave={(form) => {

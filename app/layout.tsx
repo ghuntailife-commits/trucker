@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import './globals.css';
 
-export const metadata: Metadata = { title: 'Trucker Dialer', description: 'Dialing, follow-ups and results for the team' };
+export const metadata: Metadata = { title: 'Dispatch', description: 'Dialing, follow-ups and results for the team',
+  icons: { icon: [{ url: '/favicon.ico', sizes: '48x48' }, { url: '/favicon.svg', type: 'image/svg+xml' }], apple: '/apple-touch-icon.png' }, manifest: '/manifest.webmanifest' };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
