@@ -835,3 +835,28 @@ kbd { font: 600 12px var(--mono); background: var(--panel2); border: 1px solid v
 .brief .bhead { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .brief .bhead small { font-size: 11px; color: var(--faint); }
 @media (max-width: 760px) { .pm { position: fixed; left: 8px; right: 8px; top: 56px; width: auto; } }
+/* number sheet */
+.qt .pickc { width: 34px; text-align: center; padding-right: 0; }
+.qt .pickc input { width: 16px; height: 16px; accent-color: var(--accent); }
+.onsheet { color: var(--green); font-weight: 700; }
+.spill.mini { font-size: 11px; padding: 0 7px; margin-left: 8px; vertical-align: 1px; }
+.tabs .warnct { background: var(--red-bg); color: var(--red); border-radius: 999px; padding: 0 7px; }
+.autobad { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--muted); margin-right: 6px; cursor: pointer; }
+.sheetbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 10px 16px; border-bottom: 1px solid var(--line2); }
+.sheetbar .btn { margin-left: auto; }
+.chipbtn { border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 999px; padding: 4px 12px; font-size: 13px; }
+.chipbtn span { color: var(--muted); margin-left: 3px; }
+.chipbtn.on { background: var(--accent); border-color: var(--accent); color: #fff; } .chipbtn.on span { color: rgba(255,255,255,.8); }
+.qt.sheet td { font-size: 13.5px; }
+.qt.sheet .mono { font-family: var(--mono); white-space: nowrap; }
+.sst { display: inline-block; font-size: 12.5px; padding: 2px 9px; border-radius: 6px; line-height: 1.35; }
+.sst.s-wait { color: var(--muted); }
+.sst.s-filled { background: var(--blue-bg); color: var(--blue); }
+.sst.s-added { background: var(--teal-bg); color: var(--teal); }
+.sst.s-cf { background: var(--done-bg); color: var(--done); }
+.sst.s-look { background: var(--red-bg); color: var(--red); }
+.sst.s-gone { color: var(--faint); }
+.qt.sheet tr.st-gone td { color: var(--faint); }
+.strip b.red { color: var(--red); }
+.qt.sheet td:nth-child(9) { white-space: normal; min-width: 230px; }
+.sst { white-space: normal; }

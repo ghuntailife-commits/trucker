@@ -86,9 +86,9 @@ const INTEGRATIONS: Integration[] = [
   { key: 'gmail', name: 'Gmail', status: 'later', who: 'Everybody',
     what: 'Sends the policy summary after a sale and the no-cost benefits email after a no-sale, from the agent’s own Gmail, with a preview first. Also delivers the Monday coaching note.',
     needs: 'The same Google Cloud project, with Gmail turned on.' },
-  { key: 'muse', name: 'Number finding', status: 'later', who: 'Admin',
-    what: 'Fills Needs Number from your number-finding sheet, staged for review before anything is saved, like today.',
-    needs: 'Read access to the number-finding sheet.' },
+  { key: 'muse', name: 'Number sheet', status: 'built', who: 'Everybody',
+    what: 'Each agent gets their own new Google Sheet for finding numbers. Send contacts to it from Needs Number; numbers found there are checked and saved to the contact on their own every few minutes, with what happened written back on the sheet.',
+    needs: 'The same Google Cloud project, with Sheets turned on.' },
 ];
 const STATUS = { built: ['Built, connects at go-live', 'teal'], ready: ['Ready for go-live', 'blue'], later: ['Planned', 'grey'] } as const;
 

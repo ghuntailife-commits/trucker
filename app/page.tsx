@@ -12,6 +12,7 @@ import { QUALIFIERS } from '../src/rules/engine';
 
 import { ContactsPage } from './ui/contacts';
 import { NeedsPage } from './ui/needs';
+import { useNumberSheet } from '../src/app-store/useNumberSheet';
 import { AppointmentsPage } from './ui/appointments';
 import { ResultsPage } from './ui/results';
 import { REAL_SEED } from '../src/app-store/realSeed';
@@ -95,6 +96,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const d0 = useDialer(agent, t.cfg);
   // the monthly goal lives in Settings, so George can set everyone's
   const d = { ...d0, goal: me.goal, setGoal: (g: number) => { t.setAgent(agent, { goal: g }); d0.say(`Monthly goal set to $${g.toLocaleString('en-US')}.`); } };
+  const ns = useNumberSheet(agent, d0.contacts ?? [], d0.now, TZ, d0.batch, d0.say, !!d0.ready);
   const pages = pagesFor(t.role);
   const quoOn = me.quo;
   const [quo, setQuo] = useState<QuoModal>(null);
@@ -352,7 +354,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       </header>
 
       {page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} />}
-      {page === 'needs' && <NeedsPage d={d} />}
+      {page === 'needs' && <NeedsPage d={d} ns={ns} />}
       {page === 'team' && <TeamPage t={t} now={d.now} live={{ id: agent, data: { contacts: d.contacts, log: d.log, sales: d.sales, noSales: d.noSales } }}
         onViewAs={id => t.setViewer(id)} onDial={id => { setPicked(id); setPage('today'); }} />}
       {page === 'settings' && <SettingsPage t={t} />}

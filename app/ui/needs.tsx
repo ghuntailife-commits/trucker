@@ -6,19 +6,31 @@ import type { Contact } from '../../src/rules/types';
 import { notesNewestFirst } from '../../src/rules/notes';
 import { needsGroup, planNeeds, returnCannotFind, type NeedsEntry, type NeedsGroup, type NeedsPlanLine } from '../../src/contacts/needs';
 import { TZ, Dialog } from './shared';
+import type { NumberSheet } from '../../src/app-store/useNumberSheet';
+import { CHECK_EVERY_MIN } from '../../src/app-store/useNumberSheet';
+import { isDone, isOpen, needsLook, planSend, type SendPlan, type SheetRow } from '../../src/numbers/sheet';
+import { mdTime } from '../../src/rules/time';
+import { Toggle } from './settings';
 
 type D = ReturnType<typeof useDialer>;
-const TABS: [NeedsGroup, string, string][] = [
+type Tab = NeedsGroup | 'sheet';
+const TABS: [Tab, string, string][] = [
   ['needs', 'Needs a number', 'No phone number yet. Type the number you found, or mark Cannot find.'],
   ['newNumber', 'Needs a new number', 'The number on file was marked bad. Type a new one to put them back in the lists.'],
   ['cannotFind', 'Cannot find', 'Nobody could find a number. Send them back to Needs Number to search again.'],
+  ['sheet', 'Number sheet', 'Your own Google Sheet for finding numbers. Numbers found there are checked and saved to the contact on their own.'],
 ];
 const DRAFT = 'trucker-needs-draft';
 const blank = (id: string): NeedsEntry => ({ id, phone: '', backup: '', note: '', cannotFind: false });
 const typed = (e: NeedsEntry) => !!(e.phone.trim() || e.backup.trim() || e.note.trim() || e.cannotFind);
 
-export function NeedsPage({ d }: { d: D }) {
-  const [tab, setTab] = useState<NeedsGroup>('needs');
+export function NeedsPage({ d, ns }: { d: D; ns: NumberSheet }) {
+  const [tab, setTab] = useState<Tab>('needs');
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [sendPlan, setSendPlan] = useState<SendPlan | null>(null);
+  const sheetRows = ns.sheet?.rows ?? [];
+  const onSheet = useMemo(() => new Set(sheetRows.filter(r => !isDone(r)).map(r => r.id)), [sheetRows]);
+  const waiting = sheetRows.filter(isOpen).length, look = sheetRows.filter(needsLook).length;
   const [draft, setDraft] = useState<Record<string, NeedsEntry>>({});
   const [review, setReview] = useState<NeedsPlanLine[] | null>(null);
   const [confirmReturn, setConfirmReturn] = useState<Contact[] | null>(null);
@@ -46,19 +58,21 @@ export function NeedsPage({ d }: { d: D }) {
     setDraft(x => { const n = { ...x }; for (const o of ok) delete n[o.id]; return n; });
     setReview(null);
   };
-  const rows = groups[tab];
+  const rows = tab === 'sheet' ? [] : groups[tab];
+  const pickable = rows.filter(c => !onSheet.has(c.id));
+  const pick = (id: string, on: boolean) => setPicked(x => { const n = new Set(x); if (on) n.add(id); else n.delete(id); return n; });
 
   return (
     <>
       <section className="hero">
         <div className="title">
-          <div className="eyebrow">Find numbers · then save them all at once</div>
+          <div className="eyebrow">Find numbers here or on your number sheet</div>
           <h1>Needs Number</h1>
           <div className="passbar"><span>{TABS.find(t => t[0] === tab)![2]}</span></div>
         </div>
         <div className="strip s4">
           {([['Needs a number', groups.needs.length, 'blue'], ['Needs a new number', groups.newNumber.length, 'amber'],
-            ['Cannot find', groups.cannotFind.length, ''], ['Typed, not saved', entries.length, 'green']] as [string, number, string][])
+            ['On number sheet', waiting, 'green'], ['Needs a look', look, look ? 'red' : '']] as [string, number, string][])
             .map(([l, v, tone]) => <div className="cell" key={l}><span>{l}</span><b className={tone}>{v}</b></div>)}
         </div>
       </section>
@@ -67,20 +81,24 @@ export function NeedsPage({ d }: { d: D }) {
         <section className="panel queue">
           <div className="toolbar">
             <div className="tabs" role="tablist">
-              {TABS.map(([g, label]) => <button key={g} role="tab" aria-selected={tab === g} className={tab === g ? 'on' : ''} onClick={() => setTab(g)}>{label} <span>{groups[g].length}</span></button>)}
+              {TABS.map(([g, label]) => <button key={g} role="tab" aria-selected={tab === g} className={tab === g ? 'on' : ''} onClick={() => setTab(g)}>{label} <span className={g === 'sheet' && look ? 'warnct' : ''}>{g === 'sheet' ? (look ? `${look} to look at` : waiting) : groups[g].length}</span></button>)}
             </div>
             <div className="tbtns">
-              {tab === 'cannotFind'
+              {tab === 'sheet' ? <SheetTools ns={ns} />
+                : tab === 'cannotFind'
                 ? <button className="btn" disabled={!rows.length} onClick={() => setConfirmReturn(rows)}>Return all to Needs Number</button>
                 : <>
+                  <button className="btn" disabled={!picked.size} onClick={() => setSendPlan(planSend([...picked], d.contacts, sheetRows, d.now, TZ))}>Send {picked.size || ''} to number sheet</button>
                   <button className="btn" disabled={!entries.length} onClick={() => setDraft({})}>Clear typed</button>
                   <button className="btn primary" disabled={!entries.length} onClick={openReview}>Review and save {entries.length || ''}</button>
                 </>}
             </div>
           </div>
-          <div className="tscroll tall">
+          {tab === 'sheet' ? <SheetTable ns={ns} /> : <div className="tscroll tall">
             <table className="qt needs">
               <thead><tr>
+                {tab !== 'cannotFind' && <th className="pickc"><input type="checkbox" aria-label="Pick all for the number sheet" checked={!!pickable.length && pickable.every(c => picked.has(c.id))}
+                  onChange={e => setPicked(x => { const n = new Set(x); for (const c of pickable) { if (e.target.checked) n.add(c.id); else n.delete(c.id); } return n; })} /></th>}
                 <th>Contact</th><th>Company — Role</th><th>Location</th><th className="num">Dials</th><th>Notes (newest)</th>
                 {tab === 'cannotFind' ? <th /> : <><th>{tab === 'newNumber' ? 'New number' : 'Phone'}</th>{tab === 'needs' && <th>Backup</th>}<th>Note</th><th>Cannot find</th></>}
               </tr></thead>
@@ -89,7 +107,9 @@ export function NeedsPage({ d }: { d: D }) {
                   const e = draft[c.id] ?? blank(c.id);
                   return (
                     <tr key={c.id} className={typed(e) ? 'typed' : ''}>
-                      <td className="strong">{c.first} {c.last}{c.linkedin && /^https:\/\//.test(c.linkedin) && <> <a href={c.linkedin} target="_blank" rel="noopener noreferrer" className="li">in</a></>}</td>
+                      {tab !== 'cannotFind' && <td className="pickc">{onSheet.has(c.id) ? <span className="onsheet" title="Waiting on the number sheet">✓</span>
+                        : <input type="checkbox" aria-label={`Send ${c.first} ${c.last} to the number sheet`} checked={picked.has(c.id)} onChange={ev => pick(c.id, ev.target.checked)} />}</td>}
+                      <td className="strong">{c.first} {c.last}{onSheet.has(c.id) && <span className="spill green mini">On sheet</span>}{c.linkedin && /^https:\/\//.test(c.linkedin) && <> <a href={c.linkedin} target="_blank" rel="noopener noreferrer" className="li">in</a></>}</td>
                       <td>{c.company}{c.job ? ` — ${c.job}` : ''}</td>
                       <td>{c.city}{c.city ? ', ' : ''}{c.state}</td>
                       <td className="num">{c.dials}</td>
@@ -108,9 +128,12 @@ export function NeedsPage({ d }: { d: D }) {
                 {!rows.length && <tr><td colSpan={9} className="emptyrow">{tab === 'needs' ? 'Every contact has a number.' : tab === 'newNumber' ? 'No bad numbers waiting.' : 'Nobody is on the Cannot Find list.'}</td></tr>}
               </tbody>
             </table>
-          </div>
-          <div className="tfoot"><span>{rows.length} contact{rows.length === 1 ? '' : 's'}{tab !== 'cannotFind' ? ' · typed entries are kept until you save' : ''}</span>
-            <span>A new number is dialed first for its next two dials.</span></div>
+          </div>}
+          <div className="tfoot">{tab === 'sheet'
+            ? <><span>{sheetRows.length} row{sheetRows.length === 1 ? '' : 's'} · checked every {CHECK_EVERY_MIN} minutes{ns.sheet?.lastCheck ? ` · last checked ${mdTime(ns.sheet.lastCheck, TZ)}` : ''}</span>
+              <span>Demo: a pretend sheet in this browser. At go-live it is a real Google Sheet only you (and your number finder) can open.</span></>
+            : <><span>{rows.length} contact{rows.length === 1 ? '' : 's'}{tab !== 'cannotFind' ? ' · tick contacts to send them to your number sheet, or type numbers here' : ''}</span>
+              <span>A new number is dialed first for its next two dials.</span></>}</div>
         </section>
       </main>
 
@@ -128,6 +151,20 @@ export function NeedsPage({ d }: { d: D }) {
             <button className="btn primary" disabled={!review.some(x => x.ok)} onClick={save}>Save {review.filter(x => x.ok).length}</button></div>
         </Dialog>
       )}
+      {sendPlan && (
+        <Dialog title="Send to your number sheet?" onClose={() => setSendPlan(null)} wide>
+          <p><b>{sendPlan.send.length}</b> will be added to the sheet{sendPlan.skip.length ? <>, <b>{sendPlan.skip.length}</b> won't</> : ''}. Each row gets the contact's name, company, city, LinkedIn, old numbers and latest note, plus empty Phone, Backup, Where found and Cannot find columns for the finder.</p>
+          <div className="plan">
+            {sendPlan.send.map(r => <div key={r.id} className="ok"><span>✓</span><b>{r.first} {r.last}</b><em>{[r.company, [r.city, r.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}{r.bad ? ` · bad: ${r.bad}` : ''}</em></div>)}
+            {sendPlan.skip.map((x, i) => <div key={'s' + i} className="no"><span>✕</span><b>{x.name}</b><em>{x.reason}</em></div>)}
+          </div>
+          <div className="bar"><button className="btn" onClick={() => setSendPlan(null)}>Back</button>
+            <button className="btn primary" disabled={!sendPlan.send.length} onClick={() => {
+              ns.send(sendPlan.send); setPicked(new Set()); setSendPlan(null);
+              d.say(`Sent ${sendPlan.send.length} to your number sheet. Numbers found there are saved on their own.`);
+            }}>Send {sendPlan.send.length}</button></div>
+        </Dialog>
+      )}
       {confirmReturn && (
         <Dialog title={`Return ${confirmReturn.length} contact${confirmReturn.length === 1 ? '' : 's'} to Needs Number?`} onClose={() => setConfirmReturn(null)}>
           <p>They go back on the Needs a number list so someone searches again. Their notes stay; only the Cannot Find mark is cleared.</p>
@@ -142,3 +179,50 @@ export function NeedsPage({ d }: { d: D }) {
   );
 }
 
+
+const STATUS_TONE = (r: SheetRow) => needsLook(r) ? 'look' : /^Added/.test(r.status) ? 'added' : /^Marked/.test(r.status) ? 'cf' : isDone(r) ? 'gone' : (r.phone || r.backup || r.cannotFind) ? 'filled' : 'wait';
+const STATUS_WORD = { look: 'Needs a look', added: 'Added', cf: 'Cannot find', gone: '', filled: 'Found, saves at next check', wait: 'Waiting on finder' } as const;
+
+function SheetTools({ ns }: { ns: NumberSheet }) {
+  const last = ns.sheet?.uploads.at(-1);
+  return <>
+    <label className="autobad" title="When a number is marked bad, its contact goes on the sheet by itself">
+      <Toggle on={!!ns.sheet?.autoBad} onChange={ns.setAutoBad} label="Send new bad numbers automatically" /> <span>Send new bad numbers</span></label>
+    {last && <button className="btn" onClick={() => ns.undo(last)} title={`Undo the ${last.after.length} saved at ${mdTime(last.at, TZ)}`}>Undo last upload ({last.after.length})</button>}
+    <button className="btn" onClick={ns.demoFill} title="Demo only: fills a few waiting rows with fictional 555 numbers, one Cannot find and one number that is already on another contact">Pretend finder (demo)</button>
+    <button className="btn primary" onClick={() => ns.check(false)}>Check sheet now</button>
+  </>;
+}
+
+function SheetTable({ ns }: { ns: NumberSheet }) {
+  const [show, setShow] = useState<'all' | 'wait' | 'look' | 'done'>('all');
+  const rows = (ns.sheet?.rows ?? []).map((r, i) => [r, i] as const).reverse()
+    .filter(([r]) => show === 'all' ? !/^Removed/.test(r.status) : show === 'wait' ? !isDone(r) && !needsLook(r) : show === 'look' ? needsLook(r) : isDone(r));
+  const n = (f: (r: SheetRow) => boolean) => (ns.sheet?.rows ?? []).filter(f).length;
+  return (
+    <div className="tscroll tall">
+      <div className="sheetbar">
+        {([['all', 'All', n(r => !/^Removed/.test(r.status))], ['wait', 'Waiting', n(r => !isDone(r) && !needsLook(r))], ['look', 'Needs a look', n(needsLook)], ['done', 'Done', n(isDone)]] as const)
+          .map(([k, l, c]) => <button key={k} className={`chipbtn ${show === k ? 'on' : ''}`} onClick={() => setShow(k)}>{l} <span>{c}</span></button>)}
+        <button className="btn sm" disabled title="Opens your Google Sheet once Google is connected at go-live">Open in Google Sheets</button>
+      </div>
+      <table className="qt sheet">
+        <thead><tr><th>Contact</th><th>Company — Role</th><th>Location</th><th>Sent</th><th>Phone</th><th>Backup</th><th>Where found</th><th>Cannot find</th><th>Status (the app fills this)</th><th /></tr></thead>
+        <tbody>
+          {rows.map(([r, i]) => { const tone = STATUS_TONE(r); return (
+            <tr key={i} className={`st-${tone}`}>
+              <td className="strong">{r.first} {r.last}</td>
+              <td>{r.company}{r.job ? ` — ${r.job}` : ''}</td>
+              <td>{r.city}{r.city ? ', ' : ''}{r.state}</td>
+              <td className="muted">{r.sent}</td>
+              <td className="mono">{r.phone}</td><td className="mono">{r.backup}</td>
+              <td className="muted">{r.found}</td><td>{r.cannotFind ? 'Yes' : ''}</td>
+              <td><span className={`sst s-${tone}`}>{r.status || STATUS_WORD[tone]}</span></td>
+              <td className="num">{isOpen(r) && <button className="btn sm" title="Take this contact off the sheet" onClick={() => ns.remove(i)}>Remove</button>}</td>
+            </tr>); })}
+          {!rows.length && <tr><td colSpan={10} className="emptyrow">{ns.sheet?.rows.length ? 'Nothing here.' : 'Nothing on your number sheet yet. On Needs a number, tick contacts and click Send to number sheet.'}</td></tr>}
+        </tbody>
+      </table>
+    </div>
+  );
+}
