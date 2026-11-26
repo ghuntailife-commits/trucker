@@ -79,3 +79,13 @@ export function wdMdTime(ms: number, tz: string): string {
   const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   return `${names[parts(ms, tz).wd]} ${mdTime(ms, tz)}`;
 }
+
+/** The clock each time zone code runs on. Blank or unknown counts as Eastern, the earliest to reach 9 PM. */
+export const ZONE_IANA: Record<string, string> = { ET: 'America/New_York', CT: 'America/Chicago', MT: 'America/Denver', PT: 'America/Los_Angeles',
+  AKT: 'America/Anchorage', HT: 'Pacific/Honolulu' };
+export function contactTz(c: { zone: string; state: string }): string {
+  if (c.zone === 'MT' && /^(AZ|ARIZONA)$/i.test(c.state.trim())) return 'America/Phoenix';   // no daylight saving
+  return ZONE_IANA[c.zone] ?? 'America/New_York';
+}
+/** The contact's own clock, as hours (19.5 = 7:30 PM). */
+export function localHour(ms: number, c: { zone: string; state: string }): number { const p = parts(ms, contactTz(c)); return p.h + p.mi / 60; }

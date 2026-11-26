@@ -860,3 +860,22 @@ kbd { font: 600 12px var(--mono); background: var(--panel2); border: 1px solid v
 .strip b.red { color: var(--red); }
 .qt.sheet td:nth-child(9) { white-space: normal; min-width: 230px; }
 .sst { white-space: normal; }
+/* number sheet drawn like Google Sheets */
+.gsheet { overflow: auto; max-height: 70vh; background: #fff; border-top: 1px solid var(--line2); }
+.gs { border-collapse: collapse; table-layout: fixed; font: 13px Arial, Helvetica, sans-serif; color: #202124; }
+.gs th, .gs td { border: 1px solid #e2e3e3; height: 22px; padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; }
+.gs thead th { background: #f8f9fa; color: #5f6368; font-weight: 400; text-align: center; position: sticky; top: 0; z-index: 2; }
+.gs tbody th { background: #f8f9fa; color: #5f6368; font-weight: 400; text-align: center; position: sticky; left: 0; z-index: 1; }
+.gs .b1, .gs .b2, .gs .b3 { font-weight: 700; background: #fff; }
+.gs .b2 { font-weight: 400; color: #3c4043; }
+.gs tr.gh td { background: #e5e5e5; font-weight: 700; }
+.gs td.y { background: #fff7cc; }
+.gs td.t-added { background: #d9ead3; } .gs td.t-look { background: #f4cccc; } .gs td.t-done { background: #efefef; color: #80868b; }
+.gs td input { width: 100%; border: 0; background: transparent; font: inherit; color: inherit; padding: 0; height: 20px; outline: none; }
+.gs td input:focus { box-shadow: inset 0 0 0 2px #1a73e8; }
+.gs td a { color: #1155cc; }
+.gs .gnote { position: absolute; top: 0; right: 0; border-style: solid; border-width: 0 6px 6px 0; border-color: transparent #e37400 transparent transparent; }
+.looks { padding: 10px 16px; font-size: 13.5px; border-top: 1px solid var(--line2); display: grid; gap: 4px; }
+.looks > b { color: var(--red); }
+.looks div { display: flex; gap: 10px; } .looks span { font-weight: 600; min-width: 160px; } .looks em { font-style: normal; color: var(--muted); }
+.gs thead th:first-child { left: 0; z-index: 3; }

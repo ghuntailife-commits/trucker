@@ -1,5 +1,6 @@
 // Moves contacts and the Activity Log from a v27 sheet into the app's shape.
 // Read-only on the sheet side: it takes the cell values (as the Sheets API returns them) and never writes back.
+import { withZone } from '../contacts/zones';
 import type { Contact, LogEvent, NumberStatus, Zone } from '../rules/types';
 import { tagKind, TAGS } from '../rules/tags';
 import { parts, zoned } from '../rules/time';
@@ -59,12 +60,12 @@ export function rowToContact(list: string, sheetRow: number, r: Cell[], issues: 
   const zone = str(g(17)).toUpperCase();
   if (!first && !last) issues.push({ list, row: sheetRow, problem: 'No name' });
 
-  return {
+  return withZone({
     id: '', list, tag, dials: dialsOf(g(1)), first, last, phone, job: str(g(6)), company: str(g(7)), city: str(g(8)),
     state: str(g(9)), backup, notes, lastDialed: sheetDate(g(12)), status, callAt: sheetDate(g(15)),
     linkedin: str(g(16)), zone: (ZONES.has(zone) ? zone : '') as Zone, newNumberMark: mark,
     callbackTries: 0, noShowTries: 0, swapMemo: null, seq: sheetRow,
-  };
+  });
 }
 
 /** One Activity Log row (A..K): Timestamp, Tab, First, Last, Phone, Action, Count, Tag, Dials after, Row, Reach. */

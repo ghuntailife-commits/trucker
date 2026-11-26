@@ -8,7 +8,7 @@ import { needsGroup, planNeeds, returnCannotFind, type NeedsEntry, type NeedsGro
 import { TZ, Dialog } from './shared';
 import type { NumberSheet } from '../../src/app-store/useNumberSheet';
 import { CHECK_EVERY_MIN } from '../../src/app-store/useNumberSheet';
-import { isDone, isOpen, needsLook, planSend, type SendPlan, type SheetRow } from '../../src/numbers/sheet';
+import { BANNER, LEFT_HEAD, LEFT_TITLE, LEFT_TYPE, RIGHT_HEAD, RIGHT_TITLE, RIGHT_TYPE, WIDTHS, FIRST_DATA_ROW, isDone, isOpen, leftValues, needsLook, planSend, rightValues, tone, type SendPlan, type SheetRow } from '../../src/numbers/sheet';
 import { mdTime } from '../../src/rules/time';
 import { Toggle } from './settings';
 
@@ -94,7 +94,7 @@ export function NeedsPage({ d, ns }: { d: D; ns: NumberSheet }) {
                 </>}
             </div>
           </div>
-          {tab === 'sheet' ? <SheetTable ns={ns} /> : <div className="tscroll tall">
+          {tab === 'sheet' ? <SheetGrid ns={ns} /> : <div className="tscroll tall">
             <table className="qt needs">
               <thead><tr>
                 {tab !== 'cannotFind' && <th className="pickc"><input type="checkbox" aria-label="Pick all for the number sheet" checked={!!pickable.length && pickable.every(c => picked.has(c.id))}
@@ -155,7 +155,7 @@ export function NeedsPage({ d, ns }: { d: D; ns: NumberSheet }) {
         <Dialog title="Send to your number sheet?" onClose={() => setSendPlan(null)} wide>
           <p><b>{sendPlan.send.length}</b> will be added to the sheet{sendPlan.skip.length ? <>, <b>{sendPlan.skip.length}</b> won't</> : ''}. Each row gets the contact's name, company, city, LinkedIn, old numbers and latest note, plus empty Phone, Backup, Where found and Cannot find columns for the finder.</p>
           <div className="plan">
-            {sendPlan.send.map(r => <div key={r.id} className="ok"><span>✓</span><b>{r.first} {r.last}</b><em>{[r.company, [r.city, r.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}{r.bad ? ` · bad: ${r.bad}` : ''}</em></div>)}
+            {sendPlan.send.map(r => <div key={r.id} className="ok"><span>✓</span><b>{r.first} {r.last}</b><em>{[r.company, [r.city, r.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}{r.old ? ` · bad: ${r.old}` : ''}</em></div>)}
             {sendPlan.skip.map((x, i) => <div key={'s' + i} className="no"><span>✕</span><b>{x.name}</b><em>{x.reason}</em></div>)}
           </div>
           <div className="bar"><button className="btn" onClick={() => setSendPlan(null)}>Back</button>
@@ -180,9 +180,6 @@ export function NeedsPage({ d, ns }: { d: D; ns: NumberSheet }) {
 }
 
 
-const STATUS_TONE = (r: SheetRow) => needsLook(r) ? 'look' : /^Added/.test(r.status) ? 'added' : /^Marked/.test(r.status) ? 'cf' : isDone(r) ? 'gone' : (r.phone || r.backup || r.cannotFind) ? 'filled' : 'wait';
-const STATUS_WORD = { look: 'Needs a look', added: 'Added', cf: 'Cannot find', gone: '', filled: 'Found, saves at next check', wait: 'Waiting on finder' } as const;
-
 function SheetTools({ ns }: { ns: NumberSheet }) {
   const last = ns.sheet?.uploads.at(-1);
   return <>
@@ -194,35 +191,44 @@ function SheetTools({ ns }: { ns: NumberSheet }) {
   </>;
 }
 
-function SheetTable({ ns }: { ns: NumberSheet }) {
-  const [show, setShow] = useState<'all' | 'wait' | 'look' | 'done'>('all');
-  const rows = (ns.sheet?.rows ?? []).map((r, i) => [r, i] as const).reverse()
-    .filter(([r]) => show === 'all' ? !/^Removed/.test(r.status) : show === 'wait' ? !isDone(r) && !needsLook(r) : show === 'look' ? needsLook(r) : isDone(r));
-  const n = (f: (r: SheetRow) => boolean) => (ns.sheet?.rows ?? []).filter(f).length;
+const LETTERS = Array.from({ length: 24 }, (_, i) => String.fromCharCode(65 + i));
+
+/** The number sheet, drawn like the Google Sheet it will be: same banner, sections, columns, widths and yellow cells. */
+function SheetGrid({ ns }: { ns: NumberSheet }) {
+  const all = (ns.sheet?.rows ?? []).map((r, i) => [r, i] as const);
+  const L = all.filter(([r]) => r.side === 'needs'), R = all.filter(([r]) => r.side === 'newNumber');
+  const n = Math.max(L.length, R.length, 12);
+  const looks = all.filter(([r]) => needsLook(r));
+  const cells = (x: readonly [SheetRow, number] | undefined, left: boolean) => {
+    const head = left ? LEFT_HEAD : RIGHT_HEAD, typeCols = left ? LEFT_TYPE : RIGHT_TYPE;
+    if (!x) return head.map((_, c) => <td key={(left ? 'l' : 'r') + c} className={typeCols.includes(c) ? 'y' : ''} />);
+    const [r, i] = x, t = tone(r), vals = left ? leftValues(r) : rightValues(r);
+    const field = (c: number): 'phone' | 'backup' | 'finder' => c === 0 ? 'phone' : c === 1 && left ? 'backup' : 'finder';
+    return vals.map((v, c) => {
+      const yellow = typeCols.includes(c), editable = yellow && !isDone(r);
+      return <td key={(left ? 'l' : 'r') + c} className={`t-${t} ${yellow ? 'y' : ''}`} title={c === 0 && r.status ? r.status : undefined}>
+        {editable ? <input aria-label={`${head[c]} for ${r.first} ${r.last}`} value={v} onChange={e => ns.edit(i, { [field(c)]: e.target.value })} />
+          : left && c === 8 && v ? <a href={v} target="_blank" rel="noopener noreferrer">{v}</a> : v}
+        {c === 0 && r.status && <i className="gnote" />}
+      </td>;
+    });
+  };
   return (
-    <div className="tscroll tall">
-      <div className="sheetbar">
-        {([['all', 'All', n(r => !/^Removed/.test(r.status))], ['wait', 'Waiting', n(r => !isDone(r) && !needsLook(r))], ['look', 'Needs a look', n(needsLook)], ['done', 'Done', n(isDone)]] as const)
-          .map(([k, l, c]) => <button key={k} className={`chipbtn ${show === k ? 'on' : ''}`} onClick={() => setShow(k)}>{l} <span>{c}</span></button>)}
-        <button className="btn sm" disabled title="Opens your Google Sheet once Google is connected at go-live">Open in Google Sheets</button>
+    <>
+      <div className="gsheet" role="region" aria-label="Number sheet (pretend Google Sheet)">
+        <table className="gs" style={{ width: 40 + WIDTHS.reduce((a, b) => a + b, 0) }}>
+          <colgroup><col style={{ width: 40 }} />{WIDTHS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
+          <thead><tr><th />{LETTERS.map(l => <th key={l}>{l}</th>)}</tr></thead>
+          <tbody>
+            <tr><th>1</th><td colSpan={24} className="b1">{BANNER[0]}</td></tr>
+            <tr><th>2</th><td colSpan={24} className="b2">{BANNER[1].replace('(hover for why)', '(point at the phone cell for why)')}</td></tr>
+            <tr><th>3</th><td colSpan={12} className="b3">{LEFT_TITLE}</td><td colSpan={12} className="b3">{RIGHT_TITLE}</td></tr>
+            <tr className="gh"><th>4</th>{[...LEFT_HEAD, ...RIGHT_HEAD].map((h, i) => <td key={i}>{h}</td>)}</tr>
+            {Array.from({ length: n }, (_, k) => <tr key={k}><th>{FIRST_DATA_ROW + k}</th>{cells(L[k], true)}{cells(R[k], false)}</tr>)}
+          </tbody>
+        </table>
       </div>
-      <table className="qt sheet">
-        <thead><tr><th>Contact</th><th>Company — Role</th><th>Location</th><th>Sent</th><th>Phone</th><th>Backup</th><th>Where found</th><th>Cannot find</th><th>Status (the app fills this)</th><th /></tr></thead>
-        <tbody>
-          {rows.map(([r, i]) => { const tone = STATUS_TONE(r); return (
-            <tr key={i} className={`st-${tone}`}>
-              <td className="strong">{r.first} {r.last}</td>
-              <td>{r.company}{r.job ? ` — ${r.job}` : ''}</td>
-              <td>{r.city}{r.city ? ', ' : ''}{r.state}</td>
-              <td className="muted">{r.sent}</td>
-              <td className="mono">{r.phone}</td><td className="mono">{r.backup}</td>
-              <td className="muted">{r.found}</td><td>{r.cannotFind ? 'Yes' : ''}</td>
-              <td><span className={`sst s-${tone}`}>{r.status || STATUS_WORD[tone]}</span></td>
-              <td className="num">{isOpen(r) && <button className="btn sm" title="Take this contact off the sheet" onClick={() => ns.remove(i)}>Remove</button>}</td>
-            </tr>); })}
-          {!rows.length && <tr><td colSpan={10} className="emptyrow">{ns.sheet?.rows.length ? 'Nothing here.' : 'Nothing on your number sheet yet. On Needs a number, tick contacts and click Send to number sheet.'}</td></tr>}
-        </tbody>
-      </table>
-    </div>
+      {looks.length > 0 && <div className="looks"><b>Needs a look</b>{looks.map(([r, i]) => <div key={i}><span>{r.first} {r.last}</span><em>{r.status.replace(/^Not added: /, '')}</em></div>)}</div>}
+    </>
   );
 }

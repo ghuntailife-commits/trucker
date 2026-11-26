@@ -1,8 +1,9 @@
--- Each agent's number sheet (George, 2026-11-26). The app makes a new Google Sheet per agent, sends Needs Number
+-- Each agent's number sheet (George, 2026-11-26), laid out like the Needs Number tab on George Truckers. The app makes a new Google Sheet per agent, sends Needs Number
 -- contacts to it, and every few minutes reads back the numbers found there (rules in src/numbers/sheet.ts).
 create table number_sheets (
   agent_id        uuid primary key references agents (id),
   spreadsheet_id  text not null,
+  sheet_id        integer not null default 0,     -- the Needs Number tab inside it
   auto_send_bad   boolean not null default false,  -- send newly bad numbers to the sheet on their own
   last_check      timestamptz,
   last_error      text

@@ -17,6 +17,7 @@ import type { AgentId } from '../team/agents';
 import { amendResult, type AmendTarget, type AmendTo, type AmendForm } from '../rules/amend';
 import { REAL_SEED } from './realSeed';
 import { loadState, saveState } from './store';
+import { withZone } from '../contacts/zones';
 
 export type Sale = SaleRecord;
 export type NoSale = NoSaleRecord;
@@ -30,7 +31,8 @@ function normalize(st: Saved): Saved {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const noSales = (st.noSales ?? []).map((x: any) => x.objections ? x : ({ at: x.at, contactId: x.contactId,
     objections: x.objection ? [x.objection] : [], reason: x.note ?? '', followUp: '', followUpNote: '', calledInto: !!x.calledInto }));
-  return { ...st, sales, noSales };
+  // time zones filled in from city/state or area code where blank (George, 2026-11-26)
+  return { ...st, sales, noSales, contacts: st.contacts.map(withZone) };
 }
 
 /** What Undo puts back: earlier copies of changed or deleted contacts, and the IDs of contacts that were added. */

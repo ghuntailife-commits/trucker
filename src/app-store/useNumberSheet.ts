@@ -7,8 +7,8 @@ import { loadState, saveState } from './store';
 import { isOpen, newlyBad, planSend, readSheet, undoUpload, withStatus, type SheetRow, type Upload } from '../numbers/sheet';
 import { mdTime } from '../rules/time';
 
-export interface NumberSheetState { v: 1; rows: SheetRow[]; uploads: Upload[]; autoBad: boolean; lastCheck: number | null }
-const empty = (): NumberSheetState => ({ v: 1, rows: [], uploads: [], autoBad: false, lastCheck: null });
+export interface NumberSheetState { v: 2; rows: SheetRow[]; uploads: Upload[]; autoBad: boolean; lastCheck: number | null }
+const empty = (): NumberSheetState => ({ v: 2, rows: [], uploads: [], autoBad: false, lastCheck: null });
 /** How often the app reads the sheet. */
 export const CHECK_EVERY_MIN = 2;
 
@@ -17,7 +17,7 @@ type Batch = (label: string, change: { changed?: Contact[] }, message: string) =
 export function useNumberSheet(agent: string, contacts: Contact[], now: number, tz: string, batch: Batch, say: (m: string) => void, ready: boolean) {
   const key = `trucker-numsheet-${agent}`;
   const [s, setS] = useState<NumberSheetState | null>(null);
-  useEffect(() => { setS(null); loadState<NumberSheetState>(key).then(v => setS(v?.v === 1 ? v : empty())); }, [key]);
+  useEffect(() => { setS(null); loadState<NumberSheetState>(key).then(v => setS(v?.v === 2 ? v : empty())); }, [key]);
   const put = useCallback((f: (x: NumberSheetState) => NumberSheetState) => setS(x => { if (!x) return x; const n = f(x); saveState(key, n); return n; }), [key]);
 
   const send = useCallback((rows: SheetRow[]) => put(x => ({ ...x, rows: [...x.rows, ...rows] })), [put]);
@@ -64,15 +64,19 @@ export function useNumberSheet(agent: string, contacts: Contact[], now: number, 
       const dupe = contacts.find(c => c.phone && !x.rows.some(r => r.id === c.id))?.phone ?? '';
       const rows = [...x.rows];
       open.forEach(([r, i], k) => {
-        const ac = (r.bad.match(/\d{3}/) ?? ['205'])[0];
-        if (k === 3) rows[i] = { ...r, cannotFind: true, found: 'LinkedIn and city search, 4 results, none fit' };
-        else if (k === 4 && dupe) rows[i] = { ...r, phone: dupe, found: 'People search' };
-        else rows[i] = { ...r, phone: `(${ac}) 555-01${String(10 + ((i * 7 + k) % 90)).padStart(2, '0')}`, found: k % 2 ? 'People search, top mobile' : 'LinkedIn match, sole result' };
+        const ac = (r.old.match(/\d{3}/) ?? ['205'])[0];
+        if (k === 3) rows[i] = { ...r, finder: 'Cannot find - LinkedIn and city search, 4 results, none fit' };
+        else if (k === 4 && dupe) rows[i] = { ...r, phone: dupe, finder: 'People search' };
+        else rows[i] = { ...r, phone: `(${ac}) 555-01${String(10 + ((i * 7 + k) % 90)).padStart(2, '0')}`, finder: k % 2 ? 'People search, top mobile' : 'LinkedIn match, sole result' };
       });
       return { ...x, rows };
     });
   }, [put]);
 
-  return { sheet: s, send, remove, check, undo, setAutoBad, demoFill };
+  /** Demo only: typing in a yellow cell of the pretend sheet. */
+  const edit = useCallback((i: number, patch: Partial<Pick<SheetRow, 'phone' | 'backup' | 'finder'>>) =>
+    put(x => ({ ...x, rows: x.rows.map((r, k) => k === i ? { ...r, ...patch } : r) })), [put]);
+
+  return { sheet: s, send, remove, check, undo, setAutoBad, demoFill, edit };
 }
 export type NumberSheet = ReturnType<typeof useNumberSheet>;

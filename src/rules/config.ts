@@ -35,6 +35,9 @@ export interface Config {
   confirmMorningOf: boolean;
   /** Warn when an appointment is booked further out than this. */
   apptSoonHours: number;
+  /** Calling hours in the contact's own time zone, [start, end) in whole hours: [8, 21] = 8 AM to 9 PM. Outside them a
+   *  contact stays off Today, so after 9 PM Eastern the list fills from states where it is earlier. null = off (v27). */
+  callHours: [number, number] | null;
 }
 
 /** Exactly the v27 sheet: used by the tests that prove the new app orders calls the same way. */
@@ -62,6 +65,7 @@ export const V27_CONFIG: Config = {
   freshScoreMinResults: null,
   confirmMorningOf: false,
   apptSoonHours: 48,
+  callHours: null,
 };
 
 /**
@@ -76,4 +80,5 @@ export const DEFAULT_CONFIG: Config = {
   autoPmRetry: true,
   freshScoreMinResults: 200,
   confirmMorningOf: true,
+  callHours: [8, 21],   // George 2026-11-26: every state can be called until 9 PM its own time
 };

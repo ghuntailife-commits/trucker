@@ -1,5 +1,6 @@
 // Import: the same columns and duplicate check as the sheet's Import tab.
 // Columns: First, Last, Phone, Job, Company, City, State, LinkedIn, Backup, Notes.
+import { zoneFor } from './zones';
 import type { Contact } from '../rules/types';
 import { tagKind } from '../rules/tags';
 import { digits10, norm, splitPhones } from './phones';
@@ -58,7 +59,8 @@ export function planImport(rows: string[][], existing: Contact[], opts: { now: n
     const seq = (seqBy.get(list) ?? 2) + 1; seqBy.set(list, seq);
     const contact: Contact = {
       id: opts.nextId(i), list, tag: '', dials: 0, first, last, phone: phones[0] ?? '', job: g(3), company: g(4), city: g(5), state: st.abbr,
-      backup: phones[1] ?? backup[0] ?? '', notes, lastDialed: null, status: '', callAt: null, linkedin: g(7), zone: st.zone,
+      backup: phones[1] ?? backup[0] ?? '', notes, lastDialed: null, status: '', callAt: null, linkedin: g(7),
+      zone: zoneFor({ city: g(5), state: st.abbr, phone: phones[0] ?? '', backup: phones[1] ?? backup[0] ?? '' }).zone || st.zone,
       newNumberMark: null, callbackTries: 0, noShowTries: 0, swapMemo: null, seq,
     };
     const rec = { where: `${name} (this import)`, tag: '' };

@@ -4,7 +4,7 @@ import type { Config } from './config';
 import { DEFAULT_CONFIG } from './config';
 import type { Contact } from './types';
 import { tagKind, tagShort } from './tags';
-import { DAY_MS, md, parts, sameDay, startOfDay } from './time';
+import { DAY_MS, localHour, md, parts, sameDay, startOfDay } from './time';
 import { nextAction, callOrder, phoneToCall, whyLabel } from './schedule';
 
 export interface TodayContext {
@@ -86,6 +86,8 @@ export function buildToday(contacts: Contact[], ctx: TodayContext, cfg: Config =
     const due = nxtd || frsh || (wkd && inord) || pmr || ctc || fu;
     const callable = (tagKind(c.tag) !== 'scheduled' && callOrder(c, cfg) != null || fu) && phoneToCall(c) !== '';
     if (!(due && (callable || (wkd && inord)))) return;
+    // v2: only inside calling hours in the contact's own time zone (done-today rows stay so they show as done)
+    if (cfg.callHours && !(wkd && inord)) { const h = localHour(now, c); if (h < cfg.callHours[0] || h >= cfg.callHours[1]) return; }
 
     const dco = fu ? 2.5 : callOrder(c, cfg) ?? 5;   // follow-ups go right after callbacks
     const dwv = c.newNumberMark ?? -1;

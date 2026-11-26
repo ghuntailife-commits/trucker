@@ -6,6 +6,7 @@ import { addNote, knownBad } from '../rules/engine';
 import { md } from '../rules/time';
 import { buildIndex } from './importer';
 import { digits10, splitPhones } from './phones';
+import { withZone } from './zones';
 
 export type NeedsGroup = 'needs' | 'newNumber' | 'cannotFind';
 
@@ -66,7 +67,8 @@ export function planNeeds(entries: NeedsEntry[], contacts: Contact[], now: numbe
     if (note && !c.notes.includes(note)) { x.notes = addNote(x.notes, note); did.push('note added'); }
     if (!x.phone && x.backup) { x.phone = x.backup; x.backup = ''; x.newNumberMark = c.dials; }
     for (const p of all) taken.set(digits10(p), c.id);
-    return { id: e.id, name, ok: true, contact: x, result: did.join(', ') + (problems.length ? ` (${problems.join('; ')})` : '') };
+    const z = withZone(x);
+    return { id: e.id, name, ok: true, contact: z, result: did.join(', ') + (problems.length ? ` (${problems.join('; ')})` : '') };
   });
 }
 
