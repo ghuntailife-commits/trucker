@@ -217,8 +217,11 @@ export default function Today() {
         c.lastDialed ? mdTime(c.lastDialed, TZ) : '', c.callAt ? mdTime(c.callAt, TZ) : r.nextAction ? md(r.nextAction, TZ) : '',
         notesNewestFirst(c.notes)[0] ?? ''].map(esc).join(',');
     });
-    const blob = new Blob([[head.join(','), ...lines].join('\n')], { type: 'text/csv' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `today-${md(d.now, TZ).replace('/', '-')}.csv`; a.click();
+    const text = [head.join(','), ...lines].join('\n'), filename = `today-${md(d.now, TZ).replace('/', '-')}.csv`;
+    // In the hosted demo the viewer saves through its own download prompt; in the real app a normal file download.
+    const host = (window as unknown as { claude?: { use: (n: string) => Promise<{ save: (f: { filename: string; data: string }) => Promise<unknown> } | null> } }).claude;
+    if (host?.use) { host.use('downloads').then(dl => dl?.save({ filename, data: text })).catch(() => { /* viewer said no */ }); return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv' })); a.download = filename; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
 
