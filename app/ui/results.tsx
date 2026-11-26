@@ -8,7 +8,8 @@ import { reachByDial } from '../../src/rules/stats';
 import { addDays, parts, startOfDay } from '../../src/rules/time';
 import { TZ, saveText } from './shared';
 import { ChangeResult, contactFor, type OnResult } from './appointments';
-import type { SaleRecord, NoSaleRecord } from '../../src/rules/results';
+import { SOURCE_LABEL, type SaleRecord, type NoSaleRecord } from '../../src/rules/results';
+import { OutsideSaleForm } from './forms';
 import { Panel, Kpi, Legend, Columns, Rows, Donut, Split, Delta, fmt$, fmtK, pctTxt } from './charts';
 
 type D = ReturnType<typeof useDialer>;
@@ -246,6 +247,7 @@ function Sales({ d, who, all, pick }: { d: D; who: (id: string) => R.Who; all: R
   const s = R.salesSummary(d.sales, d.log, d.now, TZ, d.goal);
   const [showAll, setShowAll] = useState(false);
   const [editGoal, setEditGoal] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
   const list = R.salesIn(d.sales, all, who);
   const monthSales = R.salesIn(d.sales, s.month, who);
   const top = [...monthSales].sort((a, b) => b.alp - a.alp).slice(0, 8);
@@ -261,14 +263,16 @@ function Sales({ d, who, all, pick }: { d: D; who: (id: string) => R.Who; all: R
   const one = (x: R.SaleView) => pick(`${x.who.first} ${x.who.last}`, y => y.at === x.at && y.contactId === x.contactId, null, `${x.alpType} sale · ${mdShort.format(x.at)}`);
   const saveGoal = () => { const g = Number(String(editGoal).replace(/[$,\s]/g, '')); if (g > 0) d.setGoal(Math.round(g)); setEditGoal(null); };
   return <>
-    <Panel span={4} title="Latest sales" meta={`Showing ${Math.min(showAll ? list.length : 12, list.length)} of ${list.length}`}
+    {adding && <OutsideSaleForm now={d.now} onClose={() => setAdding(false)} onSave={d.addOutsideSale} />}
+    <Panel span={4} title="Latest sales" meta={<span className="lsmeta">Showing {Math.min(showAll ? list.length : 12, list.length)} of {list.length}
+      <button className="btn sm primary" onClick={() => setAdding(true)} title="A sale from a company lead, referral or other source">+ Add a sale</button></span>}
       foot={<><button className="linkish" onClick={() => setShowAll(v => !v)}>{showAll ? 'Show the latest 12' : 'Show all'}</button>
         <button className="linkish" onClick={() => saveText('sales.csv', salesCsv(list))}>Export CSV</button></>}>
       <div className="tscroll">
         <table className="rt">
           <thead><tr><th>Date</th><th>Client</th><th>Phone</th><th>Union / company</th><th className="r">ALP</th><th className="r">Monthly</th><th>Type</th><th className="r">Whole life</th><th className="r">ADB</th><th>Email</th><th>Notes</th></tr></thead>
           <tbody>{(showAll ? list : list.slice(0, 12)).map((x, i) => (
-            <tr key={i} className="pick" onClick={() => one(x)}><td className="c-dials">{mdShort.format(x.at)}</td><td><b>{x.who.first} {x.who.last}</b></td><td className="muted num">{x.who.phone}</td><td>{x.who.company}</td>
+            <tr key={i} className="pick" onClick={() => one(x)}><td className="c-dials">{mdShort.format(x.at)}</td><td><b>{x.who.first} {x.who.last}</b>{x.source && <span className="spill violet mini">{SOURCE_LABEL[x.source]}</span>}</td><td className="muted num">{x.who.phone}</td><td>{x.who.company}</td>
               <td className={`r num ${x.alpType === 'Trial' ? 'c-trial' : 'c-sold'}`}><b>{fmt$(x.alp)}</b></td><td className="r num muted">${x.monthly.toFixed(2)}</td>
               <td className={x.alpType === 'Trial' ? 'c-trial' : 'c-sold'}>{x.alpType}</td><td className="r num">{x.wholeLife ? fmt$(x.wholeLife) : ''}</td><td className="r num">{x.adb ? fmt$(x.adb) : ''}</td>
               <td className="muted">{x.email}</td><td className="muted">{x.note}{x.calledInto ? (x.note ? ' · ' : '') + 'Called into' : ''}</td></tr>

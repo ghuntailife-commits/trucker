@@ -73,6 +73,7 @@ describe('changing a result', () => {
 
 import { buildToday } from '../src/rules/today';
 import { zoned } from '../src/rules/time';
+import { dial, disposition } from '../src/rules/engine';
 describe('follow-ups on Today', () => {
   const day = (d: number) => zoned(2026, 11, d, 0, 0, TZ);
   const ctx = (fu: Map<string, number>) => ({ now: et(27, 10), snap: et(27, 8), savedOrder: [], followUps: fu });
@@ -82,11 +83,23 @@ describe('follow-ups on Today', () => {
     const rows = buildToday([p, cb], ctx(new Map([[p.id, day(27)]])));
     expect(rows.map(r => r.why)).toEqual(['Callback', 'Follow-up']);
   });
-  it('not before the day, carried over if missed, gone once dialed', () => {
+  it('not before the day, carried over if missed', () => {
     const p = contact({ tag: TAGS.presented, dials: 2, lastDialed: et(24, 19) });
     expect(buildToday([p], ctx(new Map([[p.id, day(28)]])))).toHaveLength(0);
     expect(buildToday([p], ctx(new Map([[p.id, day(26)]])))[0].why).toBe('Follow-up · 11/26');
-    const dialed = { ...p, lastDialed: et(26, 15) };
-    expect(buildToday([dialed], ctx(new Map([[p.id, day(26)]])))).toHaveLength(0);
+  });
+  it('no answer brings it back the next day, and it drops off after 3 tries (George, 2026-11-26)', () => {
+    const p = contact({ tag: TAGS.presented, dials: 2, lastDialed: et(24, 19) });
+    const fu = new Map([[p.id, day(25)]]);
+    const t1 = dial(p, et(25, 11)).contact;
+    expect(t1.followUpTries).toBe(1);
+    expect(t1.notes).toContain('Follow-up try 1 of 3, no answer');
+    expect(buildToday([t1], { ...ctx(fu), now: et(25, 15), snap: et(25, 15) })).toHaveLength(0);   // not again the same day
+    expect(buildToday([t1], ctx(fu))[0].why).toBe('Follow-up · try 2 of 3');
+    const t3 = dial(dial(t1, et(26, 11)).contact, et(27, 11)).contact;
+    expect(t3.notes).toContain('Follow-up try 3 of 3, no answer - off the follow-up list');
+    expect(buildToday([t3], { ...ctx(fu), now: et(28, 10), snap: et(28, 8) })).toHaveLength(0);
+    // a new presentation starts the count again
+    expect(disposition(t3, TAGS.presented, et(28, 12)).contact.followUpTries).toBe(0);
   });
 });

@@ -15,6 +15,8 @@ describe('roles', () => {
   it('admin sees every page, agents their own work, the boss results only', () => {
     expect(pagesFor('admin')).toContain('settings');
     expect(pagesFor('agent')).not.toContain('team');
+    expect(pagesFor('admin')).toContain('library');
+    expect(pagesFor('agent')).not.toContain('library');
     expect(pagesFor('agent')).toContain('today');
     expect(pagesFor('boss')).toEqual(['team']);
   });

@@ -6,6 +6,9 @@ export const OBJECTIONS = ['Price', 'Needs to Think', 'Spouse / Family', 'Existi
   'Timing', 'Affordability', 'Other'] as const;
 
 export type AlpType = 'Trial' | 'Standard';
+/** Where a sale came from when it wasn't one of the agent's own list contacts (George, 2026-11-26). */
+export type SaleSource = 'company' | 'referral' | 'other';
+export const SOURCE_LABEL: Record<SaleSource, string> = { company: 'Company lead', referral: 'Referral', other: 'Other source' };
 
 export interface SaleForm { type: string; alp: string; monthly: string; wholeLife: string; adb: string; email: string; note: string }
 export interface SaleRecord {
@@ -13,6 +16,17 @@ export interface SaleRecord {
   email: string; note: string; calledInto: boolean;
   /** Name, phone, company and list at the time of the sale, so reports still read right if the contact changes. */
   who?: { first: string; last: string; phone: string; company: string; list: string };
+  /** Set for sales entered by hand from Results: company leads, referrals and the like. */
+  source?: SaleSource;
+}
+
+/** A sale from outside the agent's lists, ready to save. The client's name goes in `who`; there is no contact behind it. */
+export function outsideSale(f: { source: SaleSource; first: string; last: string; phone: string; company: string; at: number; id: string },
+  sale: Omit<SaleRecord, 'at' | 'contactId' | 'calledInto'>): { error: string } | { ok: SaleRecord } {
+  const first = f.first.trim(), last = f.last.trim();
+  if (!first && !last) return { error: "Enter the client's name." };
+  return { ok: { ...sale, at: f.at, contactId: `out-${f.id}`, calledInto: false, source: f.source,
+    who: { first, last, phone: f.phone.trim(), company: f.company.trim(), list: SOURCE_LABEL[f.source] } } };
 }
 
 export interface NoSaleForm { objections: string[]; reason: string; followUp: string; followUpNote: string }

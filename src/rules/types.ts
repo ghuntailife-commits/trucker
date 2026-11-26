@@ -34,6 +34,8 @@ export interface Contact {
   newNumberMark: number | null; // dial count when the current main number arrived; x.5 = no new-number priority
   callbackTries: number;
   noShowTries: number;
+  /** No-answer follow-up calls since the last presentation (v2). */
+  followUpTries?: number;
   swapMemo: SwapMemo | null;
   seq: number;                // original order inside its list (keeps the old row order for ties)
   /** When the current appointment was last confirmed (v2). */

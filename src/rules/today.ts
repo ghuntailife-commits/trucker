@@ -80,9 +80,11 @@ export function buildToday(contacts: Contact[], ctx: TodayContext, cfg: Config =
     const nxtd = na != null && na <= today;
     const ctc = cfg.catchUpHours != null && untagged && c.dials >= 1 && c.dials <= cfg.catchUpMaxDials
       && (now - lstd) / 3_600_000 >= cfg.catchUpHours && (c.callAt ?? 0) <= now;
-    // v2: a presented contact comes back on its follow-up day, and stays until it has been dialed on or after that day
+    // v2: a presented contact comes back on its follow-up day; a no-answer brings it back the next day, up to
+    // cfg.followUpTries calls, then it drops off (George, 2026-11-26)
     const fuDay = tagKind(c.tag) === 'presented' ? ctx.followUps?.get(c.id) : undefined;
-    const fu = fuDay != null && fuDay <= today && (c.lastDialed == null || c.lastDialed < fuDay || (wkd && inord));
+    const fu = fuDay != null && fuDay <= today && (((c.followUpTries ?? 0) < cfg.followUpTries
+      && (c.lastDialed == null || c.lastDialed < fuDay || c.lastDialed < today)) || (wkd && inord));
     const due = nxtd || frsh || (wkd && inord) || pmr || ctc || fu;
     const callable = (tagKind(c.tag) !== 'scheduled' && callOrder(c, cfg) != null || fu) && phoneToCall(c) !== '';
     if (!(due && (callable || (wkd && inord)))) return;
@@ -141,7 +143,7 @@ export function buildToday(contacts: Contact[], ctx: TodayContext, cfg: Config =
     const why = done ? 'DONE TODAY - ' + tagShort(w.c.tag)
       : w.c.status === 'Backup' && w.untagged ? 'New Number-backup'
       : w.newn ? 'New number'
-      : w.fuDay != null ? (w.fuDay < today ? `Follow-up · ${md(w.fuDay, tz)}` : 'Follow-up')
+      : w.fuDay != null ? (w.c.followUpTries ? `Follow-up · try ${w.c.followUpTries + 1} of ${cfg.followUpTries}` : w.fuDay < today ? `Follow-up · ${md(w.fuDay, tz)}` : 'Follow-up')
       : w.dpm ? 'PM retry'
       : w.ctg === 3 ? 'Fresh'
       : whyLabel(w.c, now, cfg);

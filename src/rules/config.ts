@@ -14,6 +14,8 @@ export interface Config {
   backupDials: number;        // dials on one number, nobody reached, before switching (7)
   callbackTries: number;      // 3
   noShowTries: number;        // 4
+  /** Follow-up calls after a presentation with no answer before it drops off Today (George, 2026-11-26). */
+  followUpTries: number;      // 3
   newNumberPriorityDials: number; // 2
   doubleClickMs: number;      // 2 minutes
   swapUndoMs: number;         // a disposition within 20 minutes of an automatic swap puts the numbers back
@@ -50,6 +52,7 @@ export const V27_CONFIG: Config = {
   backupDials: 7,
   callbackTries: 3,
   noShowTries: 4,
+  followUpTries: 3,
   newNumberPriorityDials: 2,
   doubleClickMs: 120_000,
   swapUndoMs: 1_200_000,

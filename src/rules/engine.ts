@@ -108,6 +108,12 @@ export function dial(c: Contact, now: number, cfg: Config = DEFAULT_CONFIG): Res
       x.notes = addNote(x.notes, `${stamp}No-show try ${k} of ${cfg.noShowTries}, no answer`);
     }
   }
+  // Follow-up after a presentation: 3 no-answer calls, one a day, then it drops off Today (George, 2026-11-26).
+  if (kind === 'presented') {
+    const k = (c.followUpTries ?? 0) + 1;
+    x.followUpTries = k;
+    x.notes = addNote(x.notes, `${stamp}Follow-up try ${k} of ${cfg.followUpTries}, no answer${k >= cfg.followUpTries ? ' - off the follow-up list' : ''}`);
+  }
   // Main / backup: 7 dials on a number with nobody reached. Only for contacts that had no tag.
   let message = `${c.first} ${c.last}: dial logged (${n} total).`;
   if (kind === 'none') {
@@ -148,6 +154,7 @@ export function disposition(c: Contact, tag: string, now: number, cfg: Config = 
   if (kind === 'scheduled') x.confirmedAt = null;   // a new or moved appointment needs confirming again
   x.callbackTries = 0;   // a new tag restarts the callback count
   x.noShowTries = 0;     // and the no-show count
+  x.followUpTries = 0;   // and the follow-up count
 
   // The Dial +1 just before this disposition swapped the numbers: put them back,
   // so this result applies to the number that was actually dialed.

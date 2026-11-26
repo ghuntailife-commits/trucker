@@ -104,11 +104,18 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
   // load once (and re-sort on the first open of each day, like the sheet)
   useEffect(() => {
     let live = true;
-    loadState<Saved>(KEY).then(got => {
+    Promise.all([loadState<Saved>(KEY), loadState<{ contacts: Contact[]; removed: string[] }>(`dispatch-inbox-${agent}`)]).then(([got, inbox]) => {
       if (!live) return;
       const t = Date.now();
       let loaded = got && got.v === 1 ? got : fresh(t, agent, CFG.tz);
       loaded = normalize(loaded);
+      // contacts the admin sent from the library while this screen was closed (useLibrary)
+      if (inbox && (inbox.contacts.length || inbox.removed.length)) {
+        const have = new Set(loaded.contacts.map(c => c.id)), gone = new Set(inbox.removed);
+        const add = inbox.contacts.filter(c => !have.has(c.id) && !gone.has(c.id)).map(withZone);
+        loaded = { ...loaded, contacts: [...loaded.contacts.filter(c => !gone.has(c.id)), ...add], savedOrder: [...loaded.savedOrder.filter(id => !gone.has(id)), ...add.map(c => c.id)] };
+        saveState(`dispatch-inbox-${agent}`, { contacts: [], removed: [] });
+      }
       if (!sameDay(loaded.snap, t, CFG.tz)) loaded = resort(loaded, t, CFG);
       setS(loaded);
     });
@@ -261,6 +268,15 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
     setNow(Date.now());
   }, [say]);
 
+  /** A sale from a company lead, referral or other source: no contact behind it, one Undo step. */
+  const addOutsideSale = useCallback((rec: Sale) => {
+    setS(prev => prev ? { ...prev, sales: [...prev.sales, rec].sort((a, b) => a.at - b.at),
+      undo: [...prev.undo.slice(-19), { label: 'add sale', logLen: prev.log.length, salesLen: prev.sales.length, noSalesLen: prev.noSales.length,
+        lists: { log: prev.log, sales: prev.sales, noSales: prev.noSales } }] } : prev);
+    say(`Sale added: ${rec.who?.first ?? ''} ${rec.who?.last ?? ''}, ${rec.alpType} $${Math.round(rec.alp).toLocaleString('en-US')}.`);
+    setNow(Date.now());
+  }, [say]);
+
   const setGoal = useCallback((g: number) => {
     setS(p => (p ? { ...p, goal: g } : p));
     say(`Monthly goal set to $${g.toLocaleString('en-US')}.`);
@@ -291,6 +307,6 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
     }).slice(0, 25);
   }, [s?.contacts]);
 
-  return { ready: !!s, now, today, appts, queue, stats, toast, byId, recent, log: s?.log ?? [], canUndo: !!s?.undo.length, batch, confirm, qual, scorer, cfg: CFG, say: say2, contacts: s?.contacts ?? [], pass: s?.pass ?? 1, noSales: s?.noSales ?? [],
+  return { ready: !!s, now, today, appts, queue, stats, toast, byId, recent, log: s?.log ?? [], canUndo: !!s?.undo.length, batch, addOutsideSale, confirm, qual, scorer, cfg: CFG, say: say2, contacts: s?.contacts ?? [], pass: s?.pass ?? 1, noSales: s?.noSales ?? [],
     undoLabel: s?.undo.at(-1)?.label, press, note, outcome, amend, skip, logCall, undo, reSort, resetDemo, find, sales: s?.sales ?? [], goal: s?.goal ?? 25000, agent, setGoal, calls: s?.calls ?? [] };
 }
