@@ -9,16 +9,35 @@ import { addDays, parts, startOfDay, DAY_MS } from '../../src/rules/time';
 import { notesNewestFirst } from '../../src/rules/notes';
 import { calendarItems, weekStart, eventFor, toIcs, type CalItem } from '../../src/calendar/events';
 import { TZ, ZONE_NAME, saveText, timeOnly, localTime } from './shared';
-import type { ResultKind } from './forms';
+import type { ResultKind, ResultInitial } from './forms';
+import type { AmendTarget } from '../../src/rules/amend';
 
 type D = ReturnType<typeof useDialer>;
+type OnResult = (kind: ResultKind, id: string, extra?: { amend?: AmendTarget; initial?: ResultInitial }) => void;
+
+/** The saved result behind a card, if it is one: sold, presented (or its follow-up), or a no-show. */
+function resultTarget(it: CalItem): AmendTarget | null {
+  const i = Number(it.key.slice(1));
+  if (it.kind === 'sold') return { from: 'sold', index: i };
+  if (it.kind === 'presented' || it.kind === 'followup') return { from: 'presented', index: i };
+  if (it.kind === 'noshow') return { from: 'noshow', index: i };
+  return null;
+}
+/** The contact for a card; for a sale or no-sale whose contact is gone (Production Desk), a stand-in from the record. */
+function contactFor(d: D, it: CalItem): Contact | undefined {
+  const c = d.byId.get(it.contactId); if (c) return c;
+  const t = resultTarget(it);
+  const w = t?.from === 'sold' ? d.sales[t.index]?.who : t?.from === 'presented' ? d.noSales[t.index]?.who : undefined;
+  return w ? ({ id: it.contactId, first: w.first, last: w.last, phone: w.phone, backup: '', company: w.company, job: '', list: w.list,
+    city: '', state: '', tag: '', notes: '', zone: '' } as unknown as Contact) : undefined;
+}
 const fmt = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('en-US', { timeZone: TZ, ...o });
 const dayHead = fmt({ weekday: 'short' }), dayNum = fmt({ month: 'short', day: 'numeric' }), longDay = fmt({ weekday: 'long', month: 'long', day: 'numeric' });
 const whenFull = fmt({ weekday: 'short', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 const TONE: Record<CalItem['kind'], string> = { appt: 'blue', callback: 'amber', followup: 'grey', sold: 'green', presented: 'violet', noshow: 'red' };
 const pillTone = (it: CalItem) => it.kind === 'appt' ? (it.label === 'Confirmed' ? 'teal' : it.label === 'Booked' ? 'blue' : 'amber') : TONE[it.kind];
 
-export function AppointmentsPage({ d, onDial, onResult }: { d: D; onDial: (id: string) => void; onResult: (kind: ResultKind, id: string) => void }) {
+export function AppointmentsPage({ d, onDial, onResult }: { d: D; onDial: (id: string) => void; onResult: OnResult }) {
   const [offset, setOffset] = useState(0);
   const [sel, setSel] = useState<string | null>(null);
   const start = addDays(weekStart(d.now, TZ), offset * 7, TZ);
@@ -30,7 +49,7 @@ export function AppointmentsPage({ d, onDial, onResult }: { d: D; onDial: (id: s
     [d.contacts, d.sales, d.noSales, d.log, start, end, d.now]);
   const byDay = days.map(t => items.filter(it => it.at >= t && it.at < addDays(t, 1, TZ)));
   const picked = items.find(it => it.key === sel) ?? null;
-  const c = picked ? d.byId.get(picked.contactId) : undefined;
+  const c = picked ? contactFor(d, picked) : undefined;
 
   // what still needs a result or a time, from any week
   const needs = useMemo(() => d.contacts.filter(x => {
@@ -90,7 +109,7 @@ export function AppointmentsPage({ d, onDial, onResult }: { d: D; onDial: (id: s
               <div key={t} className={`wday ${isToday ? 'today' : ''} ${past ? 'past' : ''} ${byDay[i].length ? '' : 'blank'}`}>
                 <div className="wh"><span>{dayHead.format(t)}</span><b>{parts(t, TZ).d}</b>{isToday && <em>Today</em>}</div>
                 {byDay[i].map(it => {
-                  const x = d.byId.get(it.contactId);
+                  const x = contactFor(d, it);
                   return (
                     <button key={it.key} className={`ev ${it.kind} ${sel === it.key ? 'on' : ''}`} onClick={() => setSel(it.key)}>
                       <span className="t">{it.allDay ? 'Any time' : timeOnly(it.at)}</span>
@@ -137,13 +156,14 @@ export function AppointmentsPage({ d, onDial, onResult }: { d: D; onDial: (id: s
   );
 }
 
-function Detail({ it, c, d, onDial, onResult }: { it: CalItem; c: Contact; d: D; onDial: (id: string) => void; onResult: (kind: ResultKind, id: string) => void }) {
+function Detail({ it, c, d, onDial, onResult }: { it: CalItem; c: Contact; d: D; onDial: (id: string) => void; onResult: OnResult }) {
   const phone = c.phone || c.backup;
   const open = tagKind(c.tag) === 'scheduled' && it.kind === 'appt';
   const soon = open && it.at >= d.now && it.at < startOfDay(d.now, TZ) + 2 * DAY_MS;
   const confirmed = it.label === 'Confirmed';
   const tomorrow = it.at >= startOfDay(d.now, TZ) + DAY_MS;
   const notes = notesNewestFirst(c.notes).slice(0, 4);
+  const target = resultTarget(it);
   const ics = () => saveText(`${c.first}-${c.last}.ics`.toLowerCase(),
     toIcs([{ ...eventFor(c, it.kind === 'callback' ? 'callback' : 'appt', it.at, { email: c.email }), uid: `${c.id}-${it.at}` }], Date.now()), 'text/calendar');
   return (
@@ -169,12 +189,47 @@ function Detail({ it, c, d, onDial, onResult }: { it: CalItem; c: Contact; d: D;
           <button className="btn" onClick={() => onResult('reschedule', c.id)}>Move</button>
         </div>
       )}
+      {it.kind === 'callback' && tagKind(c.tag) === 'callback' && (
+        <div className="dacts">
+          <button className="btn go" onClick={() => onResult('sold', c.id)}>Sold</button>
+          <button className="btn" onClick={() => onResult('presented', c.id)}>Presented</button>
+          <button className="btn" onClick={() => onResult('reschedule', c.id)}>Book appointment</button>
+        </div>
+      )}
+      {target && <ChangeResult it={it} target={target} c={c} d={d} onResult={onResult} />}
       <div className="dacts sub2">
-        <button className="linkish" onClick={() => onDial(c.id)}>Open in dialer</button>
+        {d.byId.has(c.id) && <button className="linkish" onClick={() => onDial(c.id)}>Open in dialer</button>}
         {(it.kind === 'appt' || it.kind === 'callback') && it.at >= d.now && <button className="linkish" onClick={ics}>Add to my calendar</button>}
       </div>
       {notes.length > 0 && <div className="hist"><div className="eyebrow">History</div>
         {notes.map((l, i) => { const m = l.match(/^(\d{1,2}\/\d{1,2}):\s*(.*)$/); return <div className="hl" key={i}><span>{m ? m[1] : ''}</span><p>{m ? m[2] : l}</p></div>; })}</div>}
+    </div>
+  );
+}
+
+/** Change a result that was already saved: switch it to another result, or fix the details of the same one. */
+function ChangeResult({ it, target, c, d, onResult }: { it: CalItem; target: AmendTarget; c: Contact; d: D; onResult: OnResult }) {
+  const name = `${c.first} ${c.last}`;
+  const sale = target.from === 'sold' ? d.sales[target.index] : undefined;
+  const noSale = target.from === 'presented' ? d.noSales[target.index] : undefined;
+  const when = fmt({ month: 'numeric', day: 'numeric' }).format(it.at);
+  const opts: { k: 'sold' | 'presented' | 'noshow' | 'reschedule'; label: string; cls: string }[] = [
+    { k: 'sold', label: target.from === 'sold' ? 'Edit sale' : 'Sold', cls: 'go' },
+    { k: 'presented', label: target.from === 'presented' ? 'Edit no-sale' : 'Presented, not sold', cls: '' },
+    ...(target.from !== 'noshow' ? [{ k: 'noshow' as const, label: 'No-show', cls: '' }] : []),
+    { k: 'reschedule', label: 'Book again', cls: '' },
+  ];
+  const go = (k: typeof opts[number]['k']) => {
+    if (k === 'noshow') return d.amend(target, 'noshow');
+    const title = k === 'reschedule' ? `Book again: ${name}` : k === target.from ? `Edit ${when} ${k === 'sold' ? 'sale' : 'no-sale'}: ${name}`
+      : `Change ${when} to ${k === 'sold' ? 'sold' : 'presented, not sold'}: ${name}`;
+    onResult(k, c.id, { amend: target, initial: { title, sale: k === 'sold' ? sale : undefined, noSale: k === 'presented' ? noSale : undefined } });
+  };
+  return (
+    <div className="change">
+      <div className="eyebrow">Change this result</div>
+      <div className="dacts">{opts.map(o => <button key={o.k} className={`btn ${o.cls}`} onClick={() => go(o.k)}>{o.label}</button>)}</div>
+      <p className="hint">Fixes it everywhere: Sales, Results and the contact&rsquo;s history. Undo puts it back.</p>
     </div>
   );
 }

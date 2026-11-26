@@ -15,10 +15,16 @@ import { NeedsPage } from './ui/needs';
 import { AppointmentsPage } from './ui/appointments';
 import { ResultsPage } from './ui/results';
 import { REAL_SEED } from '../src/app-store/realSeed';
-import { ResultForm, type ResultKind } from './ui/forms';
+import { ResultForm, type ResultKind, type ResultInitial } from './ui/forms';
+import type { AmendTarget } from '../src/rules/amend';
 import { saleAlp } from '../src/rules/results';
 import { TZ, ZONE_TZ, chipClass, localTime, Ico, IC, fmtSecs, ZONE_NAME, timeOnly, saveText } from './ui/shared';
-type Modal = null | { kind: ResultKind; id: string };
+/** A sale or no-sale whose contact is gone (Production Desk): enough of a contact for the form header. */
+function whoContact(m: { initial?: ResultInitial }): Contact | undefined {
+  const w = m.initial?.sale?.who ?? m.initial?.noSale?.who;
+  return w ? ({ id: '', first: w.first, last: w.last, phone: w.phone, backup: '', company: w.company, job: '', list: w.list } as unknown as Contact) : undefined;
+}
+type Modal = null | { kind: ResultKind; id: string; amend?: AmendTarget; initial?: ResultInitial };
 const UNDO_LABEL: Record<string, string> = { noanswer: 'No answer', voicemail: 'Voicemail', callback: 'Callback', notint: 'Not interested',
   bad: 'Bad number', appt: 'Appointment', note: 'note', sold: 'Sold', presented: 'Presented', noshow: 'No-show', reschedule: 'Move', confirm: 'Confirmed', tag: 'Qualifier' };
 type Filter = 'All' | 'Callback' | 'NoShow' | 'NewNumber' | 'Retry' | 'Fresh';
@@ -264,7 +270,7 @@ export default function Today() {
       {page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} />}
       {page === 'needs' && <NeedsPage d={d} />}
       {page === 'results' && <ResultsPage d={d} />}
-      {page === 'appts' && <AppointmentsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id) => setModal({ kind, id })} />}
+      {page === 'appts' && <AppointmentsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} />}
       {page === 'today' && <>
       <section className="hero">
         <div className="title">
@@ -521,8 +527,12 @@ export default function Today() {
         {page === 'today' && <span className="keyshelp">1–6 result · C call · N note · / search · U undo · R re-sort · S skip</span>}
       </footer>
 
-      {modal && <ResultForm kind={modal.kind} contact={d.byId.get(modal.id)} now={d.now} onClose={() => setModal(null)}
-        onSave={(form) => { d.outcome(modal.id, modal.kind, form); setModal(null); }} />}
+      {modal && <ResultForm kind={modal.kind} contact={d.byId.get(modal.id) ?? whoContact(modal)} now={d.now} initial={modal.initial} onClose={() => setModal(null)}
+        onSave={(form) => {
+          if (modal.amend) d.amend(modal.amend, modal.kind === 'reschedule' ? 'scheduled' : modal.kind, form);
+          else d.outcome(modal.id, modal.kind, form);
+          setModal(null);
+        }} />}
       {d.toast && <div className={`toast ${d.toast.kind}`}>{d.toast.text}</div>}
     </div>
   );

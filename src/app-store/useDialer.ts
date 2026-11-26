@@ -14,6 +14,7 @@ import { addNote } from '../rules/engine';
 import { saleNote, noSaleNote, saleDate, type SaleRecord, type NoSaleRecord } from '../rules/results';
 import { demoContacts, demoHistory } from './demoData';
 import { demoMonth } from './demoLog';
+import { amendResult, type AmendTarget, type AmendTo, type AmendForm } from '../rules/amend';
 import { REAL_SEED } from './realSeed';
 import { loadState, saveState } from './store';
 
@@ -33,7 +34,9 @@ function normalize(st: Saved): Saved {
 }
 
 /** What Undo puts back: earlier copies of changed or deleted contacts, and the IDs of contacts that were added. */
-interface Snapshot { label: string; contact?: Contact; before?: Contact[]; added?: string[]; logLen: number; salesLen: number; noSalesLen: number }
+interface Snapshot { label: string; contact?: Contact; before?: Contact[]; added?: string[]; logLen: number; salesLen: number; noSalesLen: number;
+  /** A changed result edits the middle of the lists, so Undo puts the whole lists back. */
+  lists?: { log: LogEvent[]; sales: Sale[]; noSales: NoSale[] } }
 interface Saved {
   v: 1;
   contacts: Contact[];
@@ -195,6 +198,20 @@ export function useDialer() {
     });
   }, [commit, byId]);
 
+  /** Change a result that was already saved (Appointments page): sold, presented, no-show, or booked again. */
+  const amend = useCallback((target: AmendTarget, to: AmendTo, form: AmendForm = {}) => {
+    setS(prev => {
+      if (!prev) return prev;
+      const r = amendResult(prev, target, to, form, Date.now(), CFG.tz);
+      if ('error' in r) { say(r.error, 'warn'); return prev; }
+      say(r.message);
+      const changed = prev.contacts.find(c => !r.state.contacts.includes(c));
+      const snap: Snapshot = { label: 'change result', before: changed ? [changed] : [], logLen: prev.log.length, salesLen: prev.sales.length,
+        noSalesLen: prev.noSales.length, lists: { log: prev.log, sales: prev.sales, noSales: prev.noSales } };
+      return { ...prev, ...r.state, undo: [...prev.undo.slice(-19), snap] };
+    });
+  }, [say]);
+
   /** A finished call (Call pressed until a result was picked), for talk-time stats. */
   const logCall = useCallback((id: string, seconds: number) => {
     setS(p => (p ? { ...p, calls: [...(p.calls ?? []), { at: Date.now(), contactId: id, seconds }] } : p));
@@ -212,6 +229,7 @@ export function useDialer() {
       const missing = before.filter(c => !contacts.some(x => x.id === c.id));
       contacts = [...contacts, ...missing];
       say(before.length === 1 && !added.size ? `Undid ${before[0].first} ${before[0].last} (${u.label}).` : `Undid ${u.label}.`);
+      if (u.lists) return { ...prev, contacts, ...u.lists, undo: prev.undo.slice(0, -1) };
       return { ...prev, contacts, log: prev.log.slice(0, u.logLen),
         sales: prev.sales.slice(0, u.salesLen), noSales: prev.noSales.slice(0, u.noSalesLen), undo: prev.undo.slice(0, -1) };
     });
@@ -266,5 +284,5 @@ export function useDialer() {
   }, [s?.contacts]);
 
   return { ready: !!s, now, today, appts, queue, stats, toast, byId, recent, log: s?.log ?? [], canUndo: !!s?.undo.length, batch, confirm, qual, scorer, cfg: CFG, say: say2, contacts: s?.contacts ?? [], pass: s?.pass ?? 1, noSales: s?.noSales ?? [],
-    undoLabel: s?.undo.at(-1)?.label, press, note, outcome, skip, logCall, undo, reSort, resetDemo, find, sales: s?.sales ?? [], goal: s?.goal ?? 25000, setGoal, calls: s?.calls ?? [] };
+    undoLabel: s?.undo.at(-1)?.label, press, note, outcome, amend, skip, logCall, undo, reSort, resetDemo, find, sales: s?.sales ?? [], goal: s?.goal ?? 25000, setGoal, calls: s?.calls ?? [] };
 }

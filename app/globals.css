@@ -661,3 +661,6 @@ select { appearance: auto; }
   .heat .cell { font-size: 9.5px; height: 24px; }
   .herob { font-size: 36px; }
 }
+.adetail .change { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line2); }
+.adetail .change .dacts { margin-top: 8px; }
+.adetail .change .hint { margin: 8px 0 0; }

@@ -11,14 +11,17 @@ import { Dialog, TZ } from './shared';
 export type ResultKind = 'sold' | 'presented' | 'reschedule';
 export type ResultSave = { sale?: Omit<SaleRecord, 'at' | 'contactId' | 'calledInto'>; noSale?: Omit<NoSaleRecord, 'at' | 'contactId' | 'calledInto'>; when?: number };
 
-export function ResultForm({ kind, contact, now, onClose, onSave }: {
-  kind: ResultKind; contact?: Contact; now: number; onClose: () => void; onSave: (f: ResultSave) => void;
+/** Values to start from when changing a result that was already saved. */
+export type ResultInitial = { sale?: SaleRecord; noSale?: NoSaleRecord; title?: string };
+
+export function ResultForm({ kind, contact, now, onClose, onSave, initial }: {
+  kind: ResultKind; contact?: Contact; now: number; onClose: () => void; onSave: (f: ResultSave) => void; initial?: ResultInitial;
 }) {
   const who = contact ? `${contact.first} ${contact.last}` : '';
   const sub = contact ? [contact.phone || contact.backup, [contact.company, contact.job].filter(Boolean).join(' - ')].filter(Boolean).join(' · ') : '';
-  if (kind === 'sold') return <SoldForm who={who} sub={sub} email={contact?.email ?? ''} now={now} onClose={onClose} onSave={onSave} />;
-  if (kind === 'presented') return <NoSaleForm who={who} sub={sub} now={now} onClose={onClose} onSave={onSave} />;
-  return <MoveForm who={who} contact={contact} now={now} onClose={onClose} onSave={onSave} />;
+  if (kind === 'sold') return <SoldForm who={who} sub={sub} email={contact?.email ?? ''} now={now} onClose={onClose} onSave={onSave} init={initial?.sale} title={initial?.title} />;
+  if (kind === 'presented') return <NoSaleForm who={who} sub={sub} now={now} onClose={onClose} onSave={onSave} init={initial?.noSale} title={initial?.title} />;
+  return <MoveForm who={who} contact={contact} now={now} onClose={onClose} onSave={onSave} title={initial?.title} />;
 }
 
 type P = { who: string; sub: string; now: number; onClose: () => void; onSave: (f: ResultSave) => void };
@@ -32,15 +35,16 @@ function Money({ label, value, set, hint, autoFocus }: { label: string; value: s
   );
 }
 
-function SoldForm({ who, sub, email: email0, now, onClose, onSave }: P & { email: string }) {
-  const [type, setType] = useState('');
-  const [alp, setAlp] = useState(''); const [mo, setMo] = useState(''); const [wl, setWl] = useState(''); const [adb, setAdb] = useState('');
-  const [email, setEmail] = useState(email0); const [note, setNote] = useState('');
+const amt = (n?: number) => (n ? String(n) : '');
+function SoldForm({ who, sub, email: email0, now, onClose, onSave, init, title }: P & { email: string; init?: SaleRecord; title?: string }) {
+  const [type, setType] = useState<string>(init?.alpType ?? '');
+  const [alp, setAlp] = useState(amt(init?.alp)); const [mo, setMo] = useState(amt(init?.monthly)); const [wl, setWl] = useState(amt(init?.wholeLife)); const [adb, setAdb] = useState(amt(init?.adb));
+  const [email, setEmail] = useState(init?.email || email0); const [note, setNote] = useState(init?.note ?? '');
   const [err, setErr] = useState('');
   const r = checkSale({ type, alp, monthly: mo, wholeLife: wl, adb, email, note });
   const save = () => { if ('error' in r) return setErr(r.error); onSave({ sale: r.ok }); };
   return (
-    <Dialog title={`Sale: ${who}`} onClose={onClose}>
+    <Dialog title={title ?? `Sale: ${who}`} onClose={onClose}>
       <form className="rform" onSubmit={e => { e.preventDefault(); save(); }}>
         <p className="sub">{sub}</p>
         <label className="fld"><span>ALP type</span></label>
@@ -62,15 +66,15 @@ function SoldForm({ who, sub, email: email0, now, onClose, onSave }: P & { email
   );
 }
 
-function NoSaleForm({ who, sub, now, onClose, onSave }: P) {
-  const [on, setOn] = useState<string[]>([]);
-  const [reason, setReason] = useState(''); const [fu, setFu] = useState(''); const [fuNote, setFuNote] = useState('');
+function NoSaleForm({ who, sub, now, onClose, onSave, init, title }: P & { init?: NoSaleRecord; title?: string }) {
+  const [on, setOn] = useState<string[]>(init?.objections ?? []);
+  const [reason, setReason] = useState(init?.reason ?? ''); const [fu, setFu] = useState(init?.followUp ?? ''); const [fuNote, setFuNote] = useState(init?.followUpNote ?? '');
   const [err, setErr] = useState('');
   const r = checkNoSale({ objections: on, reason, followUp: fu, followUpNote: fuNote });
   const save = () => { if ('error' in r) return setErr(r.error); onSave({ noSale: r.ok }); };
   const flip = (o: string) => setOn(v => (v.includes(o) ? v.filter(x => x !== o) : [...v, o]));
   return (
-    <Dialog title={`No sale: ${who}`} onClose={onClose}>
+    <Dialog title={title ?? `No sale: ${who}`} onClose={onClose}>
       <form className="rform" onSubmit={e => { e.preventDefault(); save(); }}>
         <p className="sub">{sub}</p>
         <label className="fld"><span>Objections encountered</span></label>
@@ -87,13 +91,13 @@ function NoSaleForm({ who, sub, now, onClose, onSave }: P) {
   );
 }
 
-function MoveForm({ who, contact, now, onClose, onSave }: { who: string; contact?: Contact; now: number; onClose: () => void; onSave: (f: ResultSave) => void }) {
+function MoveForm({ who, contact, now, onClose, onSave, title }: { who: string; contact?: Contact; now: number; onClose: () => void; onSave: (f: ResultSave) => void; title?: string }) {
   const [when, setWhen] = useState(''); const [err, setErr] = useState('');
   const w = when.trim() ? parseWhen(when, now, TZ, false) : null;
   const ok = w && !('error' in w) ? w : null;
   const save = () => { if (!ok) return setErr(w && 'error' in w ? w.error : 'Type a time like thu 6pm.'); onSave({ when: ok.date }); };
   return (
-    <Dialog title={`Move appointment: ${who}`} onClose={onClose}>
+    <Dialog title={title ?? `Move appointment: ${who}`} onClose={onClose}>
       <form className="rform" onSubmit={e => { e.preventDefault(); save(); }}>
         {contact?.callAt != null && <p className="sub">Now booked for {new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(contact.callAt)}</p>}
         <label className="fld"><span>New appointment time</span><input value={when} onChange={e => { setWhen(e.target.value); setErr(''); }} placeholder="e.g. thu 6pm" autoFocus /></label>

@@ -61,3 +61,8 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 - When & where to dial: reach rate, fresh vs retry, by dial number, weekday, hour and list, the weekday × hour heat map. Rows with fewer than 30 dials are grey so a lucky streak isn't read as a trend.
 - Colors mean the same thing on every chart (dials blue, connects teal, scheduled violet, presented gold, sold green, trial orange, no-show red), with separate day and night shades. Hover or tap any bar or tile for its exact numbers.
 - Demo: the build can load a read-only copy of an agent's sheet (scripts/real-seed.ts → realdata/, git-ignored, never committed). Demo data now saves in IndexedDB because a full sheet is too big for localStorage.
+
+## 2026-11-26: Change a result from its card (George)
+- Click any card on the Appointments week (sold, presented, no-show or follow-up, past or future) and use "Change this result": switch it to Sold, Presented not sold, No-show, or book it again, or edit the sale or no-sale details.
+- The old record is taken out and the new one is saved on the same date, so the Sales list, Results and the Activity Log all read as if it had been entered right. The contact gets a dated "Result changed" note. Its tag only changes when that result is still the latest thing that happened. Undo puts it all back.
+- Callback cards can now be marked Sold or Presented, or booked as an appointment, straight from the card.
