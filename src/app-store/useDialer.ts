@@ -27,6 +27,7 @@ interface Saved {
   skips: string[];
   undo: Snapshot[];
   lastBackupTry: Record<string, number>;
+  calls?: { at: number; contactId: string; seconds: number }[];
 }
 
 const KEY = 'trucker-demo-v1';
@@ -49,7 +50,7 @@ function dialTimes(log: LogEvent[]) {
   return m;
 }
 
-export interface Stats { left: number; total: number; done: number; dials: number; connects: number; scheduled: number; presented: number; sold: number }
+export interface Stats { calls: number; avgTalk: number; left: number; total: number; done: number; dials: number; connects: number; scheduled: number; presented: number; sold: number }
 
 export function useDialer() {
   const [s, setS] = useState<Saved | null>(null);
@@ -89,7 +90,9 @@ export function useDialer() {
     const presented = new Set(tags.filter(e => /^(PRESENTED|SOLD)/.test(e.tag)).map(e => e.contactId));
     const sold = (s?.sales ?? []).filter(x => sameDay(x.at, now, CFG.tz)).length;
     const done = today.filter(r => r.done).length;
-    return { left: today.length - done, total: today.length, done,
+    const calls = (s?.calls ?? []).filter(x => sameDay(x.at, now, CFG.tz));
+    const avgTalk = calls.length ? Math.round(calls.reduce((a, x) => a + x.seconds, 0) / calls.length) : 0;
+    return { calls: calls.length, avgTalk, left: today.length - done, total: today.length, done,
       dials: ev.filter(e => e.kind === 'Dial').reduce((a, e) => a + e.count, 0),
       connects: tags.filter(e => e.reach).length,
       scheduled: tags.filter(e => e.tag.startsWith('SCHEDULED')).length,
@@ -138,6 +141,11 @@ export function useDialer() {
     });
   }, [commit, byId]);
 
+  /** A finished call (Call pressed until a result was picked), for talk-time stats. */
+  const logCall = useCallback((id: string, seconds: number) => {
+    setS(p => (p ? { ...p, calls: [...(p.calls ?? []), { at: Date.now(), contactId: id, seconds }] } : p));
+  }, []);
+
   const skip = useCallback((id: string) => { setS(p => (p ? { ...p, skips: [...p.skips, id] } : p)); say('Skipped for today.'); }, [say]);
 
   const undo = useCallback(() => {
@@ -175,5 +183,5 @@ export function useDialer() {
   }, [s?.contacts]);
 
   return { ready: !!s, now, today, appts, queue, stats, toast, byId, recent, log: s?.log ?? [], canUndo: !!s?.undo.length,
-    undoLabel: s?.undo.at(-1)?.label, press, note, outcome, skip, undo, reSort, resetDemo, find, sales: s?.sales ?? [] };
+    undoLabel: s?.undo.at(-1)?.label, press, note, outcome, skip, logCall, undo, reSort, resetDemo, find, sales: s?.sales ?? [] };
 }
