@@ -24,14 +24,15 @@ export async function loadState<T>(key: string): Promise<T | null> {
   try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) as T : null; } catch { return null; }
 }
 
-let pending: unknown = null, timer: ReturnType<typeof setTimeout> | null = null;
-/** Saves at most twice a second; the latest state wins. */
+const pending = new Map<string, unknown>(), timers = new Map<string, ReturnType<typeof setTimeout>>();
+/** Saves each key at most twice a second; the latest state wins. */
 export function saveState(key: string, value: unknown) {
-  pending = value;
-  if (timer) return;
-  timer = setTimeout(async () => {
-    timer = null;
-    const v = pending;
+  pending.set(key, value);
+  if (timers.has(key)) return;
+  timers.set(key, setTimeout(async () => {
+    timers.delete(key);
+    const v = pending.get(key);
+    pending.delete(key);
     try {
       const db = await open();
       await new Promise<void>((res, rej) => {
@@ -41,5 +42,5 @@ export function saveState(key: string, value: unknown) {
       return;
     } catch { /* fall back */ }
     try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* full or blocked */ }
-  }, 500);
+  }, 500));
 }

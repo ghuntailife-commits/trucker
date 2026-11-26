@@ -72,3 +72,10 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 - Recent no-sales and Follow-ups due rows open the same way.
 - Fixed ALP by day: the stacked bars had a gap between standard and trial (a style from the form buttons leaked into the chart).
 - Today: a "Presented, not sold" contact with a follow-up date shows up as "Follow-up" on that day, right after callbacks, and stays (marked with its date) until it has been dialed. New Follow-ups filter tab. A follow-up call can set a callback.
+| 2026-11-26 | Stage 7: roles. George is admin (everything, all agents), Austin and Gracie are agents (their own contacts), the boss sees the Team page only (results and totals, no contact details). Demo has a "Viewing as" switch in place of sign-in | Plan, George said go |
+| 2026-11-26 | Team page: leaderboard by ALP, team totals, ALP by week and dials by day per agent, and each agent's health check and coaching note | Plan |
+| 2026-11-26 | Settings (admin): each agent's goal, Quo switch and number, Monday note switch; the calling rules (was the Rules tab). Every save shows the list of changes first | Working rules (preview before saving) |
+| 2026-11-26 | Daily health check: passed appointments with no result, do-not-call numbers on other contacts, late callbacks and follow-ups, duplicate and short numbers, sales with no email, contacts with no time zone. Shows only; changes nothing | Plan |
+| 2026-11-26 | Quo built in for George and Gracie: Call dials through Quo, "Text with Quo" with a preview, call and text events from Quo saved on the contact. Never dispositions on its own | George |
+| 2026-11-26 | Monday coaching note for every agent: last week against the week before, what went well, one thing to work on, best hour, goal pace. Preview now, emailed at go-live | George |
+| 2026-11-26 | Monthly goal moved from each agent's Results page into Settings (still editable from Results) | So George can set everyone's |

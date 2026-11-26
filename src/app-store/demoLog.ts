@@ -13,9 +13,9 @@ const LAST = ['Calloway', 'Brightwater', 'Hollins', 'Pembrook', 'Ashford', 'Whit
   'Fairbanks', 'Holloway', 'Langford', 'Redmond', 'Sterling', 'Winslow', 'Bramble', 'Cartwright', 'Dunmore', 'Everly', 'Galloway', 'Huxley'];
 const COS = ['Lonestar Freight', 'Peachtree Logistics', 'Magnolia Rail', 'Red River Haulers', 'Bluegrass Parcel', 'UPS - Package Handler',
   'Teamsters Local 745', 'IBEW Local 175', 'Gulf Coast Cartage', 'Ironhorse Rail', 'Summit Warehousing', 'UA Local 572'];
-const LISTS: [string, string[]][] = [['Texas', ['214', '817', '713']], ['Georgia', ['404', '478']], ['Alabama', ['205', '251']],
+const DEFAULT_LISTS: [string, string[]][] = [['Texas', ['214', '817', '713']], ['Georgia', ['404', '478']], ['Alabama', ['205', '251']],
   ['Tennessee', ['865', '901', '615']], ['Iowa', ['515', '319']], ['Hardcards', ['270', '386']]];
-const LIST_W = [26, 22, 12, 18, 10, 6];
+const DEFAULT_W = [26, 22, 12, 18, 10, 6];
 const HOUR_W: Record<number, number> = { 9: 5, 10: 12, 11: 10, 12: 2, 13: 3, 14: 9, 15: 8, 16: 13, 17: 19, 18: 9, 19: 11, 20: 24 };
 const HOUR_F: Record<number, number> = { 9: .8, 10: 1.05, 11: .95, 12: .9, 13: 1.6, 14: .8, 15: 1.35, 16: 1, 17: 1.05, 18: 1.25, 19: 1.05, 20: .8 };
 const DAY_BASE = [60, 130, 85, 105, 165, 95, 0];       // Mon..Sun dials on a typical day
@@ -28,8 +28,12 @@ function rng(seed: number) { return () => ((seed = (seed * 1103515245 + 12345) %
 
 export interface DemoHistory { log: LogEvent[]; sales: SaleRecord[]; noSales: NoSaleRecord[] }
 
-export function demoMonth(now: number, tz: string, days = 30): DemoHistory {
-  const r = rng(42);
+/** seed: a different made-up month; lists: [list, area codes][] and weights; scale: how busy (1 = George's pace). */
+export interface MonthOpts { seed?: number; lists?: [string, string[]][]; weights?: number[]; scale?: number; idPrefix?: string }
+
+export function demoMonth(now: number, tz: string, days = 30, opts: MonthOpts = {}): DemoHistory {
+  const r = rng(opts.seed ?? 42);
+  const LISTS = opts.lists ?? DEFAULT_LISTS, LIST_W = opts.weights ?? DEFAULT_W, scale = opts.scale ?? 1;
   const pick = <T,>(a: readonly T[]) => a[Math.floor(r() * a.length)];
   const weighted = (w: number[]) => { let x = r() * w.reduce((a, b) => a + b, 0); for (let i = 0; i < w.length; i++) { x -= w[i]; if (x <= 0) return i; } return w.length - 1; };
   const hours = Object.keys(HOUR_W).map(Number), hourW = hours.map(h => HOUR_W[h]);
@@ -40,7 +44,7 @@ export function demoMonth(now: number, tz: string, days = 30): DemoHistory {
   const person = (): P => {
     const li = weighted(LIST_W), [list, acs] = LISTS[li];
     n++;
-    return { id: `hist-${n}`, first: pick(FIRST), last: pick(LAST), phone: `(${pick(acs)}) 555-01${String(n % 100).padStart(2, '0')}`,
+    return { id: `${opts.idPrefix ?? 'hist'}-${n}`, first: pick(FIRST), last: pick(LAST), phone: `(${pick(acs)}) 555-01${String(n % 100).padStart(2, '0')}`,
       company: pick(COS), list, dials: 0, done: false };
   };
   const ev = (p: P, at: number, kind: LogEvent['kind'], tag = '', reach?: boolean): LogEvent => ({
@@ -67,7 +71,7 @@ export function demoMonth(now: number, tz: string, days = 30): DemoHistory {
   const today = startOfDay(now, tz);
   for (let d = days; d >= 1; d--) {
     const day = addDays(today, -d, tz), wd = (parts(day, tz).wd + 6) % 7;
-    const target = wd === 6 ? 0 : Math.round(DAY_BASE[wd] * (.45 + r() * .9));
+    const target = wd === 6 ? 0 : Math.round(DAY_BASE[wd] * scale * (.45 + r() * .9));
     const times = Array.from({ length: target }, () => day + (hours[weighted(hourW)] * 60 + Math.floor(r() * 60)) * 60_000).sort((a, b) => a - b);
     for (const t of times) {
       const retry = open.filter(p => !p.done && p.dials < 9 && p.dials > 0);
@@ -92,7 +96,7 @@ export function demoMonth(now: number, tz: string, days = 30): DemoHistory {
         else log.push(ev(p, at, 'Tag', 'LEFT A MESSAGE WITH FAMILY', true));
       } else if (r() < .02) { p.done = true; log.push(ev(p, at, 'Tag', TAGS.bad, false)); }
     }
-    if (wd === 0 || wd === 3) log.push({ at: day + 8 * 3_600_000, contactId: '', list: 'Texas', first: '', last: '', phone: '', kind: 'Import', count: 40 + Math.floor(r() * 120), tag: '', dials: 0 });
+    if (wd === 0 || wd === 3) log.push({ at: day + 8 * 3_600_000, contactId: '', list: LISTS[0][0], first: '', last: '', phone: '', kind: 'Import', count: 40 + Math.floor(r() * 120), tag: '', dials: 0 });
   }
   log.sort((a, b) => a.at - b.at);
   return { log, sales: sales.sort((a, b) => a.at - b.at), noSales: noSales.sort((a, b) => a.at - b.at) };

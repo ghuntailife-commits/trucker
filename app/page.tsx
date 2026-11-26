@@ -19,12 +19,78 @@ import { ResultForm, type ResultKind, type ResultInitial } from './ui/forms';
 import type { AmendTarget } from '../src/rules/amend';
 import { saleAlp } from '../src/rules/results';
 import { TZ, ZONE_TZ, chipClass, localTime, Ico, IC, fmtSecs, ZONE_NAME, timeOnly, saveText } from './ui/shared';
+import { useTeam, type Team } from '../src/app-store/useTeam';
+import { pagesFor, viewers, type AgentId, type Page, type ViewerId } from '../src/team/agents';
+import { TeamPage, HealthList } from './ui/team';
+import { SettingsPage } from './ui/settings';
+import { QuoText } from './ui/quo';
+import { healthCheck, healthCount } from '../src/team/health';
+import type { TextKey } from '../src/quo/quo';
+
+const PAGE_LABEL: Record<Page, string> = { today: 'Today', appts: 'Appointments', contacts: 'Contacts', needs: 'Needs Number', results: 'Results', team: 'Team', settings: 'Settings' };
+const ROLE_LABEL = { admin: 'admin', agent: 'agent', boss: 'results only' } as const;
+
+/** Day or night, remembered in this browser. */
+function useTheme() {
+  const [theme, setTheme] = useState<'light' | 'dark' | null>(null);
+  useEffect(() => {
+    let t: string | null = null;
+    try { t = localStorage.getItem('trucker-theme'); } catch { /* */ }
+    setTheme(t === 'dark' || t === 'light' ? t : window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  }, []);
+  useEffect(() => {
+    if (!theme) return;
+    document.documentElement.dataset.theme = theme;
+    try { localStorage.setItem('trucker-theme', theme); } catch { /* */ }
+  }, [theme]);
+  return [theme, setTheme] as const;
+}
+
+/** The demo's stand-in for Google sign-in: pick whose screen to see. */
+function ViewAs({ t }: { t: Team }) {
+  return (
+    <label className="viewas" title="In the demo you can see each person's screen. With sign-in, each person sees only their own.">
+      <span>Viewing as</span>
+      <select value={t.viewer} onChange={e => t.setViewer(e.target.value as ViewerId)}>
+        {viewers(t.team).map(v => <option key={v.id} value={v.id}>{v.name} · {ROLE_LABEL[v.role]}</option>)}
+      </select>
+    </label>
+  );
+}
+const ThemeBtn = ({ theme, setTheme }: { theme: 'light' | 'dark' | null; setTheme: (t: 'light' | 'dark') => void }) => (
+  <button className="iconbtn" aria-label="Switch day or night" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+    <Ico d={theme === 'dark' ? 'M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z' : 'M12 4V2M12 22v-2M4 12H2M22 12h-2M5.6 5.6 4.2 4.2M19.8 19.8l-1.4-1.4M5.6 18.4l-1.4 1.4M19.8 4.2l-1.4 1.4M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z'} size={16} />
+  </button>
+);
+
+export default function App() {
+  const t = useTeam();
+  const [theme, setTheme] = useTheme();
+  const [now] = useState(() => Date.now());
+  if (!t.ready) return <div className="empty">Loading…</div>;
+  if (t.viewer === 'boss') return (
+    <div className="shell">
+      <div className="demo-banner">Demo: the boss&rsquo;s view. Results and totals for the team, no contact details. Austin&rsquo;s and Gracie&rsquo;s numbers are made up.</div>
+      <header className="top">
+        <div className="brand"><span className="dot">T</span><span className="wordmark">Truckers</span><span className="who">Boss · results only</span></div>
+        <nav className="nav"><button className="on" aria-current="page">Team</button></nav>
+        <div className="tools"><ViewAs t={t} /><ThemeBtn theme={theme} setTheme={setTheme} /><span className="avatar">B</span></div>
+      </header>
+      <TeamPage t={t} now={now} />
+    </div>
+  );
+  const agent = t.viewer as AgentId;
+  // a rules change in Settings reloads the dialer with the new rules
+  return <Today key={agent + JSON.stringify(t.team.rules)} t={t} agent={agent} theme={theme} setTheme={setTheme} />;
+}
+
 /** A sale or no-sale whose contact is gone (Production Desk): enough of a contact for the form header. */
 function whoContact(m: { initial?: ResultInitial }): Contact | undefined {
   const w = m.initial?.sale?.who ?? m.initial?.noSale?.who;
   return w ? ({ id: '', first: w.first, last: w.last, phone: w.phone, backup: '', company: w.company, job: '', list: w.list } as unknown as Contact) : undefined;
 }
 type Modal = null | { kind: ResultKind; id: string; amend?: AmendTarget; initial?: ResultInitial };
+type QuoModal = null | { id: string; apptAt?: number | null; first?: TextKey };
 const UNDO_LABEL: Record<string, string> = { noanswer: 'No answer', voicemail: 'Voicemail', callback: 'Callback', notint: 'Not interested',
   bad: 'Bad number', appt: 'Appointment', note: 'note', sold: 'Sold', presented: 'Presented', noshow: 'No-show', reschedule: 'Move', confirm: 'Confirmed', tag: 'Qualifier' };
 type Filter = 'All' | 'Callback' | 'FollowUp' | 'NoShow' | 'NewNumber' | 'Retry' | 'Fresh';
@@ -38,8 +104,15 @@ const money = (n: number) => '$' + Math.round(n).toLocaleString('en-US');
 const hourOf = (t: number) => Number(new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', hourCycle: 'h23' }).format(t));
 const hourLabel = (h: number) => (h % 12 || 12) + (h < 12 ? 'a' : 'p');
 
-export default function Today() {
-  const d = useDialer();
+function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 'light' | 'dark' | null; setTheme: (x: 'light' | 'dark') => void }) {
+  const me = t.team.agents.find(a => a.id === agent)!;
+  const d0 = useDialer(agent, t.cfg);
+  // the monthly goal lives in Settings, so George can set everyone's
+  const d = { ...d0, goal: me.goal, setGoal: (g: number) => { t.setAgent(agent, { goal: g }); d0.say(`Monthly goal set to $${g.toLocaleString('en-US')}.`); } };
+  const pages = pagesFor(t.role);
+  const quoOn = me.quo;
+  const [quo, setQuo] = useState<QuoModal>(null);
+  const [healthOpen, setHealthOpen] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
   const [pending, setPending] = useState<null | 'callback' | 'appt'>(null);
   const [when, setWhen] = useState('');
@@ -48,12 +121,12 @@ export default function Today() {
   const [backupMode, setBackupMode] = useState(false);
   const [q, setQ] = useState('');
   const [modal, setModal] = useState<Modal>(null);
-  const [theme, setTheme] = useState<'light' | 'dark' | null>(null);
   const [call, setCall] = useState<{ id: string; at: number } | null>(null);
   const [auto, setAuto] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [filter, setFilter] = useState<Filter>('All');
-  const [page, setPage] = useState<'today' | 'contacts' | 'needs' | 'appts' | 'results'>('today');
+  const [page, setPage0] = useState<Page>('today');
+  const setPage = (p: Page) => setPage0(pages.includes(p) ? p : 'today');
   const [chartBy, setChartBy] = useState<'hour' | 'dial'>('hour');
   const [, tick] = useState(0);
   const whenRef = useRef<HTMLInputElement>(null);
@@ -61,16 +134,6 @@ export default function Today() {
   const searchRef = useRef<HTMLInputElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    let t: string | null = null;
-    try { t = localStorage.getItem('trucker-theme'); } catch { /* */ }
-    setTheme(t === 'dark' || t === 'light' ? t : window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-  }, []);
-  useEffect(() => {
-    if (!theme) return;
-    document.documentElement.dataset.theme = theme;
-    try { localStorage.setItem('trucker-theme', theme); } catch { /* */ }
-  }, [theme]);
 
   const current: Contact | undefined = (picked ? d.byId.get(picked) : undefined) ?? d.queue[0]?.contact;
   const currentRow = d.today.find(r => r.contact.id === current?.id);
@@ -129,7 +192,7 @@ export default function Today() {
       const tag = (e.target as HTMLElement)?.tagName;
       const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); d.undo(); return; }
-      if (typing || modal || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (typing || modal || quo || e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === '/') { e.preventDefault(); searchRef.current?.focus(); return; }
       if (page !== 'today' || document.querySelector('.modal-bg')) return;
       const k = e.key.toLowerCase();
@@ -149,6 +212,16 @@ export default function Today() {
   });
 
   const results = useMemo(() => (q.trim().length >= 2 ? d.find(q) : []), [q, d]);
+  const hourKey = Math.floor(d.now / 3_600_000);
+  const findings = useMemo(() => (d.ready ? healthCheck({ contacts: d.contacts, sales: d.sales, noSales: d.noSales, now: d.now, tz: TZ }) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [d.ready, d.contacts, d.sales, d.noSales, hourKey]);
+  const hc = healthCount(findings);
+  useEffect(() => {
+    if (!healthOpen) return;
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape') setHealthOpen(false); };
+    addEventListener('keydown', k); return () => removeEventListener('keydown', k);
+  }, [healthOpen]);
   const preview = useMemo(() => {
     if (!when.trim()) return '';
     const w = parseWhen(when, d.now, TZ, false);
@@ -235,14 +308,13 @@ export default function Today() {
 
   return (
     <div className="shell">
-      <div className="demo-banner">{REAL_SEED ? `Demo with your real contacts, copied from your sheet on ${md(REAL_SEED.builtAt, TZ)}. Changes stay in this browser and never touch your sheet.` : 'Demo with made-up contacts. Changes stay in this browser only.'}</div>
+      <div className="demo-banner">{REAL_SEED && agent === 'george' ? `Demo with your real contacts, copied from your sheet on ${md(REAL_SEED.builtAt, TZ)}. Changes stay in this browser and never touch your sheet.` : agent !== 'george' ? `Demo: ${me.name}\u2019s screen with made-up contacts on ${me.name}\u2019s states. Changes stay in this browser only.` : 'Demo with made-up contacts. Changes stay in this browser only.'}</div>
       <header className="top">
-        <div className="brand"><span className="dot">T</span><span className="wordmark">Truckers</span><span className="who">{REAL_SEED ? 'George' : 'Demo Agent'} · Direct</span></div>
+        <div className="brand"><span className="dot">T</span><span className="wordmark">Truckers</span><span className="who">{me.name} · {me.team}</span></div>
         <nav className="nav">
-          {([['today', 'Today'], ['appts', 'Appointments'], ['contacts', 'Contacts'], ['needs', 'Needs Number'], ['results', 'Results']] as const).map(([p, label]) => (
-            <button key={p} className={page === p ? 'on' : ''} aria-current={page === p ? 'page' : undefined} onClick={() => setPage(p)}>{label}</button>
+          {pages.map(p => (
+            <button key={p} className={page === p ? 'on' : ''} aria-current={page === p ? 'page' : undefined} onClick={() => setPage(p)}>{PAGE_LABEL[p]}</button>
           ))}
-          {['Team'].map(x => <button key={x} title="Coming in the next stages" disabled>{x}</button>)}
         </nav>
         <div className="tools">
           <div className="search">
@@ -260,15 +332,21 @@ export default function Today() {
               </div>
             )}
           </div>
-          <button className="iconbtn" aria-label="Switch day or night" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-            <Ico d={theme === 'dark' ? 'M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z' : 'M12 4V2M12 22v-2M4 12H2M22 12h-2M5.6 5.6 4.2 4.2M19.8 19.8l-1.4-1.4M5.6 18.4l-1.4 1.4M19.8 4.2l-1.4 1.4M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z'} size={16} />
+          <button className={`healthbtn ${hc.fix ? 'fix' : hc.check ? 'check' : 'ok'}`} onClick={() => setHealthOpen(true)}
+            title="Daily health check: things in your contacts to fix or look at">
+            <i />{hc.fix || hc.check ? `${hc.fix + hc.check} to check` : 'All clear'}
           </button>
-          <span className="avatar">{REAL_SEED ? 'G' : 'DA'}</span>
+          <ViewAs t={t} />
+          <ThemeBtn theme={theme} setTheme={setTheme} />
+          <span className="avatar">{me.name[0]}</span>
         </div>
       </header>
 
       {page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} />}
       {page === 'needs' && <NeedsPage d={d} />}
+      {page === 'team' && <TeamPage t={t} now={d.now} live={{ id: agent, data: { contacts: d.contacts, log: d.log, sales: d.sales, noSales: d.noSales } }}
+        onViewAs={id => t.setViewer(id)} onDial={id => { setPicked(id); setPage('today'); }} />}
+      {page === 'settings' && <SettingsPage t={t} />}
       {page === 'results' && <ResultsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} />}
       {page === 'appts' && <AppointmentsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} />}
       {page === 'today' && <>
@@ -357,7 +435,8 @@ export default function Today() {
                   {a.open && (
                     <span className="aacts">
                       {a.confirm && <button className="cf" onClick={() => d.confirm(a.id)}>Confirmed</button>}
-                      {a.confirm && a.phone && a.at && <a className="txt" href={`sms:${a.phone.replace(/[^\d+]/g, '')}?&body=${encodeURIComponent(`Hi ${a.first}, just a reminder about our appointment ${a.tomorrow ? 'tomorrow' : 'today'} at ${timeOnly(a.at)} ET. Talk soon!`)}`}>Text reminder</a>}
+                      {a.confirm && a.phone && a.at && quoOn && <button className="txt" onClick={() => setQuo({ id: a.id, apptAt: a.at, first: a.tomorrow ? 'confirmTomorrow' : 'confirmToday' })}>Text with Quo</button>}
+                      {a.confirm && a.phone && a.at && !quoOn && <a className="txt" href={`sms:${a.phone.replace(/[^\d+]/g, '')}?&body=${encodeURIComponent(`Hi ${a.first}, just a reminder about our appointment ${a.tomorrow ? 'tomorrow' : 'today'} at ${timeOnly(a.at)} ET. Talk soon!`)}`}>Text reminder</a>}
                       <button onClick={() => setModal({ kind: 'sold', id: a.id })}>Sold</button>
                       <button onClick={() => setModal({ kind: 'presented', id: a.id })}>Presented</button>
                       {!a.ci && <button onClick={() => d.outcome(a.id, 'noshow')}>No-show</button>}
@@ -440,12 +519,13 @@ export default function Today() {
                 </div>
               ) : (
                 <button className="callbtn" disabled={!dialNum} onClick={() => startCall(current, backupMode)}>
-                  <Ico d={IC.phone} size={20} /><span>{dialNum || 'No number'}</span>
+                  <Ico d={IC.phone} size={20} /><span>{dialNum || 'No number'}</span>{quoOn && dialNum && <small className="via">Quo</small>}
                 </button>
               )}
               <div className="numline">
                 {otherNum ? <button className="linkish" onClick={() => setBackupMode(!backupMode)} title="Switch number (B)">{backupMode ? 'Main' : 'Backup'} {otherNum}</button> : <span />}
-                <span>{current.dials} dials · last {current.lastDialed ? md(current.lastDialed, TZ) : 'never'}</span>
+                <span>{quoOn && dialNum && <button className="linkish quobtn" onClick={() => setQuo({ id: current.id, apptAt: tagKind(current.tag) === 'scheduled' ? current.callAt : null })}>Text with Quo</button>}
+                  {current.dials} dials · last {current.lastDialed ? md(current.lastDialed, TZ) : 'never'}</span>
               </div>
 
               <div className="keys">
@@ -533,6 +613,19 @@ export default function Today() {
           else d.outcome(modal.id, modal.kind, form);
           setModal(null);
         }} />}
+      {quo && d.byId.get(quo.id) && <QuoText c={d.byId.get(quo.id)!} agent={me} apptAt={quo.apptAt} first={quo.first} onClose={() => setQuo(null)}
+        onSent={body => { d.note(quo.id, `Texted (Quo): "${body}"`); setQuo(null); }} />}
+      {healthOpen && (
+        <div className="drill-bg" onClick={e => { if (e.target === e.currentTarget) setHealthOpen(false); }} onKeyDown={e => { if (e.key === 'Escape') setHealthOpen(false); }}>
+          <aside className="drill" role="dialog" aria-label="Health check">
+            <header><div><div className="eyebrow">Runs every morning</div><h2>Health check</h2>
+              <p className="hint">{findings.length ? 'Things in your contacts worth a look. Nothing here changes on its own.' : 'All clear today.'}</p></div>
+              <button className="iconbtn" aria-label="Close" onClick={() => setHealthOpen(false)}>✕</button></header>
+            <div className="dlist pad16"><HealthList findings={findings} name={id => { const c = d.byId.get(id); return c ? `${c.first} ${c.last}` : id; }}
+              onOpen={id => { setHealthOpen(false); setPicked(id); setPage('today'); }} /></div>
+          </aside>
+        </div>
+      )}
       {d.toast && <div className={`toast ${d.toast.kind}`}>{d.toast.text}</div>}
     </div>
   );

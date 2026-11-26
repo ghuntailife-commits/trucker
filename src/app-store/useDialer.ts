@@ -4,7 +4,7 @@
 // each change is also sent to the server in the background.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Contact, LogEvent } from '../rules/types';
-import { DEFAULT_CONFIG as CFG } from '../rules/config';
+import { DEFAULT_CONFIG, type Config } from '../rules/config';
 import { dialerAction, disposition, quickNote, confirmAppt, toggleQual, type DialerKey, type DialerOpts } from '../rules/engine';
 import { learnFreshScores } from '../rules/score';
 import { buildToday, buildAppointments, type TodayRow, type ApptRow } from '../rules/today';
@@ -12,8 +12,8 @@ import { TAGS } from '../rules/tags';
 import { sameDay, zoned } from '../rules/time';
 import { addNote } from '../rules/engine';
 import { saleNote, noSaleNote, saleDate, type SaleRecord, type NoSaleRecord } from '../rules/results';
-import { demoContacts, demoHistory } from './demoData';
-import { demoMonth } from './demoLog';
+import { agentSeed, storageKey } from './agentSeeds';
+import type { AgentId } from '../team/agents';
 import { amendResult, type AmendTarget, type AmendTo, type AmendForm } from '../rules/amend';
 import { REAL_SEED } from './realSeed';
 import { loadState, saveState } from './store';
@@ -55,39 +55,29 @@ interface Saved {
   goal?: number;
 }
 
-// v2: adds a month of made-up history. The real-data build keeps its own copy, tied to when its seed was made.
-const KEY = REAL_SEED ? `trucker-real-${REAL_SEED.builtAt}` : 'trucker-demo-v2';
-
-function fresh(now: number): Saved {
-  if (REAL_SEED) {
-    const r = structuredClone(REAL_SEED);
-    return { v: 1, contacts: r.contacts, log: r.log, sales: r.sales, noSales: r.noSales, snap: 0, savedOrder: [], savedAppts: [],
-      skips: [], undo: [], lastBackupTry: {}, goal: r.goal };
-  }
-  const contacts = demoContacts(now, CFG.tz);
-  const h = demoHistory(contacts, now, CFG.tz), m = demoMonth(now, CFG.tz);
-  const log = [...m.log, ...h.log].sort((a, b) => a.at - b.at);
-  return { v: 1, contacts, log, sales: [...m.sales, ...h.sales].sort((a, b) => a.at - b.at), noSales: [...m.noSales, ...h.noSales].sort((a, b) => a.at - b.at), snap: 0, savedOrder: [], savedAppts: [],
-    skips: [], undo: [], lastBackupTry: {} };
+function fresh(now: number, agent: AgentId, tz: string): Saved {
+  const r = agentSeed(agent, now, tz);
+  return { v: 1, contacts: r.contacts, log: r.log, sales: r.sales, noSales: r.noSales, snap: 0, savedOrder: [], savedAppts: [],
+    skips: [], undo: [], lastBackupTry: {}, goal: r.goal };
 }
 
-function resort(s: Saved, now: number): Saved {
+function resort(s: Saved, now: number, CFG: Config): Saved {
   const sc = learnFreshScores(s.contacts, CFG.freshScoreMinResults);
-  const base = { now, snap: now, savedOrder: [], savedAppts: [], dialTimes: dialTimes(s.log), freshScore: sc.ready ? sc.score : undefined, followUps: followUps(s.noSales) };
+  const base = { now, snap: now, savedOrder: [], savedAppts: [], dialTimes: dialTimes(s.log), freshScore: sc.ready ? sc.score : undefined, followUps: followUps(s.noSales, CFG.tz) };
   const today = buildToday(s.contacts.filter(c => c.list !== 'Hardcards'), base, CFG);
   const appts = buildAppointments(s.contacts, base, CFG);
   return { ...s, pass: sameDay(s.snap, now, CFG.tz) ? (s.pass ?? 1) + 1 : 1, snap: now, savedOrder: today.map(r => r.contact.id), savedAppts: appts.map(r => r.contact.id), skips: [] };
 }
 
 /** Follow-up day per contact, from its latest no-sale form that set one (start of that day, Eastern). */
-function followUps(noSales: NoSale[]) {
+function followUps(noSales: NoSale[], tz: string) {
   const m = new Map<string, number>(), at = new Map<string, number>();
   for (const n of noSales) {
     if ((at.get(n.contactId) ?? -1) > n.at) continue;
     at.set(n.contactId, n.at);
     if (!n.followUp) { m.delete(n.contactId); continue; }
     const [y, mo, d] = n.followUp.split('-').map(Number);
-    m.set(n.contactId, zoned(y, mo, d, 0, 0, CFG.tz));
+    m.set(n.contactId, zoned(y, mo, d, 0, 0, tz));
   }
   return m;
 }
@@ -100,7 +90,10 @@ function dialTimes(log: LogEvent[]) {
 
 export interface Stats { calls: number; avgTalk: number; left: number; total: number; done: number; dials: number; connects: number; scheduled: number; presented: number; sold: number }
 
-export function useDialer() {
+/** One agent's dialer. `agent` picks whose contacts load (in the demo, George's real copy or made-up ones for the others);
+ *  `CFG` is the rules in force, from Settings. */
+export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFIG) {
+  const KEY = storageKey(agent);
   const [s, setS] = useState<Saved | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [toast, setToast] = useState<{ text: string; kind: 'ok' | 'warn' } | null>(null);
@@ -112,9 +105,9 @@ export function useDialer() {
     loadState<Saved>(KEY).then(got => {
       if (!live) return;
       const t = Date.now();
-      let loaded = got && got.v === 1 ? got : fresh(t);
+      let loaded = got && got.v === 1 ? got : fresh(t, agent, CFG.tz);
       loaded = normalize(loaded);
-      if (!sameDay(loaded.snap, t, CFG.tz)) loaded = resort(loaded, t);
+      if (!sameDay(loaded.snap, t, CFG.tz)) loaded = resort(loaded, t, CFG);
       setS(loaded);
     });
     const id = setInterval(() => setNow(Date.now()), 30_000);   // the list clock (was Order!H2)
@@ -130,7 +123,7 @@ export function useDialer() {
 
   const byId = useMemo(() => new Map((s?.contacts ?? []).map(c => [c.id, c])), [s?.contacts]);
   const scorer = useMemo(() => learnFreshScores(s?.contacts ?? [], CFG.freshScoreMinResults), [s?.contacts]);
-  const ctx = useMemo(() => s && { now, snap: s.snap, savedOrder: s.savedOrder, savedAppts: s.savedAppts, dialTimes: dialTimes(s.log), followUps: followUps(s.noSales),
+  const ctx = useMemo(() => s && { now, snap: s.snap, savedOrder: s.savedOrder, savedAppts: s.savedAppts, dialTimes: dialTimes(s.log), followUps: followUps(s.noSales, CFG.tz),
     freshScore: scorer.ready ? scorer.score : undefined }, [s, now, scorer]);
   const today: TodayRow[] = useMemo(() => (s && ctx ? buildToday(s.contacts.filter(c => c.list !== 'Hardcards'), ctx, CFG) : []), [s, ctx]);
   const appts: ApptRow[] = useMemo(() => (s && ctx ? buildAppointments(s.contacts, ctx, CFG) : []), [s, ctx]);
@@ -271,9 +264,9 @@ export function useDialer() {
     say(`Monthly goal set to $${g.toLocaleString('en-US')}.`);
   }, [say]);
 
-  const reSort = useCallback(() => { setS(p => (p ? resort(p, Date.now()) : p)); setNow(Date.now()); say('Today re-sorted: a fresh pass.'); }, [say]);
+  const reSort = useCallback(() => { setS(p => (p ? resort(p, Date.now(), CFG) : p)); setNow(Date.now()); say('Today re-sorted: a fresh pass.'); }, [say]);
   const say2 = say;
-  const resetDemo = useCallback(() => { const t = Date.now(); setS(resort(fresh(t), t)); say('Demo data reset.'); }, [say]);
+  const resetDemo = useCallback(() => { const t = Date.now(); setS(resort(fresh(t, agent, CFG.tz), t, CFG)); say('Demo data reset.'); }, [say]);
 
   const recent = useMemo(() => {
     const seen = new Set<string>(), out: { contact: Contact; at: number; tag: string }[] = [];
@@ -297,5 +290,5 @@ export function useDialer() {
   }, [s?.contacts]);
 
   return { ready: !!s, now, today, appts, queue, stats, toast, byId, recent, log: s?.log ?? [], canUndo: !!s?.undo.length, batch, confirm, qual, scorer, cfg: CFG, say: say2, contacts: s?.contacts ?? [], pass: s?.pass ?? 1, noSales: s?.noSales ?? [],
-    undoLabel: s?.undo.at(-1)?.label, press, note, outcome, amend, skip, logCall, undo, reSort, resetDemo, find, sales: s?.sales ?? [], goal: s?.goal ?? 25000, setGoal, calls: s?.calls ?? [] };
+    undoLabel: s?.undo.at(-1)?.label, press, note, outcome, amend, skip, logCall, undo, reSort, resetDemo, find, sales: s?.sales ?? [], goal: s?.goal ?? 25000, agent, setGoal, calls: s?.calls ?? [] };
 }

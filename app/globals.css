@@ -703,3 +703,100 @@ select { appearance: auto; }
 .dbody .change .hint { margin: 8px 0 0; }
 @media (max-width: 760px) { .dbody { padding-left: 8px; } .drill header h2 { font-size: 21px; } }
 .donut foreignObject { pointer-events: none; }
+
+/* ---------- Team, Settings, Quo, health check (stage 7) ---------- */
+.respage .a1 { background: var(--k1); } .respage .a2 { background: var(--k2); } .respage .a3 { background: var(--k3); }
+.viewas { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.viewas select { width: auto; padding: 6px 8px; font-size: 13px; background: var(--panel); }
+.healthbtn { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 6px 12px; font-size: 13px; white-space: nowrap; color: var(--text); }
+.healthbtn i { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+.healthbtn.check i { background: var(--amber); } .healthbtn.fix i { background: var(--red); }
+.healthbtn:hover { border-color: var(--faint); }
+.callbtn .via { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; background: rgba(255,255,255,.2); border-radius: 4px; padding: 1px 6px; }
+.numline .quobtn { color: var(--link); margin-right: 10px; }
+.kgrid.k6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.lb td { vertical-align: middle; }
+.lb tr.sel td { background: color-mix(in oklab, var(--link) 9%, transparent); }
+.agentn { display: inline-flex; align-items: center; gap: 2px; }
+.agentn small { margin-left: 8px; font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
+.agentn small.quo { color: var(--t-dials); border-color: color-mix(in oklab, var(--t-dials) 40%, transparent); }
+.lb .alpc { min-width: 220px; } .lb td.alpc { display: flex; align-items: center; gap: 10px; }
+.inbar { flex: 1; height: 10px; background: var(--line2); border-radius: 3px; overflow: hidden; display: block; min-width: 80px; }
+.inbar i { display: block; height: 100%; border-radius: 0 4px 4px 0; }
+.lb .goalc { min-width: 140px; } .lb td.goalc small { display: block; font-size: 12px; color: var(--muted); }
+.meter.sm { height: 8px; margin: 2px 0 4px; }
+.okline { color: var(--t-sold); font-weight: 600; }
+.bossnote { grid-column: 1 / -1; margin: 0; }
+.health { display: flex; flex-direction: column; gap: 6px; }
+.hf { border: 1px solid var(--line2); border-radius: 8px; }
+.hf.on { border-color: var(--line); background: var(--panel2); }
+.hfh { width: 100%; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 10px; align-items: center; background: none; border: 0; padding: 9px 10px; text-align: left; color: var(--text); }
+.hfh b { font-weight: 600; } .hfh .cnt { font-variant-numeric: tabular-nums; color: var(--muted); }
+.lvl { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; border-radius: 4px; padding: 2px 0; text-align: center; }
+.lvl.fix { background: var(--red-bg); color: var(--red); } .lvl.check { background: var(--amber-bg); color: var(--amber); } .lvl.info { background: var(--blue-bg); color: var(--blue); }
+.hfb { padding: 0 12px 10px 64px; } .hfb .hint { margin: 0 0 6px; }
+.hfb ul { margin: 0; padding: 0; list-style: none; columns: 2; column-gap: 18px; }
+.hfb li { padding: 2px 0; break-inside: avoid; font-size: 13px; } .hfb li small { color: var(--muted); margin-left: 6px; }
+.coach { font-size: 13.5px; line-height: 1.5; }
+.coach p { margin: 6px 0; }
+.mailhead { display: flex; gap: 10px; align-items: baseline; padding-bottom: 8px; margin-bottom: 6px; border-bottom: 1px solid var(--line2); }
+.mailhead span { font-size: 12px; color: var(--muted); }
+.coachnums { border-collapse: collapse; margin: 4px 0 10px; font-size: 13px; }
+.coachnums td { padding: 2px 12px 2px 0; } .coachnums td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.coachnums .tr.up { color: var(--t-sold); } .coachnums .tr.down { color: var(--t-noshow); } .coachnums .tr.same { color: var(--faint); }
+.coach ul { margin: 4px 0 8px; padding-left: 18px; }
+.coach .focus { background: color-mix(in oklab, var(--s-sched) 9%, var(--panel)); border-left: 3px solid var(--s-sched); border-radius: 6px; padding: 10px 12px; margin: 10px 0; }
+.coach .focus b { font: 600 17px/1.3 var(--serif); }
+.settable td { vertical-align: middle; } .settable select, .settable input { padding: 6px 8px; font-size: 13px; }
+.settable input.money { width: 110px; } .settable td.states { white-space: normal; max-width: 260px; color: var(--muted); font-size: 12.5px; }
+.tog { width: 38px; height: 22px; border-radius: 999px; border: 0; background: var(--line); position: relative; padding: 0; flex: none; }
+.tog i { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: left .12s; }
+.tog.on { background: var(--green); } .tog.on i { left: 19px; }
+.setform { display: flex; flex-direction: column; gap: 10px; }
+.setform > label, .frow label { font-size: 13px; color: var(--text); }
+.setform .hint { margin: -4px 0 0; }
+.days8 { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
+.days8.b4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.days8 span { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); }
+.days8.b4 span { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px; } .days8.b4 small { flex-basis: 100%; }
+.days8.b4 input { width: calc(100% - 18px); }
+.days8 input { padding: 6px 8px; text-align: center; }
+.frow { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.frow select { width: auto; padding: 6px 8px; }
+.unit { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.unit input { width: 70px; padding: 6px 8px; text-align: right; }
+.quoset { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.quoset .hint { margin: 4px 0 0; } .quoset .spill { margin-right: 6px; }
+.changes { margin: 0 0 12px; padding-left: 18px; } .changes li { margin: 4px 0; }
+.warnbox { background: var(--amber-bg); color: var(--amber); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; } .warnbox p { margin: 2px 0; }
+.quotext { display: flex; flex-direction: column; gap: 8px; }
+.qrow { display: flex; gap: 10px; font-size: 13.5px; } .qrow span { width: 44px; color: var(--muted); }
+.quotext .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+.quotext .chips button { border: 1px solid var(--line); background: var(--panel2); border-radius: 999px; padding: 4px 10px; font-size: 12.5px; }
+.quotext .chips button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.qmeta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; font-size: 12px; color: var(--muted); }
+.bubble { align-self: flex-start; max-width: 88%; background: var(--blue-bg); color: var(--text); border-radius: 16px 16px 16px 4px; padding: 9px 13px; font-size: 14px; line-height: 1.4; white-space: pre-wrap; }
+.quotext .hint { margin: 2px 0 0; }
+@media (max-width: 1180px) {
+  .kgrid.k6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .quoset { grid-template-columns: 1fr; }
+  .viewas span { display: none; }
+}
+@media (max-width: 760px) {
+  .kgrid.k6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hfb { padding-left: 12px; } .hfb ul { columns: 1; }
+  .healthbtn { padding: 6px 9px; font-size: 0; gap: 0; } .healthbtn i { width: 10px; height: 10px; }
+}
+.coachnums { width: auto; }
+@media (max-width: 1600px) {
+  .brand .who { display: none; }
+  .viewas span { display: none; }
+  .search { width: 190px; }
+  .top { gap: 18px; }
+}
+@media (max-width: 1320px) { .nav button { padding: 7px 9px; font-size: 14px; } .search { width: 150px; } }
+.coach .coachnums { width: auto; }
+.coachnums { display: grid; grid-template-columns: max-content max-content 16px max-content; gap: 2px 12px; margin: 4px 0 10px; font-size: 13px; }
+.coachnums .cn { display: contents; } .coachnums b { text-align: right; font-variant-numeric: tabular-nums; }
+.coachnums .muted { color: var(--muted); }
+@media (max-width: 760px) { .viewas select { max-width: 130px; } .lb .alpc { min-width: 160px; } }

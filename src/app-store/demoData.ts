@@ -12,7 +12,7 @@ const LAST = ['Calloway', 'Brightwater', 'Hollins', 'Pembrook', 'Ashford', 'Whit
 const COS = ['Lonestar Freight', 'Peachtree Logistics', 'Magnolia Rail', 'Red River Haulers', 'Bluegrass Parcel', 'UPS', 'Gulf Coast Cartage',
   'Ironhorse Rail', 'Summit Warehousing', 'Delta Linehaul'];
 const JOBS = ['Package Car Driver', 'Feeder Driver', 'Conductor', 'Yard Jockey', 'Warehouse Lead', 'Dock Worker', 'Dispatcher', 'Mechanic', 'Loader'];
-const LISTS: { list: string; st: string; cities: string[]; ac: string[]; zone: Contact['zone'] }[] = [
+const DEFAULT_LISTS: { list: string; st: string; cities: string[]; ac: string[]; zone: Contact['zone'] }[] = [
   { list: 'Texas', st: 'TX', cities: ['Dallas', 'Fort Worth', 'Houston', 'Amarillo'], ac: ['214', '817', '713', '806'], zone: 'CT' },
   { list: 'Georgia', st: 'GA', cities: ['Atlanta', 'Macon', 'Savannah'], ac: ['404', '478', '912'], zone: 'ET' },
   { list: 'Alabama', st: 'AL', cities: ['Birmingham', 'Mobile', 'Huntsville'], ac: ['205', '251', '256'], zone: 'CT' },
@@ -22,8 +22,13 @@ const LISTS: { list: string; st: string; cities: string[]; ac: string[]; zone: C
 /** A small seeded random generator, so the demo looks the same every time it is reset. */
 function rng(seed: number) { return () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648); }
 
-export function demoContacts(now: number, tz: string, count = 160): Contact[] {
-  const r = rng(7);
+export type DemoList = { list: string; st: string; cities: string[]; ac: string[]; zone: Contact['zone'] };
+/** Other agents in the demo get their own made-up contacts on their own states. */
+export interface DemoOpts { seed?: number; lists?: DemoList[]; idPrefix?: string }
+
+export function demoContacts(now: number, tz: string, count = 160, opts: DemoOpts = {}): Contact[] {
+  const r = rng(opts.seed ?? 7);
+  const LISTS = opts.lists ?? DEFAULT_LISTS;
   const pick = <T,>(a: T[]) => a[Math.floor(r() * a.length)];
   const day = startOfDay(now, tz);
   const out: Contact[] = [];
@@ -32,7 +37,7 @@ export function demoContacts(now: number, tz: string, count = 160): Contact[] {
   for (let i = 0; i < count; i++) {
     const L = LISTS[i % LISTS.length];
     const c: Contact = {
-      id: `demo-${i + 1}`, list: L.list, tag: '', dials: 0, first: pick(FIRST), last: pick(LAST), phone: num(pick(L.ac)),
+      id: `${opts.idPrefix ?? 'demo'}-${i + 1}`, list: L.list, tag: '', dials: 0, first: pick(FIRST), last: pick(LAST), phone: num(pick(L.ac)),
       job: pick(JOBS), company: pick(COS), city: pick(L.cities), state: L.st, backup: '', notes: '', lastDialed: null,
       status: '', callAt: null, linkedin: '', zone: L.zone, newNumberMark: null, callbackTries: 0, noShowTries: 0,
       swapMemo: null, seq: Math.floor(i / LISTS.length) + 3,

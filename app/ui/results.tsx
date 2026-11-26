@@ -134,7 +134,7 @@ function Drill({ d, t, who, onClose, onDial, onResult }: { d: D; t: DrillT; who:
 }
 
 /** One floating box that shows any [data-tip] under the pointer (or the last tapped one on a phone). */
-function useTips() {
+export function useTips() {
   useEffect(() => {
     const box = document.createElement('div');
     box.className = 'tipbox'; box.style.display = 'none'; document.body.appendChild(box);
