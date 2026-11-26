@@ -5,9 +5,8 @@ import type { Contact } from '../src/rules/types';
 import type { DialerKey } from '../src/rules/engine';
 import { notesNewestFirst, isHistoryNote } from '../src/rules/notes';
 import { tagShort, tagKind } from '../src/rules/tags';
-import { mdTime, wdMdTime, md } from '../src/rules/time';
+import { mdTime, md, sameDay } from '../src/rules/time';
 import { parseWhen } from '../src/rules/parseWhen';
-import { nextAction } from '../src/rules/schedule';
 
 const TZ = 'America/New_York';
 const ZONE_TZ: Record<string, string> = { ET: 'America/New_York', CT: 'America/Chicago', MT: 'America/Denver', PT: 'America/Los_Angeles' };
@@ -53,8 +52,19 @@ const IC = {
   end: 'M10.7 13.3a16 16 0 0 0 3.4 2.6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.8',
 };
 const fmtSecs = (n: number) => `${Math.floor(n / 60)}m ${String(n % 60).padStart(2, '0')}s`;
-
 type Modal = null | { kind: 'sold' | 'presented' | 'reschedule'; id: string };
+type Filter = 'All' | 'Callback' | 'NoShow' | 'NewNumber' | 'Retry' | 'Fresh';
+const FILTERS: [Filter, string][] = [['All', 'All'], ['Callback', 'Callbacks'], ['NoShow', 'No-shows'], ['NewNumber', 'New numbers'], ['Retry', 'Retry'], ['Fresh', 'Fresh']];
+const baseWhy = (why: string) => why.replace(/^DONE TODAY - /, '');
+const groupOf = (why: string): Filter => {
+  const k = chipClass(baseWhy(why));
+  return k === 'Callback' || k === 'NoShow' || k === 'NewNumber' || k === 'Fresh' ? k : 'Retry';
+};
+const money = (n: number) => '$' + Math.round(n).toLocaleString('en-US');
+const ZONE_NAME: Record<string, string> = { ET: 'Eastern', CT: 'Central', MT: 'Mountain', PT: 'Pacific' };
+const hourOf = (t: number) => Number(new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', hourCycle: 'h23' }).format(t));
+const hourLabel = (h: number) => (h % 12 || 12) + (h < 12 ? 'a' : 'p');
+const timeOnly = (t: number) => new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }).format(t);
 
 export default function Today() {
   const d = useDialer();
@@ -69,10 +79,12 @@ export default function Today() {
   const [call, setCall] = useState<{ id: string; at: number } | null>(null);
   const [auto, setAuto] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [filter, setFilter] = useState<Filter>('All');
   const [, tick] = useState(0);
   const whenRef = useRef<HTMLInputElement>(null);
+  const noteRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const firstOpen = useRef<string | null>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let t: string | null = null;
@@ -88,14 +100,18 @@ export default function Today() {
   const current: Contact | undefined = (picked ? d.byId.get(picked) : undefined) ?? d.queue[0]?.contact;
   const currentRow = d.today.find(r => r.contact.id === current?.id);
   const why = currentRow?.why ?? (current ? tagShort(current.tag) : '');
+  const position = current ? d.queue.findIndex(r => r.contact.id === current.id) : -1;
 
-  // reset the action area when the contact changes, and bring the open row into view
+  // reset the action area when the contact changes, and keep its row in view inside the table
   useEffect(() => {
     setPending(null); setWhen(''); setNoteText(''); setBackupMode(false);
-    if (!current?.id) return;
-    if (!firstOpen.current) { firstOpen.current = current.id; return; }   // don't jump on page load
-    const t = setTimeout(() => document.querySelector(`[data-row="${current.id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 60);
-    return () => clearTimeout(t);
+    if (!current?.id || !tableRef.current) return;
+    const el = tableRef.current.querySelector<HTMLElement>(`[data-row="${current.id}"]`);
+    if (el) {
+      const box = tableRef.current, top = el.offsetTop - 44, bottom = el.offsetTop + el.offsetHeight;
+      if (top < box.scrollTop) box.scrollTo({ top, behavior: 'smooth' });
+      else if (bottom > box.scrollTop + box.clientHeight) box.scrollTo({ top: bottom - box.clientHeight + 8, behavior: 'smooth' });
+    }
   }, [current?.id]);
 
   /** Call: opens the phone app (or the web dialer) and starts the call timer. */
@@ -121,10 +137,7 @@ export default function Today() {
   // call timer, and the auto-dial countdown to the next contact
   useEffect(() => {
     if (!call && countdown == null) return;
-    const id = setInterval(() => {
-      tick(t => t + 1);
-      setCountdown(c => (c == null ? c : c - 1));
-    }, 1000);
+    const id = setInterval(() => { tick(t => t + 1); setCountdown(c => (c == null ? c : c - 1)); }, 1000);
     return () => clearInterval(id);
   }, [call, countdown != null]);
   useEffect(() => {
@@ -135,19 +148,23 @@ export default function Today() {
     }
   }, [countdown]);
 
-  // keys 1-6, S skip, Ctrl+Z undo, / find
+  // keys: 1-6 results, C call, N note, / search, U undo, R re-sort, S skip, B backup, Esc
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); d.undo(); return; }
-      if (typing || modal) return;
+      if (typing || modal || e.ctrlKey || e.metaKey || e.altKey) return;
+      const k = e.key.toLowerCase();
       const map: Record<string, DialerKey> = { '1': 'noanswer', '2': 'voicemail', '3': 'callback', '4': 'notint', '5': 'bad', '6': 'appt' };
       if (map[e.key]) { e.preventDefault(); act(map[e.key]); }
-      else if (e.key.toLowerCase() === 's' && current) { d.skip(current.id); setPicked(null); }
-      else if ((e.key === 'Enter' || e.key.toLowerCase() === 'c') && current && !call) { e.preventDefault(); startCall(current, backupMode); }
+      else if (k === 'n') { e.preventDefault(); noteRef.current?.focus(); }
+      else if (k === 'u') d.undo();
+      else if (k === 'r') d.reSort();
+      else if (k === 's' && current) { d.skip(current.id); setPicked(null); }
+      else if ((e.key === 'Enter' || k === 'c') && current && !call) { e.preventDefault(); startCall(current, backupMode); }
       else if (e.key === 'Escape') setCountdown(null);
-      else if (e.key.toLowerCase() === 'b' && current?.backup) setBackupMode(b => !b);
+      else if (k === 'b' && current?.backup) setBackupMode(b => !b);
       else if (e.key === '/') { e.preventDefault(); searchRef.current?.focus(); }
     };
     window.addEventListener('keydown', onKey);
@@ -161,134 +178,91 @@ export default function Today() {
     return !w ? 'Could not read that time' : 'error' in w ? w.error : w.label;
   }, [when, d.now]);
 
+  // today's events: called-into count, ALP and the hourly chart
+  const todayLog = useMemo(() => d.log.filter(e => sameDay(e.at, d.now, TZ)), [d.log, d.now]);
+  const calledInto = useMemo(() => new Set(todayLog.filter(e => e.kind === 'Tag' && e.tag.startsWith('CALLED INTO')).map(e => e.contactId)).size
+    + d.appts.filter(a => tagKind(a.contact.tag) === 'calledInto').length, [todayLog, d.appts]);
+  const salesToday = d.sales.filter(x => sameDay(x.at, d.now, TZ));
+  const alp = salesToday.reduce((a, x) => a + (x.standardAlp || x.trialAlp), 0);
+  const hours = useMemo(() => {
+    const h: { h: number; dials: number; connects: number }[] = [];
+    for (let i = 9; i <= 21; i++) h.push({ h: i, dials: 0, connects: 0 });
+    for (const e of todayLog) {
+      const row = h.find(x => x.h === hourOf(e.at)); if (!row) continue;
+      if (e.kind === 'Dial') row.dials += e.count;
+      if (e.kind === 'Tag' && e.reach) row.connects++;
+    }
+    return h;
+  }, [todayLog]);
+  const best = useMemo(() => {
+    let b: typeof hours[0] | null = null;
+    for (const x of hours) if (x.dials >= 3 && (!b || x.connects / x.dials > b.connects / b.dials)) b = x;
+    return b && b.connects ? `${hourLabel(b.h)}–${hourLabel(b.h + 1)}` : '';
+  }, [hours]);
+
+  const counts = useMemo(() => {
+    const m: Record<Filter, number> = { All: 0, Callback: 0, NoShow: 0, NewNumber: 0, Retry: 0, Fresh: 0 };
+    for (const r of d.today) { m.All++; m[groupOf(r.why)]++; }
+    return m;
+  }, [d.today]);
+  const soldIds = useMemo(() => new Set(salesToday.map(x => x.contactId)), [salesToday]);
+  const rows = d.today.map((r, i) => ({ ...r, n: i + 1 })).filter(r => filter === 'All' || groupOf(r.why) === filter);
+
+  const exportCsv = () => {
+    const esc = (v: unknown) => { const t = String(v ?? ''); return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+    const head = ['#', 'Why', 'First', 'Last', 'Phone', 'Backup', 'City', 'State', 'Zone', 'Company', 'Job', 'Dials', 'Last dialed', 'Next', 'Latest note'];
+    const lines = d.today.map((r, i) => {
+      const c = r.contact;
+      return [i + 1, r.why, c.first, c.last, c.phone, c.backup, c.city, c.state, c.zone, c.company, c.job, c.dials,
+        c.lastDialed ? mdTime(c.lastDialed, TZ) : '', c.callAt ? mdTime(c.callAt, TZ) : r.nextAction ? md(r.nextAction, TZ) : '',
+        notesNewestFirst(c.notes)[0] ?? ''].map(esc).join(',');
+    });
+    const blob = new Blob([[head.join(','), ...lines].join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `today-${md(d.now, TZ).replace('/', '-')}.csv`; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+
   if (!d.ready) return <div className="empty">Loading…</div>;
   const s = d.stats;
   const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
+  const lines = current ? notesNewestFirst(current.notes) : [];
+  const history = lines.filter(isHistoryNote), research = lines.filter(l => !isHistoryNote(l));
+  const dialNum = current ? (backupMode && current.backup ? current.backup : current.phone || current.backup) : '';
+  const otherNum = current ? (backupMode ? current.phone : current.backup) : '';
+  const maxH = Math.max(4, ...hours.map(x => x.dials));
+  const dateLine = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'long', month: 'long', day: 'numeric' }).format(d.now);
+  const states = new Set(d.today.map(r => r.contact.state));
+  const lastSave = d.log.at(-1)?.at;
 
-  /** One row of the big list. The current contact's row is open, with the dial controls inside it. */
-  const renderRow = (c: Contact, rowWhy: string, done: boolean, next: number | null, pinned: boolean) => {
-    const open = c.id === current?.id;
-    const nx = c.callAt ? mdTime(c.callAt, TZ) : next ? md(next, TZ) : '';
-    const label = rowWhy.replace('DONE TODAY - ', '✓ ') || (c.tag ? tagShort(c.tag) : 'Contact');
-    const live = call?.id === c.id;
-    return (
-      <div key={(pinned ? 'pin-' : '') + c.id} data-row={c.id} className={`brow ${open ? 'open' : ''} ${done ? 'done' : ''} ${live ? 'live' : ''}`}>
-        <div className="bline" role="button" tabIndex={0} onClick={() => setPicked(open ? picked : c.id)}
-             onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setPicked(c.id); } }}>
-          <span className="bname"><span className="av">{done ? '✓' : (c.first[0] ?? '') + (c.last[0] ?? '')}</span>
-            <span><b>{c.first} {c.last}</b><small>{c.city}, {c.state}</small></span></span>
-          <span className="bco">{c.company}<small>{c.job}</small></span>
-          <span className="mono bph">{c.phone || c.backup || '—'}</span>
-          <span><span className={`chip ${chipClass(rowWhy)}`}>{label}</span></span>
-          <span className="num">{c.dials}</span>
-          <span className="blast">{c.lastDialed ? mdTime(c.lastDialed, TZ) : 'Never'}</span>
-          <span className="bnext">{nx || '—'}</span>
-          <span className="bcall">
-            {live ? <span className="livepill"><span className="wave"><i /><i /><i /><i /></span>{fmtSecs(Math.round((Date.now() - call!.at) / 1000))}</span>
-              : !done && <button className="callpill" onClick={e => { e.stopPropagation(); startCall(c); }}><span className="ci"><Ico d={IC.phone} size={13} /></span><span className="ct">Call</span></button>}
-          </span>
-        </div>
-        {open && expanded(c)}
-      </div>
-    );
-  };
-
-  const expanded = (c: Contact) => {
-    const lines = notesNewestFirst(c.notes);
-    const na = nextAction(c, d.now);
-    const dialNum = backupMode && c.backup ? c.backup : c.phone || c.backup;
-    return (
-      <div className="bx">
-        <div className="bxl">
-          <div className="phone">
-            {call?.id === c.id ? (
-              <div className="dialer live">
-                <span className="handset"><span className="wave"><i /><i /><i /><i /></span></span>
-                <span className="dnum"><small>On call · {fmtSecs(Math.round((Date.now() - call.at) / 1000))}</small>{dialNum}</span>
-                <span className="dhint">Pick a result to hang up</span>
-              </div>
-            ) : (
-              <button className="dialer" disabled={!dialNum} onClick={() => startCall(c, backupMode)}>
-                <span className="handset"><Ico d={IC.phone} size={22} /></span>
-                <span className="dnum"><small>{backupMode ? 'Call backup' : 'Call'}</small>{dialNum || 'No number'}</span>
-                <span className="kc">C</span>
-              </button>
-            )}
-            {c.backup && c.phone && (
-              <button className={`btn swap ${backupMode ? 'on' : ''}`} onClick={() => setBackupMode(!backupMode)}>
-                {backupMode ? <>Main: {c.phone}</> : <>Backup: {c.backup}</>} <span className="kc">B</span>
-              </button>
-            )}
-          </div>
-          <div className="facts">
-            <div className="fact"><span>Local time</span><b>{localTime(c.zone, d.now) || '—'}</b> <span className="hint">{c.zone}</span></div>
-            <div className="fact"><span>{tagKind(c.tag) === 'scheduled' ? 'Appointment' : c.callAt ? 'Call at' : 'Next action'}</span>
-              <b>{c.callAt ? mdTime(c.callAt, TZ) : na ? md(na, TZ) : '—'}</b></div>
-            <div className="fact"><span>List</span><b>{c.list}</b></div>
-            <div className="fact"><span>Tag</span><b>{c.tag ? tagShort(c.tag) : 'None'}</b></div>
-          </div>
-          <h3 className="bxh">History and notes</h3>
-          {lines.length ? (
-            <ul className="timeline">
-              {lines.slice(0, 8).map((l, i) => {
-                const m = l.match(/^(\d{1,2}\/\d{1,2}):\s*(.*)$/);
-                return <li key={i} className={isHistoryNote(l) ? '' : 'research'}>{m ? <><span className="d">{m[1]}</span>{m[2]}</> : l}</li>;
-              })}
-            </ul>
-          ) : <p className="hint">No notes yet.</p>}
-        </div>
-        <div className="bxr">
-          <div className="pad">
-            {([
-              ['noanswer', '1', 'No answer', 'Logs a dial', 'noans', 'n'],
-              ['voicemail', '2', 'Voicemail', 'Dial + dated note', 'vm', 'n'],
-              ['callback', '3', 'Callback', 'Needs a time', 'cb', 'amber'],
-              ['notint', '4', 'Not interested', 'Re-approach in 75 days', 'ni', 'red'],
-              ['bad', '5', 'Bad number', c.backup ? 'Backup takes over' : 'Off the list', 'bad', 'red'],
-              ['appt', '6', 'Appointment', 'Needs a time', 'appt', 'green'],
-            ] as [DialerKey, string, string, string, keyof typeof IC, string][]).map(([k, n, label, sub, ic, tone]) => (
-              <button key={k} className={`key ${tone} ${pending === k ? 'armed' : ''}`} onClick={() => act(k)}>
-                <span className="cap">{n}</span>
-                <span className="glyph"><Ico d={IC[ic]} size={17} /></span>
-                <span className="lab">{label}</span>
-                <span className="subl">{sub}</span>
-              </button>
-            ))}
-          </div>
-          <div className="when">
-            <input ref={whenRef} placeholder={pending ? `${pending === 'appt' ? 'Appointment' : 'Callback'} time, e.g. fri 10am` : 'Callback / appointment time (optional)'}
-                   value={when} onChange={e => setWhen(e.target.value)}
-                   onKeyDown={e => { if (e.key === 'Enter' && pending) act(pending); }} />
-            <input placeholder="Note (optional), e.g. wife answered" value={noteText} onChange={e => setNoteText(e.target.value)}
-                   onKeyDown={e => { if (e.key === 'Enter' && noteText.trim() && !pending) { d.note(c.id, noteText); setNoteText(''); } }} />
-            {pending
-              ? <button className="btn primary" onClick={() => act(pending)}>Save {pending === 'appt' ? 'appointment' : 'callback'}</button>
-              : <button className="btn" disabled={!noteText.trim()} onClick={() => { d.note(c.id, noteText); setNoteText(''); }}>Add note</button>}
-          </div>
-          <div className="sugg">
-            {preview && <span className="hint">→ {preview}</span>}
-            {['tomorrow 10am', 'tomorrow 6pm', 'fri 2pm', 'mon 9am'].map(x => <button key={x} onClick={() => setWhen(x)}>{x}</button>)}
-          </div>
-          <div className="bar bxbar">
-            <button className="btn" onClick={() => { d.skip(c.id); setPicked(null); }}><Ico d={IC.skip} size={14} /> Skip <span className="kc">S</span></button>
-            <button className="btn" disabled={!d.canUndo} onClick={d.undo}><Ico d={IC.undo} size={14} /> Undo <span className="kc">⌘Z</span></button>
-            <span className="hint" style={{ marginLeft: 'auto' }}>Pick a result and the next row opens</span>
-          </div>
-        </div>
-      </div>
-    );
-  };
+  // appointments plus today's closed-out sales and presentations
+  type ApptLine = { id: string; at: number | null; name: string; company: string; pill: string; tone: string; open: boolean; ci: boolean };
+  const apptLines: ApptLine[] = [
+    ...d.appts.map(a => {
+      const c = a.contact, ci = tagKind(c.tag) === 'calledInto';
+      const [pill, tone] = ci ? ['Called into', 'blue'] : a.status.includes('show') ? ['Did they show?', 'amber']
+        : a.status.includes('Confirm') ? [a.called ? 'Confirmed' : a.status.includes('tomorrow') ? 'Confirm tmrw' : 'Confirm', 'teal']
+        : [a.status.replace('CALLED - ', ''), 'grey'];
+      return { id: c.id, at: c.callAt, name: `${c.first} ${c.last}`, company: c.company, pill, tone, open: true, ci };
+    }),
+    ...salesToday.map(x => { const c = d.byId.get(x.contactId); return { id: x.contactId, at: x.at, name: c ? `${c.first} ${c.last}` : '', company: c?.company ?? '', pill: 'Sold', tone: 'green', open: false, ci: false }; }),
+    ...d.noSales.filter(x => sameDay(x.at, d.now, TZ)).map(x => { const c = d.byId.get(x.contactId); return { id: x.contactId, at: x.at, name: c ? `${c.first} ${c.last}` : '', company: c?.company ?? '', pill: 'Presented', tone: 'violet', open: false, ci: false }; }),
+  ];
 
   return (
     <div className="shell">
       <div className="demo-banner">Demo with made-up contacts. Changes stay in this browser only.</div>
       <header className="top">
-        <div className="brand"><span className="dot">T</span>Trucker Dialer</div>
-        <div className="clock">{wdMdTime(d.now, TZ)} ET</div>
+        <div className="brand"><span className="dot">T</span><span className="wordmark">Truckers</span><span className="who">Demo Agent · Direct</span></div>
+        <nav className="nav">
+          <button className="on">Today</button>
+          {['Contacts', 'Appointments', 'Needs Number', 'Results', 'Team'].map(x => <button key={x} title="Coming in the next stages" disabled>{x}</button>)}
+        </nav>
         <div className="tools">
           <div className="search">
-            <input ref={searchRef} placeholder="Find a contact  ( / )" value={q} onChange={e => setQ(e.target.value)}
-                   onKeyDown={e => { if (e.key === 'Escape') setQ(''); }} />
+            <Ico d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3" size={15} />
+            <input ref={searchRef} placeholder="Name, phone or company" value={q} onChange={e => setQ(e.target.value)}
+                   onKeyDown={e => { if (e.key === 'Escape') { setQ(''); (e.target as HTMLInputElement).blur(); } }} />
+            <span className="kc">/</span>
             {results.length > 0 && (
               <div className="results">
                 {results.map(c => (
@@ -299,88 +273,227 @@ export default function Today() {
               </div>
             )}
           </div>
-          <button className="btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? 'Day' : 'Night'}</button>
+          <button className="iconbtn" aria-label="Switch day or night" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+            <Ico d={theme === 'dark' ? 'M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z' : 'M12 4V2M12 22v-2M4 12H2M22 12h-2M5.6 5.6 4.2 4.2M19.8 19.8l-1.4-1.4M5.6 18.4l-1.4 1.4M19.8 4.2l-1.4 1.4M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z'} size={16} />
+          </button>
+          <span className="avatar">DA</span>
         </div>
       </header>
 
-      <div className="stats">
-        {([
-          ['list', s.left, 'Left to dial', pct], ['phone', s.dials, 'Dials'], ['connect', s.connects, 'Connects'],
-          ['cal', s.scheduled, 'Scheduled'], ['pres', s.presented, 'Presented'], ['sold', s.sold, 'Sold'],
-        ] as [keyof typeof IC, string | number, string, number?][]).map(([ic, v, label, p]) => (
-          <div className="stat" key={label}>
-            <span className="ic"><Ico d={IC[ic]} /></span>
-            <b>{v}</b><span className="lbl">{label}</span>
-            {p != null && <div className="progress"><i style={{ width: p + '%' }} /></div>}
-          </div>
-        ))}
-      </div>
-
-      <div className="autobar">
-        <div>
-          <b>Auto-Dial</b>
-          <span className="hint">{auto ? (countdown != null ? `Calling the next contact in ${countdown}… (Esc to wait)` : call ? 'On a call. Pick the result and the next one dials itself.' : 'On. Press Call to start.') : `${d.queue.length} contacts queued`}</span>
+      <section className="hero">
+        <div className="title">
+          <div className="eyebrow">{dateLine} · {states.size > 1 ? 'All states' : [...states][0] ?? 'All states'} · Pass {d.pass}</div>
+          <h1>Today&rsquo;s Call Queue</h1>
+          <div className="passbar"><div className="progress"><i style={{ width: pct + '%' }} /></div><span><b>{s.done}</b> of {s.total} dialed this pass</span></div>
         </div>
-        <button className="btn" onClick={d.reSort} title="Start a fresh pass"><Ico d={IC.reset} size={15} /> Re-sort</button>
-        <button className={`go ${auto ? 'on' : ''}`} onClick={() => {
-          if (auto) { setAuto(false); setCountdown(null); }
-          else { setAuto(true); const n = current ?? d.queue[0]?.contact; if (n && !call) startCall(n); }
-        }}><span className="gi"><Ico d={auto ? IC.pause : IC.play} size={12} /></span>{auto ? 'Stop Auto Dial' : 'Start Auto Dial'}</button>
-      </div>
+        <div className="strip">
+          {([
+            ['Left to dial', s.left, ''], ['Dials', s.dials, 'blue'], ['Connects', s.connects, 'blue'], ['Scheduled', s.scheduled, 'amber'],
+            ['Called into', calledInto, ''], ['Presented', s.presented, ''], ['Sold', s.sold, 'green'], ['ALP today', money(alp), 'green'],
+          ] as [string, string | number, string][]).map(([l, v, tone]) => (
+            <div className="cell" key={l}><span>{l}</span><b className={tone}>{v}</b></div>
+          ))}
+        </div>
+      </section>
 
-      <main className="grid2">
-        <section className="panel blist">
-          <div className="bhead">
-            <span>Contact</span><span>Company · Job</span><span>Phone</span><span>Status</span>
-            <span className="num">Dials</span><span>Last dialed</span><span>Next / call at</span><span />
-          </div>
-          {current && !currentRow && renderRow(current, why, false, null, true)}
-          {d.today.map(r => renderRow(r.contact, r.why, r.done, r.nextAction, false))}
-          {!current && (
-            <div className="empty">
-              <h2>List finished</h2>
-              <p>Everyone due today has been dialed. Press <b>Re-sort</b> to start a fresh pass with the contacts that are due again.</p>
-              <button className="btn primary" onClick={d.reSort}>Re-sort Today</button>
+      <main className="work">
+        <div className="leftcol">
+          <section className="panel queue">
+            <div className="toolbar">
+              <div className="tabs" role="tablist">
+                {FILTERS.map(([f, label]) => (
+                  <button key={f} role="tab" aria-selected={filter === f} className={filter === f ? 'on' : ''} onClick={() => setFilter(f)}>
+                    {label} <span>{counts[f]}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="tbtns">
+                <button className={`btn auto ${auto ? 'on' : ''}`} onClick={() => {
+                  if (auto) { setAuto(false); setCountdown(null); }
+                  else { setAuto(true); if (current && !call) startCall(current); }
+                }}><span className="led" />{auto ? (countdown != null ? `Next in ${countdown}…` : 'Auto-dial on') : 'Auto-dial'}</button>
+                <button className="btn" onClick={d.reSort}>Re-sort</button>
+                <button className="btn" onClick={exportCsv}>Export CSV</button>
+              </div>
             </div>
-          )}
-        </section>
-        {/* Appointments, called-into, recent */}
-        <aside className="side">
-          <section className="panel">
-            <h3>Appointments <span>{d.appts.length}</span></h3>
-            {d.appts.map(a => {
-              const c = a.contact;
-              const ci = tagKind(c.tag) === 'calledInto';
-              const cls = ci ? 'ci' : a.status.includes('show') ? 'show' : 'conf';
-              return (
-                <div className="appt" key={c.id}>
-                  <div><button className="who" onClick={() => setPicked(c.id)}>{c.first} {c.last}</button> <span className="hint">{c.callAt ? '· ' + mdTime(c.callAt, TZ) : ''}</span></div>
-                  <div className={`st ${cls}`}>{a.status}</div>
-                  <div className="acts seg2">
-                    <button onClick={() => setModal({ kind: 'sold', id: c.id })}>Sold</button>
-                    <button onClick={() => setModal({ kind: 'presented', id: c.id })}>Presented</button>
-                    {!ci && <button onClick={() => d.outcome(c.id, 'noshow')}>No-show</button>}
-                    {!ci && <button onClick={() => setModal({ kind: 'reschedule', id: c.id })}>Move</button>}
+            <div className="tscroll" ref={tableRef}>
+              <table className="qt">
+                <thead><tr>
+                  <th className="num">#</th><th>Why</th><th>Contact</th><th>Phone</th><th>Location · Zone</th><th>Company — Role</th>
+                  <th className="num">Dials</th><th className="num">Last</th><th className="num">Next</th><th>Notes (newest)</th>
+                </tr></thead>
+                <tbody>
+                  {rows.map(r => {
+                    const c = r.contact, isCur = c.id === current?.id, sold = soldIds.has(c.id) || c.tag.startsWith('SOLD');
+                    const label = r.done ? `Done · ${baseWhy(r.why)}` : r.why;
+                    return (
+                      <tr key={c.id} data-row={c.id} className={`${r.done ? 'done' : ''} ${isCur ? 'cur' : ''} ${sold ? 'sold' : ''}`}
+                          onClick={() => setPicked(c.id)} tabIndex={0} onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setPicked(c.id); } }}>
+                        <td className="num muted">{r.n}</td>
+                        <td><span className={`pill ${sold ? 'Sold' : r.done ? 'Done' : chipClass(r.why) || 'Retry'}`}>{sold ? 'Sold' : label}</span></td>
+                        <td className="strong">{c.first} {c.last}</td>
+                        <td className="tnum">{c.phone || c.backup || '—'}</td>
+                        <td>{c.city}, {c.state} · {c.zone}</td>
+                        <td>{c.company}{c.job ? ` — ${c.job}` : ''}</td>
+                        <td className="num">{c.dials}</td>
+                        <td className="num muted">{c.lastDialed ? md(c.lastDialed, TZ) : '—'}</td>
+                        <td className="num muted">{c.callAt ? md(c.callAt, TZ) : r.nextAction ? md(r.nextAction, TZ) : '—'}</td>
+                        <td className="note muted">{(notesNewestFirst(c.notes)[0] ?? '').replace(/^(\d{1,2}\/\d{1,2}):\s*/, '$1 ')}</td>
+                      </tr>
+                    );
+                  })}
+                  {!rows.length && <tr><td colSpan={10} className="emptyrow">Nothing in this group right now.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+            <div className="tfoot">
+              <span>Showing {rows.length} of {d.today.length} · {s.done} done today</span>
+              <span className="legend"><i className="sold" />Sold <i className="done" />Done today <i className="cur" />On the line</span>
+            </div>
+          </section>
+
+          <div className="lower">
+            <section className="panel appts">
+              <div className="ph"><h2>Appointments &amp; called into</h2><span>{apptLines.length} today</span></div>
+              {apptLines.map((a, i) => (
+                <div className="aline" key={a.id + i}>
+                  <span className="at">{a.at ? timeOnly(a.at) : '—'}</span>
+                  <button className="an" onClick={() => setPicked(a.id)}>{a.name}</button>
+                  <span className="ac">{a.company}</span>
+                  <span className={`spill ${a.tone}`}>{a.pill}</span>
+                  {a.open && (
+                    <span className="aacts">
+                      <button onClick={() => setModal({ kind: 'sold', id: a.id })}>Sold</button>
+                      <button onClick={() => setModal({ kind: 'presented', id: a.id })}>Presented</button>
+                      {!a.ci && <button onClick={() => d.outcome(a.id, 'noshow')}>No-show</button>}
+                      {!a.ci && <button onClick={() => setModal({ kind: 'reschedule', id: a.id })}>Move</button>}
+                    </span>
+                  )}
+                </div>
+              ))}
+              {!apptLines.length && <p className="hint pad16">No appointments today.</p>}
+            </section>
+            <section className="panel chart">
+              <div className="ph"><h2>Dials &amp; connects by hour</h2><span>{best ? `Best window: ${best}` : 'Fills in as you dial'}</span></div>
+              <div className="bars" role="img" aria-label="Dials and connects by hour today">
+                {hours.map(x => (
+                  <div className="bcol" key={x.h} title={`${hourLabel(x.h)}: ${x.dials} dials, ${x.connects} connects`}>
+                    <div className="stack" style={{ height: `${(x.dials / maxH) * 100}%` }}>
+                      <i className="c" style={{ height: x.dials ? `${(x.connects / x.dials) * 100}%` : 0 }} />
+                    </div>
+                    <span>{x.h % 2 ? hourLabel(x.h) : ''}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="legend"><i className="dl" />Dials <i className="cn" />Connects</div>
+            </section>
+          </div>
+        </div>
+
+        <aside className="sidecol">
+          <section className="panel line">
+            {!current ? (
+              <div className="pad16">
+                <div className="eyebrow">On the line</div>
+                <h2 className="serif">List finished</h2>
+                <p className="hint">Everyone due this pass has been dialed. Re-sort to start a fresh pass with whoever is due again.</p>
+                <button className="btn primary" onClick={d.reSort}>Re-sort Today</button>
+              </div>
+            ) : (<>
+              <div className="lhead">
+                <div className="eyebrow">On the line{position >= 0 ? ` · ${position + 1} of ${d.queue.length}` : ''}</div>
+                {why && <span className={`pill ${chipClass(why) || 'Retry'}`}>{baseWhy(why)}</span>}
+              </div>
+              <h2 className="serif name">{current.first} {current.last}</h2>
+              <div className="sub">{current.company}{current.job ? ` — ${current.job}` : ''}</div>
+              <div className="sub muted">{current.city}, {current.state} · {ZONE_NAME[current.zone] ?? current.zone} · {localTime(current.zone, d.now)} local</div>
+
+              {call?.id === current.id ? (
+                <div className="callbtn live">
+                  <span className="wave"><i /><i /><i /><i /></span>
+                  <span>{dialNum}</span>
+                  <small>{fmtSecs(Math.round((Date.now() - call.at) / 1000))}</small>
+                </div>
+              ) : (
+                <button className="callbtn" disabled={!dialNum} onClick={() => startCall(current, backupMode)}>
+                  <Ico d={IC.phone} size={20} /><span>{dialNum || 'No number'}</span>
+                </button>
+              )}
+              <div className="numline">
+                {otherNum ? <button className="linkish" onClick={() => setBackupMode(!backupMode)} title="Switch number (B)">{backupMode ? 'Main' : 'Backup'} {otherNum}</button> : <span />}
+                <span>{current.dials} dials · last {current.lastDialed ? md(current.lastDialed, TZ) : 'never'}</span>
+              </div>
+
+              <div className="keys">
+                {([
+                  ['noanswer', '1', 'No answer'], ['voicemail', '2', 'Voicemail'], ['callback', '3', 'Callback'],
+                  ['notint', '4', 'Not interested'], ['bad', '5', 'Bad number'], ['appt', '6', 'Appointment'],
+                ] as [DialerKey, string, string][]).map(([k, n, label]) => (
+                  <button key={k} className={`k ${k === 'appt' ? 'prime' : ''} ${pending === k ? 'armed' : ''}`} onClick={() => act(k)}>
+                    {label}<small>{n}</small>
+                  </button>
+                ))}
+              </div>
+
+              {pending && (
+                <div className="fieldset">
+                  <label>{pending === 'appt' ? 'Appointment' : 'Callback'} time</label>
+                  <div className="row2">
+                    <input ref={whenRef} placeholder="e.g. fri 10am" value={when} onChange={e => setWhen(e.target.value)}
+                           onKeyDown={e => { if (e.key === 'Enter') act(pending); if (e.key === 'Escape') setPending(null); }} />
+                    <button className="btn primary" onClick={() => act(pending)}>Save</button>
+                  </div>
+                  <div className="sugg">
+                    {preview && <span className="hint">{preview}</span>}
+                    {['tomorrow 10am', 'tomorrow 6pm', 'fri 2pm', 'mon 9am'].map(x => <button key={x} onClick={() => setWhen(x)}>{x}</button>)}
                   </div>
                 </div>
-              );
-            })}
-            {!d.appts.length && <div className="empty" style={{ padding: 20 }}>No appointments to confirm or close out.</div>}
+              )}
+              <div className="fieldset">
+                <label>Note</label>
+                <input ref={noteRef} placeholder="Wife answered, call back after 6" value={noteText} onChange={e => setNoteText(e.target.value)}
+                       onKeyDown={e => {
+                         if (e.key === 'Escape') (e.target as HTMLInputElement).blur();
+                         if (e.key === 'Enter' && noteText.trim() && !pending) { d.note(current.id, noteText); setNoteText(''); }
+                       }} />
+                <div className="mini">
+                  <span className="hint">Saved with the result, or press Enter to add it now.</span>
+                  <span className="minibtns">
+                    <button className="linkish" onClick={() => { d.skip(current.id); setPicked(null); }}>Skip</button>
+                    <button className="linkish" disabled={!d.canUndo} onClick={d.undo}>Undo</button>
+                  </span>
+                </div>
+              </div>
+
+              <div className="hist">
+                <div className="eyebrow">History</div>
+                {history.length ? history.slice(0, 6).map((l, i) => {
+                  const m = l.match(/^(\d{1,2}\/\d{1,2}):\s*(.*)$/);
+                  return <div className="hl" key={i}><span>{m ? m[1] : ''}</span><p>{m ? m[2] : l}</p></div>;
+                }) : <p className="hint">No calls logged yet.</p>}
+                {research.length > 0 && <p className="research">Research · {research.join(' ')}</p>}
+              </div>
+            </>)}
           </section>
-          <section className="panel" style={{ marginTop: 16 }}>
-            <h3>Recent</h3>
-            {d.recent.map(r => (
-              <button key={r.contact.id} className="row" onClick={() => setPicked(r.contact.id)}>
-                <span className="name">{r.contact.first} {r.contact.last}</span>
-                <span className="hint">{mdTime(r.at, TZ).split(' ').slice(1).join(' ')}</span>
-                <span className="sub">{r.tag ? tagShort(r.tag) : 'Dialed'} · {r.contact.dials} dials</span>
+
+          <section className="panel next">
+            <div className="eyebrow">Up next</div>
+            {d.queue.filter(r => r.contact.id !== current?.id).slice(0, 4).map(r => (
+              <button className="nl" key={r.contact.id} onClick={() => setPicked(r.contact.id)}>
+                <span>{r.contact.first} {r.contact.last}</span>
+                <span className={`tx ${chipClass(r.why) || 'Retry'}`}>{r.why}</span>
               </button>
             ))}
-            {!d.recent.length && <div className="empty" style={{ padding: 20 }}>Nothing logged yet today.</div>}
-            <div style={{ padding: 12 }}><button className="btn ghost" onClick={d.resetDemo}>Reset demo data</button></div>
+            {d.queue.length <= 1 && <p className="hint">Nobody else is due right now.</p>}
+            <button className="linkish reset" onClick={d.resetDemo}>Reset demo data</button>
           </section>
         </aside>
       </main>
+
+      <footer className="foot">
+        <span><i className="dotok" />All changes saved in this browser{lastSave ? ` · last save ${timeOnly(lastSave)}` : ''}</span>
+        <span className="keyshelp">1–6 result · C call · N note · / search · U undo · R re-sort · S skip</span>
+      </footer>
 
       {modal && <ResultModal modal={modal} contact={d.byId.get(modal.id)} onClose={() => setModal(null)}
         onSave={(form) => { d.outcome(modal.id, modal.kind, form); setModal(null); }} now={d.now} />}

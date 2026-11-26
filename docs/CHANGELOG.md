@@ -18,3 +18,11 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 - The three-panel dialer (queue, big card, side) is replaced by one full-width list. The contact being dialed is an open row with the Call button, facts, history and keys 1–6 inside it.
 - Picking a result closes that row (marked done with a check) and opens the next one, scrolling it into view. Auto-dial works the same way.
 - Click any row to open it. The Dialer/List switch is gone since the list is now the dialer.
+
+## 2026-11-26: Today matches George's mockup
+- Navy console look with serif headings, top navigation (other pages come in later stages), search, day/night.
+- "Today's Call Queue" title with pass number and progress, and an 8-number strip: left to dial, dials, connects, scheduled, called into, presented, sold, ALP today.
+- Full-width queue table with filter tabs (All, Callbacks, No-shows, New numbers, Retry, Fresh), Auto-dial, Re-sort and Export CSV. Done rows dim, sold rows green, the current contact highlighted.
+- "On the line" panel: big green Call button, backup number, result keys 1–6, note, history and research, plus Up Next.
+- Appointments & called into list with status pills (hover a row for Sold / Presented / No-show / Move), and a dials & connects by hour chart with the best window.
+- New shortcuts: N note, U undo, R re-sort (plus 1–6, C call, / search, S skip, B backup).

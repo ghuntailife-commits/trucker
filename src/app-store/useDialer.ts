@@ -28,6 +28,7 @@ interface Saved {
   undo: Snapshot[];
   lastBackupTry: Record<string, number>;
   calls?: { at: number; contactId: string; seconds: number }[];
+  pass?: number;
 }
 
 const KEY = 'trucker-demo-v1';
@@ -41,7 +42,7 @@ function resort(s: Saved, now: number): Saved {
   const base = { now, snap: now, savedOrder: [], savedAppts: [], dialTimes: dialTimes(s.log) };
   const today = buildToday(s.contacts.filter(c => c.list !== 'Hardcards'), base, CFG);
   const appts = buildAppointments(s.contacts, base, CFG);
-  return { ...s, snap: now, savedOrder: today.map(r => r.contact.id), savedAppts: appts.map(r => r.contact.id), skips: [] };
+  return { ...s, pass: sameDay(s.snap, now, CFG.tz) ? (s.pass ?? 1) + 1 : 1, snap: now, savedOrder: today.map(r => r.contact.id), savedAppts: appts.map(r => r.contact.id), skips: [] };
 }
 
 function dialTimes(log: LogEvent[]) {
@@ -182,6 +183,6 @@ export function useDialer() {
     }).slice(0, 25);
   }, [s?.contacts]);
 
-  return { ready: !!s, now, today, appts, queue, stats, toast, byId, recent, log: s?.log ?? [], canUndo: !!s?.undo.length,
+  return { ready: !!s, now, today, appts, queue, stats, toast, byId, recent, log: s?.log ?? [], canUndo: !!s?.undo.length, pass: s?.pass ?? 1, noSales: s?.noSales ?? [],
     undoLabel: s?.undo.at(-1)?.label, press, note, outcome, skip, logCall, undo, reSort, resetDemo, find, sales: s?.sales ?? [] };
 }
