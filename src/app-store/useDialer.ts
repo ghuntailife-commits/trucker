@@ -13,6 +13,9 @@ import { sameDay } from '../rules/time';
 import { addNote } from '../rules/engine';
 import { saleNote, noSaleNote, saleDate, type SaleRecord, type NoSaleRecord } from '../rules/results';
 import { demoContacts, demoHistory } from './demoData';
+import { demoMonth } from './demoLog';
+import { REAL_SEED } from './realSeed';
+import { loadState, saveState } from './store';
 
 export type Sale = SaleRecord;
 export type NoSale = NoSaleRecord;
@@ -45,14 +48,23 @@ interface Saved {
   lastBackupTry: Record<string, number>;
   calls?: { at: number; contactId: string; seconds: number }[];
   pass?: number;
+  /** Monthly ALP goal (the old goal cell on the Sales tab). */
+  goal?: number;
 }
 
-const KEY = 'trucker-demo-v1';
+// v2: adds a month of made-up history. The real-data build keeps its own copy, tied to when its seed was made.
+const KEY = REAL_SEED ? `trucker-real-${REAL_SEED.builtAt}` : 'trucker-demo-v2';
 
 function fresh(now: number): Saved {
+  if (REAL_SEED) {
+    const r = structuredClone(REAL_SEED);
+    return { v: 1, contacts: r.contacts, log: r.log, sales: r.sales, noSales: r.noSales, snap: 0, savedOrder: [], savedAppts: [],
+      skips: [], undo: [], lastBackupTry: {}, goal: r.goal };
+  }
   const contacts = demoContacts(now, CFG.tz);
-  const h = demoHistory(contacts, now, CFG.tz);
-  return { v: 1, contacts, log: h.log, sales: h.sales, noSales: h.noSales, snap: 0, savedOrder: [], savedAppts: [],
+  const h = demoHistory(contacts, now, CFG.tz), m = demoMonth(now, CFG.tz);
+  const log = [...m.log, ...h.log].sort((a, b) => a.at - b.at);
+  return { v: 1, contacts, log, sales: [...m.sales, ...h.sales].sort((a, b) => a.at - b.at), noSales: [...m.noSales, ...h.noSales].sort((a, b) => a.at - b.at), snap: 0, savedOrder: [], savedAppts: [],
     skips: [], undo: [], lastBackupTry: {} };
 }
 
@@ -80,17 +92,19 @@ export function useDialer() {
 
   // load once (and re-sort on the first open of each day, like the sheet)
   useEffect(() => {
-    const t = Date.now();
-    let loaded: Saved | null = null;
-    try { const raw = localStorage.getItem(KEY); if (raw) loaded = JSON.parse(raw); } catch { /* private window */ }
-    if (!loaded || loaded.v !== 1) loaded = fresh(t);
-    loaded = normalize(loaded);
-    if (!sameDay(loaded.snap, t, CFG.tz)) loaded = resort(loaded, t);
-    setS(loaded);
+    let live = true;
+    loadState<Saved>(KEY).then(got => {
+      if (!live) return;
+      const t = Date.now();
+      let loaded = got && got.v === 1 ? got : fresh(t);
+      loaded = normalize(loaded);
+      if (!sameDay(loaded.snap, t, CFG.tz)) loaded = resort(loaded, t);
+      setS(loaded);
+    });
     const id = setInterval(() => setNow(Date.now()), 30_000);   // the list clock (was Order!H2)
-    return () => clearInterval(id);
+    return () => { live = false; clearInterval(id); };
   }, []);
-  useEffect(() => { if (s) try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* ignore */ } }, [s]);
+  useEffect(() => { if (s) saveState(KEY, s); }, [s]);
 
   const say = useCallback((text: string, kind: 'ok' | 'warn' = 'ok') => {
     setToast({ text, kind });
@@ -174,8 +188,9 @@ export function useDialer() {
       return { ...r, contact, message };
     }, st => {
       const at = Date.now();
-      if (key === 'sold' && form?.sale) return { sales: [...st.sales, { ...form.sale, at: saleDate(apptAt, at), contactId: id, calledInto: ci }] };
-      if (key === 'presented' && form?.noSale) return { noSales: [...st.noSales, { ...form.noSale, at, contactId: id, calledInto: ci }] };
+      const who = before ? { first: before.first, last: before.last, phone: before.phone || before.backup, company: before.company, list: before.list } : undefined;
+      if (key === 'sold' && form?.sale) return { sales: [...st.sales, { ...form.sale, at: saleDate(apptAt, at), contactId: id, calledInto: ci, who }] };
+      if (key === 'presented' && form?.noSale) return { noSales: [...st.noSales, { ...form.noSale, at, contactId: id, calledInto: ci, who }] };
       return {};
     });
   }, [commit, byId]);
@@ -220,6 +235,11 @@ export function useDialer() {
     setNow(Date.now());
   }, [say]);
 
+  const setGoal = useCallback((g: number) => {
+    setS(p => (p ? { ...p, goal: g } : p));
+    say(`Monthly goal set to $${g.toLocaleString('en-US')}.`);
+  }, [say]);
+
   const reSort = useCallback(() => { setS(p => (p ? resort(p, Date.now()) : p)); setNow(Date.now()); say('Today re-sorted: a fresh pass.'); }, [say]);
   const say2 = say;
   const resetDemo = useCallback(() => { const t = Date.now(); setS(resort(fresh(t), t)); say('Demo data reset.'); }, [say]);
@@ -246,5 +266,5 @@ export function useDialer() {
   }, [s?.contacts]);
 
   return { ready: !!s, now, today, appts, queue, stats, toast, byId, recent, log: s?.log ?? [], canUndo: !!s?.undo.length, batch, confirm, qual, scorer, cfg: CFG, say: say2, contacts: s?.contacts ?? [], pass: s?.pass ?? 1, noSales: s?.noSales ?? [],
-    undoLabel: s?.undo.at(-1)?.label, press, note, outcome, skip, logCall, undo, reSort, resetDemo, find, sales: s?.sales ?? [] };
+    undoLabel: s?.undo.at(-1)?.label, press, note, outcome, skip, logCall, undo, reSort, resetDemo, find, sales: s?.sales ?? [], goal: s?.goal ?? 25000, setGoal, calls: s?.calls ?? [] };
 }

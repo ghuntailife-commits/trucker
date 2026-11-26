@@ -52,3 +52,12 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 - "Add to my calendar" downloads .ics files until Google Calendar is connected at go-live.
 - Calendar sync rules ported from syncAppointments: match by phone, soonest upcoming time, never write back to a contact that is not Scheduled. Change: callback events are skipped (v27 reported them as "not tagged Scheduled").
 - Database: migration 0002 adds the new sale, no-sale and contact fields and a calendar sync log.
+
+## 2026-11-26: Results page (stage 6)
+- One Results page replaces the Results, Sales, No Sales, Best Times and Daily Summary tabs, with subtabs: Overview, Sales, Presentations, When & where to dial, Daily history. Range switch: this month, last 30 days, all time.
+- Overview: the 8 ratio tiles, funnel with the biggest drop, "What the numbers say", daily production, weekly conversion trend, last 7 days vs the 7 before, where the dials went, reach by dial number.
+- Sales: latest sales table (all the Sales tab columns, CSV export), month ALP vs an editable monthly goal with pace marker, trial and standard ALP, biggest sales, where sales come from, cumulative ALP with a goal line, ALP by day, sales by weekday and time of day.
+- Presentations: production funnel, presented vs sold by week, the objection donut, presentations this week, recent no-sales, follow-ups due.
+- When & where to dial: reach rate, fresh vs retry, by dial number, weekday, hour and list, the weekday × hour heat map. Rows with fewer than 30 dials are grey so a lucky streak isn't read as a trend.
+- Colors mean the same thing on every chart (dials blue, connects teal, scheduled violet, presented gold, sold green, trial orange, no-show red), with separate day and night shades. Hover or tap any bar or tile for its exact numbers.
+- Demo: the build can load a read-only copy of an agent's sheet (scripts/real-seed.ts → realdata/, git-ignored, never committed). Demo data now saves in IndexedDB because a full sheet is too big for localStorage.

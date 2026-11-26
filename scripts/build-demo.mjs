@@ -1,10 +1,22 @@
 // Builds the demo into one self-contained HTML file (dist-demo/trucker-dialer.html).
 import { build } from 'esbuild';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+
+// With realdata/seed.json present (git-ignored, made by scripts/real-seed.ts) the demo shows the agent's real sheet.
+// Pass --fake to build with made-up contacts anyway.
+const real = existsSync('realdata/seed.json') && !process.argv.includes('--fake');
+const realSeed = {
+  name: 'real-seed',
+  setup(b) {
+    b.onLoad({ filter: /realSeed\.ts$/ }, () => real
+      ? { contents: `export const REAL_SEED = ${readFileSync('realdata/seed.json', 'utf8')};`, loader: 'js' }
+      : undefined);
+  },
+};
 
 const out = await build({
   entryPoints: ['demo/entry.tsx'], bundle: true, minify: true, write: false, format: 'iife', jsx: 'automatic',
-  define: { 'process.env.NODE_ENV': '"production"' }, target: 'es2020',
+  define: { 'process.env.NODE_ENV': '"production"' }, target: 'es2020', plugins: [realSeed],
 });
 const js = out.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
 const css = readFileSync('app/globals.css', 'utf8');
@@ -19,4 +31,4 @@ writeFileSync('dist-demo/trucker-dialer.html', `<title>Trucker Dialer</title>
 <div id="root"></div>
 <script>${js}</script>
 `);
-console.log('dist-demo/trucker-dialer.html', Math.round((css.length + js.length) / 1024) + ' KB');
+console.log(real ? 'REAL DATA build' : 'made-up data build', 'dist-demo/trucker-dialer.html', Math.round((css.length + js.length) / 1024) + ' KB');

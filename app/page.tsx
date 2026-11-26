@@ -13,6 +13,8 @@ import { QUALIFIERS } from '../src/rules/engine';
 import { ContactsPage } from './ui/contacts';
 import { NeedsPage } from './ui/needs';
 import { AppointmentsPage } from './ui/appointments';
+import { ResultsPage } from './ui/results';
+import { REAL_SEED } from '../src/app-store/realSeed';
 import { ResultForm, type ResultKind } from './ui/forms';
 import { saleAlp } from '../src/rules/results';
 import { TZ, ZONE_TZ, chipClass, localTime, Ico, IC, fmtSecs, ZONE_NAME, timeOnly, saveText } from './ui/shared';
@@ -45,7 +47,7 @@ export default function Today() {
   const [auto, setAuto] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [filter, setFilter] = useState<Filter>('All');
-  const [page, setPage] = useState<'today' | 'contacts' | 'needs' | 'appts'>('today');
+  const [page, setPage] = useState<'today' | 'contacts' | 'needs' | 'appts' | 'results'>('today');
   const [chartBy, setChartBy] = useState<'hour' | 'dial'>('hour');
   const [, tick] = useState(0);
   const whenRef = useRef<HTMLInputElement>(null);
@@ -227,14 +229,14 @@ export default function Today() {
 
   return (
     <div className="shell">
-      <div className="demo-banner">Demo with made-up contacts. Changes stay in this browser only.</div>
+      <div className="demo-banner">{REAL_SEED ? `Demo with your real contacts, copied from your sheet on ${md(REAL_SEED.builtAt, TZ)}. Changes stay in this browser and never touch your sheet.` : 'Demo with made-up contacts. Changes stay in this browser only.'}</div>
       <header className="top">
-        <div className="brand"><span className="dot">T</span><span className="wordmark">Truckers</span><span className="who">Demo Agent · Direct</span></div>
+        <div className="brand"><span className="dot">T</span><span className="wordmark">Truckers</span><span className="who">{REAL_SEED ? 'George' : 'Demo Agent'} · Direct</span></div>
         <nav className="nav">
-          {([['today', 'Today'], ['appts', 'Appointments'], ['contacts', 'Contacts'], ['needs', 'Needs Number']] as const).map(([p, label]) => (
+          {([['today', 'Today'], ['appts', 'Appointments'], ['contacts', 'Contacts'], ['needs', 'Needs Number'], ['results', 'Results']] as const).map(([p, label]) => (
             <button key={p} className={page === p ? 'on' : ''} aria-current={page === p ? 'page' : undefined} onClick={() => setPage(p)}>{label}</button>
           ))}
-          {['Results', 'Team'].map(x => <button key={x} title="Coming in the next stages" disabled>{x}</button>)}
+          {['Team'].map(x => <button key={x} title="Coming in the next stages" disabled>{x}</button>)}
         </nav>
         <div className="tools">
           <div className="search">
@@ -255,12 +257,13 @@ export default function Today() {
           <button className="iconbtn" aria-label="Switch day or night" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
             <Ico d={theme === 'dark' ? 'M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z' : 'M12 4V2M12 22v-2M4 12H2M22 12h-2M5.6 5.6 4.2 4.2M19.8 19.8l-1.4-1.4M5.6 18.4l-1.4 1.4M19.8 4.2l-1.4 1.4M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z'} size={16} />
           </button>
-          <span className="avatar">DA</span>
+          <span className="avatar">{REAL_SEED ? 'G' : 'DA'}</span>
         </div>
       </header>
 
       {page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} />}
       {page === 'needs' && <NeedsPage d={d} />}
+      {page === 'results' && <ResultsPage d={d} />}
       {page === 'appts' && <AppointmentsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id) => setModal({ kind, id })} />}
       {page === 'today' && <>
       <section className="hero">

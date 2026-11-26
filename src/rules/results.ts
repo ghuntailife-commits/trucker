@@ -11,11 +11,14 @@ export interface SaleForm { type: string; alp: string; monthly: string; wholeLif
 export interface SaleRecord {
   at: number; contactId: string; alpType: AlpType; alp: number; monthly: number; wholeLife: number; adb: number;
   email: string; note: string; calledInto: boolean;
+  /** Name, phone, company and list at the time of the sale, so reports still read right if the contact changes. */
+  who?: { first: string; last: string; phone: string; company: string; list: string };
 }
 
 export interface NoSaleForm { objections: string[]; reason: string; followUp: string; followUpNote: string }
 export interface NoSaleRecord {
   at: number; contactId: string; objections: string[]; reason: string; followUp: string; followUpNote: string; calledInto: boolean;
+  who?: { first: string; last: string; phone: string; company: string; list: string };
 }
 
 /** "$1,200.50" → 1200.5. null when it isn't a plain dollar amount (at most 2 decimals). */
