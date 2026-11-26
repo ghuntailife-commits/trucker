@@ -36,6 +36,10 @@ export interface Contact {
   noShowTries: number;
   swapMemo: SwapMemo | null;
   seq: number;                // original order inside its list (keeps the old row order for ties)
+  /** When the current appointment was last confirmed (v2). */
+  confirmedAt?: number | null;
+  /** Quick qualifier tags picked on the call screen: Married, Kids, Union... (v2) */
+  quals?: string[];
 }
 
 export type EventKind = 'Dial' | 'Tag' | 'Swap' | 'Note' | 'Import';

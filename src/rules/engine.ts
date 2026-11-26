@@ -145,6 +145,7 @@ export function disposition(c: Contact, tag: string, now: number, cfg: Config = 
   const tz = cfg.tz;
   const x = clone(c);
   const kind = tagKind(tag);
+  if (kind === 'scheduled') x.confirmedAt = null;   // a new or moved appointment needs confirming again
   x.callbackTries = 0;   // a new tag restarts the callback count
   x.noShowTries = 0;     // and the no-show count
 
@@ -347,3 +348,24 @@ export function dialerAction(c: Contact, key: DialerKey, now: number, cfg: Confi
   if (parts.length) r.contact = { ...r.contact, notes: addNote(r.contact.notes, `${md(now, tz)}: ${parts.join(' - ')}`) };
   return r;
 }
+
+// ---------- v2: appointment confirms and qualifier tags ----------
+/** The appointment was confirmed (day before, or the morning of). Not a dial. */
+export function confirmAppt(c: Contact, now: number, cfg: Config = DEFAULT_CONFIG): Result {
+  const x = clone(c);
+  x.confirmedAt = now;
+  x.notes = addNote(c.notes, `${md(now, cfg.tz)}: Confirmed appt${c.callAt != null ? ' (' + mdTime(c.callAt, cfg.tz) + ')' : ''}`);
+  return { contact: x, events: [], message: `${c.first} ${c.last}: appointment confirmed.` };
+}
+
+export const QUALIFIERS = ['Married', 'Kids', 'Age 25-40', 'Age 40-55', 'Age 55+', 'Union', 'Has coverage', 'Homeowner'] as const;
+
+/** Turns one quick qualifier tag on or off. */
+export function toggleQual(c: Contact, q: string): Result {
+  const cur = c.quals ?? [];
+  const on = !cur.includes(q);
+  const x = clone(c);
+  x.quals = on ? [...cur.filter(v => !(q.startsWith('Age') && v.startsWith('Age'))), q] : cur.filter(v => v !== q);
+  return { contact: x, events: [], message: `${c.first} ${c.last}: ${q} ${on ? 'added' : 'removed'}.` };
+}
+

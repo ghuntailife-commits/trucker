@@ -5,7 +5,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Contact, LogEvent } from '../rules/types';
 import { DEFAULT_CONFIG as CFG } from '../rules/config';
-import { dialerAction, disposition, quickNote, type DialerKey, type DialerOpts } from '../rules/engine';
+import { dialerAction, disposition, quickNote, confirmAppt, toggleQual, type DialerKey, type DialerOpts } from '../rules/engine';
+import { learnFreshScores } from '../rules/score';
 import { buildToday, buildAppointments, type TodayRow, type ApptRow } from '../rules/today';
 import { TAGS } from '../rules/tags';
 import { sameDay } from '../rules/time';
@@ -40,7 +41,8 @@ function fresh(now: number): Saved {
 }
 
 function resort(s: Saved, now: number): Saved {
-  const base = { now, snap: now, savedOrder: [], savedAppts: [], dialTimes: dialTimes(s.log) };
+  const sc = learnFreshScores(s.contacts, CFG.freshScoreMinResults);
+  const base = { now, snap: now, savedOrder: [], savedAppts: [], dialTimes: dialTimes(s.log), freshScore: sc.ready ? sc.score : undefined };
   const today = buildToday(s.contacts.filter(c => c.list !== 'Hardcards'), base, CFG);
   const appts = buildAppointments(s.contacts, base, CFG);
   return { ...s, pass: sameDay(s.snap, now, CFG.tz) ? (s.pass ?? 1) + 1 : 1, snap: now, savedOrder: today.map(r => r.contact.id), savedAppts: appts.map(r => r.contact.id), skips: [] };
@@ -80,8 +82,9 @@ export function useDialer() {
   }, []);
 
   const byId = useMemo(() => new Map((s?.contacts ?? []).map(c => [c.id, c])), [s?.contacts]);
-  const ctx = useMemo(() => s && { now, snap: s.snap, savedOrder: s.savedOrder, savedAppts: s.savedAppts, dialTimes: dialTimes(s.log) },
-    [s, now]);
+  const scorer = useMemo(() => learnFreshScores(s?.contacts ?? [], CFG.freshScoreMinResults), [s?.contacts]);
+  const ctx = useMemo(() => s && { now, snap: s.snap, savedOrder: s.savedOrder, savedAppts: s.savedAppts, dialTimes: dialTimes(s.log),
+    freshScore: scorer.ready ? scorer.score : undefined }, [s, now, scorer]);
   const today: TodayRow[] = useMemo(() => (s && ctx ? buildToday(s.contacts.filter(c => c.list !== 'Hardcards'), ctx, CFG) : []), [s, ctx]);
   const appts: ApptRow[] = useMemo(() => (s && ctx ? buildAppointments(s.contacts, ctx, CFG) : []), [s, ctx]);
   const queue = useMemo(() => today.filter(r => !r.done && !(s?.skips ?? []).includes(r.contact.id)), [today, s?.skips]);
@@ -130,6 +133,8 @@ export function useDialer() {
   }, [commit, s?.lastBackupTry]);
 
   const note = useCallback((id: string, text: string) => commit(id, 'note', (c, t) => quickNote(c, text, t, CFG)), [commit]);
+  const confirm = useCallback((id: string) => commit(id, 'confirm', (c, t) => confirmAppt(c, t, CFG)), [commit]);
+  const qual = useCallback((id: string, q: string) => commit(id, 'tag', c => toggleQual(c, q)), [commit]);
 
   const outcome = useCallback((id: string, key: 'sold' | 'presented' | 'noshow' | 'reschedule', form?: Partial<Sale & NoSale> & { when?: number }) => {
     const tag = key === 'sold' ? TAGS.sold : key === 'presented' ? TAGS.presented : key === 'noshow' ? TAGS.noshow : TAGS.scheduled;
@@ -208,6 +213,6 @@ export function useDialer() {
     }).slice(0, 25);
   }, [s?.contacts]);
 
-  return { ready: !!s, now, today, appts, queue, stats, toast, byId, recent, log: s?.log ?? [], canUndo: !!s?.undo.length, batch, say: say2, contacts: s?.contacts ?? [], pass: s?.pass ?? 1, noSales: s?.noSales ?? [],
+  return { ready: !!s, now, today, appts, queue, stats, toast, byId, recent, log: s?.log ?? [], canUndo: !!s?.undo.length, batch, confirm, qual, scorer, cfg: CFG, say: say2, contacts: s?.contacts ?? [], pass: s?.pass ?? 1, noSales: s?.noSales ?? [],
     undoLabel: s?.undo.at(-1)?.label, press, note, outcome, skip, logCall, undo, reSort, resetDemo, find, sales: s?.sales ?? [] };
 }

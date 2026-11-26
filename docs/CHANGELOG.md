@@ -34,3 +34,12 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 - Needs Number: three lists (needs a number, needs a new number after a bad number, cannot find). Type numbers in the rows; they are tied to the contact, so a list that changes while you type can't misplace them. Review and save shows what will and won't be saved and why. Cannot Find marks with a dated note; Return sends them back.
 - Bad numbers are now recognised however they are written (214-555-0101 and (214) 555-0101 are the same number).
 - Today: dialed rows are highlighted green again, like the sheet. Sold rows are a deeper green.
+
+## 2026-11-26: Today list logic v2 (George approved all 7 ideas)
+- Fresh share lowered to 20% overall and set by time of day: 25% before noon and 12 to 3, 20% from 3 to 6, 10% after 6 PM. Retries reach people far more often in the afternoon and evening (36% and 57% vs 13% and 14% for fresh), so evenings go mostly to retries and callbacks.
+- Automatic same-day second try: a morning no-answer comes back next up after 3 PM without a re-sort.
+- Fresh contacts ranked by George's own results (company, job, state booking rates). Switches on after 200 dialed contacts with at least 5 booked; until then import order is kept. The call screen shows "Good match" with the reason.
+- Appointments: confirm the morning of (Confirm today / Confirmed pills and a Confirmed button), a Text reminder button that opens the phone's texting app with a ready message (sending through Quo comes later), and a warning when booking more than 2 days out.
+- Quick qualifier tags on the call screen (Married, Kids, age range, Union, Has coverage, Homeowner), saved on the contact and in the CSV export.
+- Reach by dial number chart (dials 1 to 10 shown separately, then 11+) next to the by-hour chart.
+- Bad-number matching now compares digits, so formatting differences no longer hide a known bad number.

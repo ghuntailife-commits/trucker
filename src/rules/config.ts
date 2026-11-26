@@ -24,9 +24,21 @@ export interface Config {
   catchUpHours: number | null;// 1 (Rules B23); null = catch-up off
   catchUpMaxDials: number;    // 10 (Rules B24)
   timeOfDayNudge: number;     // 1 (Rules B25)
+  // ---- v2 additions (George approved 2026-11-26). The V27 settings below turn them all off. ----
+  /** Fresh share by time block (Eastern): before 12, 12-3, 3-6, after 6. null = always use freshShare. */
+  freshShareByBlock: [number, number, number, number] | null;
+  /** No answer before the PM start hour today -> back on the list after it, next up, with no re-sort. */
+  autoPmRetry: boolean;
+  /** Rank fresh contacts by what has booked before, once this many contacts have been dialed. null = off. */
+  freshScoreMinResults: number | null;
+  /** Ask for a second confirm on the morning of the appointment. */
+  confirmMorningOf: boolean;
+  /** Warn when an appointment is booked further out than this. */
+  apptSoonHours: number;
 }
 
-export const DEFAULT_CONFIG: Config = {
+/** Exactly the v27 sheet: used by the tests that prove the new app orders calls the same way. */
+export const V27_CONFIG: Config = {
   tz: 'America/New_York',
   retryDays: [1, 1, 1, 1, 2, 2, 3, 7],
   tagDays: { none: null, callback: 1, noshow: 0, scheduled: 1, notInterested: 75, bad: null, dnc: null, given: null },
@@ -45,4 +57,23 @@ export const DEFAULT_CONFIG: Config = {
   catchUpHours: 1,
   catchUpMaxDials: 10,
   timeOfDayNudge: 1,
+  freshShareByBlock: null,
+  autoPmRetry: false,
+  freshScoreMinResults: null,
+  confirmMorningOf: false,
+  apptSoonHours: 48,
+};
+
+/**
+ * The new app's settings: v27 plus George's 2026-11-26 changes. Retries beat fresh contacts at every hour on his
+ * Best Times tab, and by the most in the afternoon and evening (2.8x and 4x), so fresh contacts lean to the morning
+ * and midday and the evening is kept mostly for retries and callbacks.
+ */
+export const DEFAULT_CONFIG: Config = {
+  ...V27_CONFIG,
+  freshShare: 0.2,
+  freshShareByBlock: [0.25, 0.25, 0.2, 0.1],
+  autoPmRetry: true,
+  freshScoreMinResults: 200,
+  confirmMorningOf: true,
 };

@@ -77,9 +77,9 @@ export function ContactsPage({ d, onDial }: { d: D; onDial: (id: string) => void
     </th>
   );
   const exportCsv = () => saveText('contacts.csv', toCsv([
-    ['List', 'First', 'Last', 'Phone', 'Backup', 'Job', 'Company', 'City', 'State', 'Zone', 'Tag', 'Dials', 'Last dialed', 'Call at', 'Status', 'LinkedIn', 'Notes'],
+    ['List', 'First', 'Last', 'Phone', 'Backup', 'Job', 'Company', 'City', 'State', 'Zone', 'Tag', 'Dials', 'Last dialed', 'Call at', 'Status', 'LinkedIn', 'Qualifiers', 'Notes'],
     ...rows.map(c => [c.list, c.first, c.last, c.phone, c.backup, c.job, c.company, c.city, c.state, c.zone, c.tag, c.dials,
-      c.lastDialed ? mdTime(c.lastDialed, TZ) : '', c.callAt ? mdTime(c.callAt, TZ) : '', c.status, c.linkedin, c.notes]),
+      c.lastDialed ? mdTime(c.lastDialed, TZ) : '', c.callAt ? mdTime(c.callAt, TZ) : '', c.status, c.linkedin, (c.quals ?? []).join('; '), c.notes]),
   ]));
 
   return (
@@ -210,6 +210,7 @@ function Detail({ c, d, onDial, onDelete }: { c: Contact; d: D; onDial: (id: str
       <h2 className="serif name">{c.first} {c.last}</h2>
       <div className="sub">{c.company}{c.job ? ` — ${c.job}` : ''}</div>
       <div className="sub muted">{c.city}{c.city ? ', ' : ''}{c.state} · {ZONE_NAME[c.zone] ?? c.zone} · {c.dials} dials · last {c.lastDialed ? md(c.lastDialed, TZ) : 'never'}</div>
+      {!!c.quals?.length && <div className="quals static">{c.quals.map(q => <span key={q} className="on">{q}</span>)}</div>}
       <div className="dact">
         <button className="callbtn sm" disabled={!c.phone} onClick={() => onDial(c.id)}>Open in dialer</button>
         {c.linkedin && /^https:\/\//.test(c.linkedin) && <a className="btn" href={c.linkedin} target="_blank" rel="noopener noreferrer">LinkedIn</a>}

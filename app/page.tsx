@@ -7,6 +7,8 @@ import { notesNewestFirst, isHistoryNote } from '../src/rules/notes';
 import { tagShort, tagKind } from '../src/rules/tags';
 import { mdTime, md, sameDay } from '../src/rules/time';
 import { parseWhen } from '../src/rules/parseWhen';
+import { reachByDial } from '../src/rules/stats';
+import { QUALIFIERS } from '../src/rules/engine';
 
 const OBJECTIONS = ['Price', 'Needs to Think', 'Spouse / Family', 'Existing Coverage', 'Trust / Skepticism', 'Timing', 'Affordability', 'Other'];
 import { ContactsPage } from './ui/contacts';
@@ -14,7 +16,7 @@ import { NeedsPage } from './ui/needs';
 import { TZ, ZONE_TZ, chipClass, localTime, Ico, IC, fmtSecs, ZONE_NAME, timeOnly, saveText } from './ui/shared';
 type Modal = null | { kind: 'sold' | 'presented' | 'reschedule'; id: string };
 const UNDO_LABEL: Record<string, string> = { noanswer: 'No answer', voicemail: 'Voicemail', callback: 'Callback', notint: 'Not interested',
-  bad: 'Bad number', appt: 'Appointment', note: 'note', sold: 'Sold', presented: 'Presented', noshow: 'No-show', reschedule: 'Move' };
+  bad: 'Bad number', appt: 'Appointment', note: 'note', sold: 'Sold', presented: 'Presented', noshow: 'No-show', reschedule: 'Move', confirm: 'Confirmed', tag: 'Qualifier' };
 type Filter = 'All' | 'Callback' | 'NoShow' | 'NewNumber' | 'Retry' | 'Fresh';
 const FILTERS: [Filter, string][] = [['All', 'All'], ['Callback', 'Callbacks'], ['NoShow', 'No-shows'], ['NewNumber', 'New numbers'], ['Retry', 'Retry'], ['Fresh', 'Fresh']];
 const baseWhy = (why: string) => why.replace(/^DONE TODAY - /, '');
@@ -41,6 +43,7 @@ export default function Today() {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [filter, setFilter] = useState<Filter>('All');
   const [page, setPage] = useState<'today' | 'contacts' | 'needs'>('today');
+  const [chartBy, setChartBy] = useState<'hour' | 'dial'>('hour');
   const [, tick] = useState(0);
   const whenRef = useRef<HTMLInputElement>(null);
   const noteRef = useRef<HTMLInputElement>(null);
@@ -140,6 +143,11 @@ export default function Today() {
     const w = parseWhen(when, d.now, TZ, false);
     return !w ? 'Could not read that time' : 'error' in w ? w.error : w.label;
   }, [when, d.now]);
+  const farOut = useMemo(() => {
+    if (pending !== 'appt' || !when.trim()) return false;
+    const w = parseWhen(when, d.now, TZ, false);
+    return !!w && !('error' in w) && w.date - d.now > d.cfg.apptSoonHours * 3_600_000;
+  }, [when, d.now, pending, d.cfg.apptSoonHours]);
 
   // today's events: called-into count, ALP and the hourly chart
   const todayLog = useMemo(() => d.log.filter(e => sameDay(e.at, d.now, TZ)), [d.log, d.now]);
@@ -191,19 +199,24 @@ export default function Today() {
   const dialNum = current ? (backupMode && current.backup ? current.backup : current.phone || current.backup) : '';
   const otherNum = current ? (backupMode ? current.phone : current.backup) : '';
   const maxH = Math.max(4, ...hours.map(x => x.dials));
+  const byDial = reachByDial(d.log);
+  const maxRate = Math.max(0.2, ...byDial.map(x => (x.dials ? x.reached / x.dials : 0)));
   const dateLine = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'long', month: 'long', day: 'numeric' }).format(d.now);
   const states = new Set(d.today.map(r => r.contact.state));
   const lastSave = d.log.at(-1)?.at;
 
   // appointments plus today's closed-out sales and presentations
-  type ApptLine = { id: string; at: number | null; name: string; company: string; pill: string; tone: string; open: boolean; ci: boolean };
+  type ApptLine = { id: string; at: number | null; name: string; company: string; pill: string; tone: string; open: boolean; ci: boolean; confirm?: boolean; phone?: string; first?: string; tomorrow?: boolean };
   const apptLines: ApptLine[] = [
     ...d.appts.map(a => {
       const c = a.contact, ci = tagKind(c.tag) === 'calledInto';
       const [pill, tone] = ci ? ['Called into', 'blue'] : a.status.includes('show') ? ['Did they show?', 'amber']
-        : a.status.includes('Confirm') ? [a.called ? 'Confirmed' : a.status.includes('tomorrow') ? 'Confirm tmrw' : 'Confirm', 'teal']
+        : a.status.includes('Confirmed') ? [a.status.includes('tomorrow') ? 'Confirmed tmrw' : 'Confirmed', 'teal']
+        : a.status.includes('Confirm') ? [a.status.includes('tomorrow') ? 'Confirm tmrw' : 'Confirm today', 'amber']
         : [a.status.replace('CALLED - ', ''), 'grey'];
-      return { id: c.id, at: c.callAt, name: `${c.first} ${c.last}`, company: c.company, pill, tone, open: true, ci };
+      return { id: c.id, at: c.callAt, name: `${c.first} ${c.last}`, company: c.company, pill, tone, open: true, ci,
+        confirm: a.status.includes('Confirm') && !a.status.includes('Confirmed'), phone: c.phone || c.backup, first: c.first,
+        tomorrow: a.status.includes('tomorrow') };
     }),
     ...salesToday.map(x => { const c = d.byId.get(x.contactId); return { id: x.contactId, at: x.at, name: c ? `${c.first} ${c.last}` : '', company: c?.company ?? '', pill: 'Sold', tone: 'green', open: false, ci: false }; }),
     ...d.noSales.filter(x => sameDay(x.at, d.now, TZ)).map(x => { const c = d.byId.get(x.contactId); return { id: x.contactId, at: x.at, name: c ? `${c.first} ${c.last}` : '', company: c?.company ?? '', pill: 'Presented', tone: 'violet', open: false, ci: false }; }),
@@ -313,7 +326,8 @@ export default function Today() {
               </table>
             </div>
             <div className="tfoot">
-              <span>Showing {rows.length} of {d.today.length} · {s.done} done today</span>
+              <span>Showing {rows.length} of {d.today.length} · {s.done} done today · <span className="rankstat" title="Fresh contacts are ranked by how often contacts like them have booked, once enough have been dialed.">
+                {d.scorer.ready ? 'fresh contacts ranked by your results' : `fresh ranking learns after ${d.scorer.need} dialed (${d.scorer.results} so far)`}</span></span>
               <span className="legend"><i className="sold" />Sold <i className="done" />Done today <i className="cur" />On the line</span>
             </div>
           </section>
@@ -329,6 +343,8 @@ export default function Today() {
                   <span className={`spill ${a.tone}`}>{a.pill}</span>
                   {a.open && (
                     <span className="aacts">
+                      {a.confirm && <button className="cf" onClick={() => d.confirm(a.id)}>Confirmed</button>}
+                      {a.confirm && a.phone && a.at && <a className="txt" href={`sms:${a.phone.replace(/[^\d+]/g, '')}?&body=${encodeURIComponent(`Hi ${a.first}, just a reminder about our appointment ${a.tomorrow ? 'tomorrow' : 'today'} at ${timeOnly(a.at)} ET. Talk soon!`)}`}>Text reminder</a>}
                       <button onClick={() => setModal({ kind: 'sold', id: a.id })}>Sold</button>
                       <button onClick={() => setModal({ kind: 'presented', id: a.id })}>Presented</button>
                       {!a.ci && <button onClick={() => d.outcome(a.id, 'noshow')}>No-show</button>}
@@ -340,7 +356,28 @@ export default function Today() {
               {!apptLines.length && <p className="hint pad16">No appointments today.</p>}
             </section>
             <section className="panel chart">
-              <div className="ph"><h2>Dials &amp; connects by hour</h2><span>{best ? `Best window: ${best}` : 'Fills in as you dial'}</span></div>
+              <div className="ph"><h2>{chartBy === 'hour' ? <>Dials &amp; connects by hour</> : <>Reach by dial number</>}</h2>
+                <div className="seg mini">
+                  <button className={chartBy === 'hour' ? 'on' : ''} onClick={() => setChartBy('hour')}>By hour</button>
+                  <button className={chartBy === 'dial' ? 'on' : ''} onClick={() => setChartBy('dial')}>By dial</button>
+                </div></div>
+              {chartBy === 'dial' ? <>
+                <p className="hint chartnote">Of every 1st, 2nd, 3rd... dial, the share that reached someone. All time, dials 1 to 10 shown on their own.</p>
+                <div className="bars dialbars" role="img" aria-label="Reach rate by dial number">
+                  {byDial.map(x => {
+                    const rate = x.dials ? x.reached / x.dials : 0;
+                    return (
+                      <div className="bcol" key={x.label} title={`Dial ${x.label}: ${x.reached} reached of ${x.dials} dials`}>
+                        {x.dials > 0 && <em>{Math.round(rate * 100)}%</em>}
+                        <div className="stack rate" style={{ height: `${(rate / maxRate) * 100}%` }} />
+                        <span>{x.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="legend"><span>{byDial.reduce((a, x) => a + x.dials, 0)} dials logged · bars under 30 dials are early reads</span></div>
+              </> : <>
+              <p className="hint chartnote">{best ? `Best window today: ${best}` : 'Today, Eastern time. Fills in as you dial.'}</p>
               <div className="bars" role="img" aria-label="Dials and connects by hour today">
                 {hours.map(x => (
                   <div className="bcol" key={x.h} title={`${hourLabel(x.h)}: ${x.dials} dials, ${x.connects} connects`}>
@@ -352,6 +389,7 @@ export default function Today() {
                 ))}
               </div>
               <div className="legend"><i className="dl" />Dials <i className="cn" />Connects</div>
+              </>}
             </section>
           </div>
         </div>
@@ -373,6 +411,13 @@ export default function Today() {
               <h2 className="serif name">{current.first} {current.last}</h2>
               <div className="sub">{current.company}{current.job ? ` — ${current.job}` : ''}</div>
               <div className="sub muted">{current.city}, {current.state} · {ZONE_NAME[current.zone] ?? current.zone} · {localTime(current.zone, d.now)} local</div>
+              {d.scorer.ready && currentRow?.category === 3 && d.scorer.reason(current) && <div className="match">Good match · {d.scorer.reason(current)}</div>}
+              <div className="quals" role="group" aria-label="Quick qualifiers">
+                {QUALIFIERS.map(q => {
+                  const on = current.quals?.includes(q) ?? false;
+                  return <button key={q} className={on ? 'on' : ''} aria-pressed={on} onClick={() => d.qual(current.id, q)}>{q}</button>;
+                })}
+              </div>
 
               {call?.id === current.id ? (
                 <div className="callbtn live">
@@ -411,6 +456,7 @@ export default function Today() {
                   </div>
                   <div className="sugg">
                     {preview && <span className="hint">{preview}</span>}
+                    {farOut && <span className="warnline">More than 2 days out. Try to book it within 2 days.</span>}
                     {['tomorrow 10am', 'tomorrow 6pm', 'fri 2pm', 'mon 9am'].map(x => <button key={x} onClick={() => setWhen(x)}>{x}</button>)}
                   </div>
                 </div>
