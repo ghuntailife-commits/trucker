@@ -42,6 +42,15 @@ const IC = {
   play: 'M6 4l14 8-14 8z',
   pause: 'M7 4h4v16H7zM13 4h4v16h-4z',
   reset: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5',
+  noans: 'M10.7 13.3a16 16 0 0 0 3.4 2.6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.8M22 2 2 22',
+  vm: 'M6 15a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7zM18 15a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7zM6 15h12',
+  cb: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2M17 2.5l2 2',
+  ni: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM4.9 4.9l14.2 14.2',
+  bad: 'M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',
+  appt: 'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 16l2 2 4-4',
+  skip: 'M5 4l10 8-10 8zM19 5v14',
+  undo: 'M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11',
+  end: 'M10.7 13.3a16 16 0 0 0 3.4 2.6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.8',
 };
 const fmtSecs = (n: number) => `${Math.floor(n / 60)}m ${String(n % 60).padStart(2, '0')}s`;
 
@@ -180,7 +189,7 @@ export default function Today() {
       <div className="stats">
         {([
           ['list', s.left, 'Left to dial', pct], ['phone', s.dials, 'Dials'], ['connect', s.connects, 'Connects'],
-          ['clock', fmtSecs(s.avgTalk), 'Avg call'], ['cal', s.scheduled, 'Scheduled'], ['pres', s.presented, 'Presented'], ['sold', s.sold, 'Sold'],
+          ['cal', s.scheduled, 'Scheduled'], ['pres', s.presented, 'Presented'], ['sold', s.sold, 'Sold'],
         ] as [keyof typeof IC, string | number, string, number?][]).map(([ic, v, label, p]) => (
           <div className="stat" key={label}>
             <span className="ic"><Ico d={IC[ic]} /></span>
@@ -200,10 +209,10 @@ export default function Today() {
           <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}>List</button>
         </div>
         <button className="btn" onClick={d.reSort} title="Start a fresh pass"><Ico d={IC.reset} size={15} /> Re-sort</button>
-        <button className={`btn ${auto ? '' : 'light'}`} onClick={() => {
+        <button className={`go ${auto ? 'on' : ''}`} onClick={() => {
           if (auto) { setAuto(false); setCountdown(null); }
           else { setAuto(true); setView('dialer'); const n = current ?? d.queue[0]?.contact; if (n && !call) startCall(n); }
-        }}><Ico d={auto ? IC.pause : IC.play} size={15} /> {auto ? 'Stop Auto Dial' : 'Start Auto Dial'}</button>
+        }}><span className="gi"><Ico d={auto ? IC.pause : IC.play} size={12} /></span>{auto ? 'Stop Auto Dial' : 'Start Auto Dial'}</button>
       </div>
 
       {view === 'list' ? (
@@ -225,7 +234,7 @@ export default function Today() {
                         <td>{nx}</td>
                         <td className="num">{c.dials}</td>
                         <td>{c.lastDialed ? mdTime(c.lastDialed, TZ) : 'Never'}</td>
-                        <td><button className="callpill" onClick={() => { setView('dialer'); startCall(c); }}><Ico d={IC.phone} size={13} /> Call</button></td>
+                        <td><button className="callpill" onClick={() => { setView('dialer'); startCall(c); }}><span className="ci"><Ico d={IC.phone} size={13} /></span><span className="ct">Call</span></button></td>
                       </tr>
                     );
                   })}
@@ -246,7 +255,7 @@ export default function Today() {
                 <span className="name">{r.contact.first} {r.contact.last}</span>
                 <span className={`chip ${chipClass(r.why)}`}>{r.why.replace('DONE TODAY - ', '✓ ')}</span>
                 <span className="sub">{r.contact.company} · {r.contact.city}, {r.contact.state} · {r.contact.dials} dials</span>
-                {!r.done && <button className="callpill" onClick={e => { e.stopPropagation(); startCall(r.contact); }}><Ico d={IC.phone} size={13} /> Call</button>}
+                {!r.done && <button className="callpill" onClick={e => { e.stopPropagation(); startCall(r.contact); }}><span className="ci"><Ico d={IC.phone} size={13} /></span><span className="ct">Call</span></button>}
               </div>
             ))}
             {!d.today.length && <div className="empty">Nothing due right now.</div>}
@@ -270,23 +279,28 @@ export default function Today() {
                   <div className="meta">{current.job}{current.job && current.company ? ' · ' : ''}{current.company}</div>
                 </div>
                 <div className="bar" style={{ marginTop: 0 }}>
-                  <button className="btn" onClick={() => { d.skip(current.id); setPicked(null); }}>Skip (S)</button>
-                  <button className="btn" disabled={!d.canUndo} onClick={d.undo}>Undo</button>
+                  <button className="btn" onClick={() => { d.skip(current.id); setPicked(null); }}><Ico d={IC.skip} size={14} /> Skip <span className="kc">S</span></button>
+                  <button className="btn" disabled={!d.canUndo} onClick={d.undo}><Ico d={IC.undo} size={14} /> Undo <span className="kc">⌘Z</span></button>
                 </div>
               </div>
 
               <div className="phone">
                 {call?.id === current.id ? (
-                  <span className="oncall"><i /> On call {fmtSecs(Math.round((Date.now() - call.at) / 1000))}</span>
+                  <div className="dialer live">
+                    <span className="handset"><span className="wave"><i /><i /><i /><i /></span></span>
+                    <span className="dnum"><small>On call · {fmtSecs(Math.round((Date.now() - call.at) / 1000))}</small>{dialNum}</span>
+                    <span className="dhint">Pick a result to hang up</span>
+                  </div>
                 ) : (
-                  <button className="bigcall" disabled={!dialNum} onClick={() => startCall(current, backupMode)}>
-                    <Ico d={IC.phone} size={20} /> Call <kbd>C</kbd>
+                  <button className="dialer" disabled={!dialNum} onClick={() => startCall(current, backupMode)}>
+                    <span className="handset"><Ico d={IC.phone} size={22} /></span>
+                    <span className="dnum"><small>{backupMode ? 'Call backup' : 'Call'}</small>{dialNum || 'No number'}</span>
+                    <span className="kc">C</span>
                   </button>
                 )}
-                <a className="num" href={`tel:${dialNum.replace(/[^\d+]/g, '')}`} onClick={() => !call && setCall({ id: current.id, at: Date.now() })}>{dialNum || 'No number'}</a>
                 {current.backup && current.phone && (
-                  <button className={`btn ${backupMode ? 'primary' : ''}`} onClick={() => setBackupMode(!backupMode)}>
-                    {backupMode ? 'Calling backup (B)' : `Backup: ${current.backup} (B)`}
+                  <button className={`btn swap ${backupMode ? 'on' : ''}`} onClick={() => setBackupMode(!backupMode)}>
+                    {backupMode ? <>Main: {current.phone}</> : <>Backup: {current.backup}</>} <span className="kc">B</span>
                   </button>
                 )}
               </div>
@@ -302,12 +316,21 @@ export default function Today() {
               </div>
 
               <div className="pad">
-                <button className="key" onClick={() => act('noanswer')}><kbd>1</kbd>No answer</button>
-                <button className="key" onClick={() => act('voicemail')}><kbd>2</kbd>Voicemail</button>
-                <button className="key cb" onClick={() => act('callback')}><kbd>3</kbd>Callback</button>
-                <button className="key ni" onClick={() => act('notint')}><kbd>4</kbd>Not interested</button>
-                <button className="key bd" onClick={() => act('bad')}><kbd>5</kbd>Bad number</button>
-                <button className="key ap" onClick={() => act('appt')}><kbd>6</kbd>Appointment</button>
+                {([
+                  ['noanswer', '1', 'No answer', 'Logs a dial', 'noans', 'n'],
+                  ['voicemail', '2', 'Voicemail', 'Dial + dated note', 'vm', 'n'],
+                  ['callback', '3', 'Callback', 'Needs a time', 'cb', 'amber'],
+                  ['notint', '4', 'Not interested', 'Re-approach in 75 days', 'ni', 'red'],
+                  ['bad', '5', 'Bad number', current.backup ? 'Backup takes over' : 'Off the list', 'bad', 'red'],
+                  ['appt', '6', 'Appointment', 'Needs a time', 'appt', 'green'],
+                ] as [DialerKey, string, string, string, keyof typeof IC, string][]).map(([k, n, label, sub, ic, tone]) => (
+                  <button key={k} className={`key ${tone} ${pending === k ? 'armed' : ''}`} onClick={() => act(k)}>
+                    <span className="cap">{n}</span>
+                    <span className="glyph"><Ico d={IC[ic]} size={17} /></span>
+                    <span className="lab">{label}</span>
+                    <span className="subl">{sub}</span>
+                  </button>
+                ))}
               </div>
 
               <div className="when">
@@ -350,14 +373,13 @@ export default function Today() {
               const cls = ci ? 'ci' : a.status.includes('show') ? 'show' : 'conf';
               return (
                 <div className="appt" key={c.id}>
-                  <div><b>{c.first} {c.last}</b> <span className="hint">{c.callAt ? '· ' + mdTime(c.callAt, TZ) : ''}</span></div>
+                  <div><button className="who" onClick={() => setPicked(c.id)}>{c.first} {c.last}</button> <span className="hint">{c.callAt ? '· ' + mdTime(c.callAt, TZ) : ''}</span></div>
                   <div className={`st ${cls}`}>{a.status}</div>
-                  <div className="acts">
+                  <div className="acts seg2">
                     <button onClick={() => setModal({ kind: 'sold', id: c.id })}>Sold</button>
                     <button onClick={() => setModal({ kind: 'presented', id: c.id })}>Presented</button>
                     {!ci && <button onClick={() => d.outcome(c.id, 'noshow')}>No-show</button>}
-                    {!ci && <button onClick={() => setModal({ kind: 'reschedule', id: c.id })}>Reschedule</button>}
-                    <button onClick={() => setPicked(c.id)}>Open</button>
+                    {!ci && <button onClick={() => setModal({ kind: 'reschedule', id: c.id })}>Move</button>}
                   </div>
                 </div>
               );

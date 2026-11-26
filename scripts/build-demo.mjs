@@ -11,7 +11,7 @@ const css = readFileSync('app/globals.css', 'utf8');
 mkdirSync('dist-demo', { recursive: true });
 writeFileSync('dist-demo/trucker-dialer.html', `<title>Trucker Dialer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap">
 <style>${css}
 .top, .grid { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 .top { top: env(safe-area-inset-top, 0px); }
