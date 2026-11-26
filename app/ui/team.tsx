@@ -184,30 +184,41 @@ function HealthMeta({ f }: { f: Finding[] }) {
 const LEVEL: Record<Finding['level'], string> = { fix: 'Fix', check: 'Look', info: 'FYI' };
 export function HealthList({ findings, name, onOpen }: { findings: Finding[]; name: (id: string) => string; onOpen?: (id: string) => void }) {
   const [open, setOpen] = useState<string | null>(findings.find(f => f.level === 'fix')?.key ?? null);
+  const [more, setMore] = useState(false);
+  const toggle = (key: string, el: HTMLElement) => {
+    setOpen(open === key ? null : key); setMore(false);
+    // bring the opened list into view (it can open below the fold on a small screen)
+    setTimeout(() => el.closest('.hf')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 30);
+  };
   if (!findings.length) return <p className="hint">Nothing to fix today. No passed appointments without a result, no late callbacks, no duplicate numbers.</p>;
   return (
     <div className="health">
-      {findings.map(f => (
-        <div className={`hf ${f.level} ${open === f.key ? 'on' : ''}`} key={f.key}>
-          <button className="hfh" aria-expanded={open === f.key} onClick={() => setOpen(open === f.key ? null : f.key)}>
-            <span className={`lvl ${f.level}`}>{LEVEL[f.level]}</span><b>{f.title}</b><span className="cnt">{f.ids.length.toLocaleString('en-US')}</span>
-          </button>
-          {open === f.key && (
-            <div className="hfb">
-              <p className="hint">{f.detail}</p>
-              <ul>
-                {f.ids.slice(0, 12).map(id => (
-                  <li key={id}>
-                    {onOpen ? <button className="linkish" onClick={() => onOpen(id)}>{name(id)}</button> : <span>{name(id)}</span>}
-                    {f.about?.[id] && <small>{f.about[id]}</small>}
-                  </li>
-                ))}
-              </ul>
-              {f.ids.length > 12 && <p className="hint">and {(f.ids.length - 12).toLocaleString('en-US')} more</p>}
-            </div>
-          )}
-        </div>
-      ))}
+      {findings.map(f => {
+        const ids = more ? f.ids.slice(0, 200) : f.ids.slice(0, 12);
+        return (
+          <div className={`hf lv-${f.level} ${open === f.key ? 'on' : ''}`} key={f.key}>
+            <button className="hfh" aria-expanded={open === f.key} onClick={e => toggle(f.key, e.currentTarget)}>
+              <span className={`lvl lvl-${f.level}`}>{LEVEL[f.level]}</span><b>{f.title}</b>
+              <span className="cnt">{f.ids.length.toLocaleString('en-US')}<i className="chev">{open === f.key ? '▴' : '▾'}</i></span>
+            </button>
+            {open === f.key && (
+              <div className="hfb">
+                <p className="hint">{f.detail}</p>
+                <div className="hrows">
+                  {ids.map(id => (
+                    <div className="hrow" key={id}>
+                      <span className="hn"><b>{name(id)}</b>{f.about?.[id] && <small>{f.about[id]}</small>}</span>
+                      {onOpen && <button className="btn sm" onClick={() => onOpen(id)}>Open in dialer</button>}
+                    </div>
+                  ))}
+                </div>
+                {f.ids.length > ids.length && <button className="linkish" onClick={() => setMore(true)}>Show {Math.min(f.ids.length, 200) - ids.length} more</button>}
+                {!onOpen && <p className="hint">Open this agent&rsquo;s screen to work these.</p>}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -79,3 +79,6 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 | 2026-11-26 | Quo built in for George and Gracie: Call dials through Quo, "Text with Quo" with a preview, call and text events from Quo saved on the contact. Never dispositions on its own | George |
 | 2026-11-26 | Monday coaching note for every agent: last week against the week before, what went well, one thing to work on, best hour, goal pace. Preview now, emailed at go-live | George |
 | 2026-11-26 | Monthly goal moved from each agent's Results page into Settings (still editable from Results) | So George can set everyone's |
+| 2026-11-26 | Health check: "Look" items (like follow-ups that passed with no call) did nothing when clicked. Every item now opens its list, with "Open in dialer" on each row | George's bug report |
+| 2026-11-26 | Call brief on the dialer for callbacks, follow-ups and no-shows only: who they are, where it stands, an opener, what to watch for. Rules-based in the demo; Claude writes it from the notes at go-live (falls back to the rules version) | George approved for those three |
+| 2026-11-26 | Profile menu (top right): Settings, Integrations, monthly goal, keyboard shortcuts, export my contacts, night mode, reset demo, sign out. New Integrations page: Google sign-in, Calendar, Quo, Claude AI, Gmail, number finding | George |

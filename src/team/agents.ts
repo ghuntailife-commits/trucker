@@ -5,7 +5,9 @@ import { DEFAULT_CONFIG, type Config } from '../rules/config';
 export type Role = 'admin' | 'agent' | 'boss';
 export type AgentId = 'george' | 'austin' | 'gracie';
 export type ViewerId = AgentId | 'boss';
-export type Page = 'today' | 'appts' | 'contacts' | 'needs' | 'results' | 'team' | 'settings';
+export type Page = 'today' | 'appts' | 'contacts' | 'needs' | 'results' | 'team' | 'settings' | 'integrations';
+/** Pages reached from the profile menu, not the top bar. */
+export const MENU_PAGES: Page[] = ['settings', 'integrations'];
 
 export interface AgentSetting {
   id: AgentId;
@@ -72,8 +74,8 @@ export function configFor(rules: Partial<RuleSettings> | undefined): Config {
 
 /** What each role can open. The boss sees results and totals only, never contact details. */
 export function pagesFor(role: Role): Page[] {
-  if (role === 'admin') return ['today', 'appts', 'contacts', 'needs', 'results', 'team', 'settings'];
-  if (role === 'agent') return ['today', 'appts', 'contacts', 'needs', 'results'];
+  if (role === 'admin') return ['today', 'appts', 'contacts', 'needs', 'results', 'team', 'settings', 'integrations'];
+  if (role === 'agent') return ['today', 'appts', 'contacts', 'needs', 'results', 'integrations'];
   return ['team'];
 }
 export const canSeeContacts = (role: Role) => role !== 'boss';
