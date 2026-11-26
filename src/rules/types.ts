@@ -52,6 +52,8 @@ export interface LogEvent {
   count: number;
   tag: string;
   dials: number;
+  /** Tag rows only: a real person was reached (counts as a connect). */
+  reach?: boolean;
 }
 
 export interface Result {

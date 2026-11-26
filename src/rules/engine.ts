@@ -31,12 +31,16 @@ export function knownBad(notes: string, num: string): boolean {
   return n !== '' && String(notes || '').indexOf('Bad number: ' + n) >= 0;
 }
 
+/** A connect: somebody real was reached (v27 Activity Log column K). */
+export const isReach = (tag: string) => !['bad', 'noshow', 'presented', 'sold', 'given'].includes(tagKind(tag));
+
 const clone = (c: Contact): Contact => ({ ...c, swapMemo: c.swapMemo ? { ...c.swapMemo } : null });
 
 function ev(c: Contact, at: number, kind: EventKind, opts: { tag?: string; phone?: string } = {}): LogEvent {
   return {
     at, contactId: c.id, list: c.list, first: c.first, last: c.last,
     phone: opts.phone ?? (c.phone || c.backup), kind, count: 1, tag: opts.tag ?? '', dials: c.dials,
+    ...(kind === 'Tag' ? { reach: isReach(opts.tag ?? '') } : {}),
   };
 }
 

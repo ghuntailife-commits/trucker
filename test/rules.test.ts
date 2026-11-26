@@ -351,3 +351,11 @@ describe('Undo', () => {
     expect(c).toEqual(snapshot);   // the rules never change the original copy
   });
 });
+
+describe('Connects', () => {
+  it('a Tag row is a connect unless bad number, no-show, presented, sold or given away', async () => {
+    const { isReach } = await import('../src/rules/engine');
+    expect([TAGS.callback, TAGS.notInterested, TAGS.dnc, TAGS.scheduled, TAGS.calledInto].every(isReach)).toBe(true);
+    expect([TAGS.bad, TAGS.noshow, TAGS.presented, TAGS.sold, TAGS.given].some(isReach)).toBe(false);
+  });
+});
