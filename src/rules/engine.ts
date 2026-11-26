@@ -327,7 +327,7 @@ export function dialerAction(c: Contact, key: DialerKey, now: number, cfg: Confi
   const email = String(opts.email || '').trim();
   if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { contact: c, events: [], refused: 'That email does not look right.', message: '' };
   const k0 = tagKind(c.tag);
-  if (key === 'callback' && !['none', 'callback', 'noshow', 'scheduled'].includes(k0))
+  if (key === 'callback' && !['none', 'callback', 'noshow', 'scheduled', 'presented'].includes(k0))   // v2: a follow-up call can set a callback
     return { contact: c, events: [], refused: `${who} is already tagged (${c.tag.slice(0, 25)}...). Callback not set.`, message: '' };
 
   const parts: string[] = [];

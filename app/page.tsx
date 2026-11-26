@@ -27,12 +27,12 @@ function whoContact(m: { initial?: ResultInitial }): Contact | undefined {
 type Modal = null | { kind: ResultKind; id: string; amend?: AmendTarget; initial?: ResultInitial };
 const UNDO_LABEL: Record<string, string> = { noanswer: 'No answer', voicemail: 'Voicemail', callback: 'Callback', notint: 'Not interested',
   bad: 'Bad number', appt: 'Appointment', note: 'note', sold: 'Sold', presented: 'Presented', noshow: 'No-show', reschedule: 'Move', confirm: 'Confirmed', tag: 'Qualifier' };
-type Filter = 'All' | 'Callback' | 'NoShow' | 'NewNumber' | 'Retry' | 'Fresh';
-const FILTERS: [Filter, string][] = [['All', 'All'], ['Callback', 'Callbacks'], ['NoShow', 'No-shows'], ['NewNumber', 'New numbers'], ['Retry', 'Retry'], ['Fresh', 'Fresh']];
+type Filter = 'All' | 'Callback' | 'FollowUp' | 'NoShow' | 'NewNumber' | 'Retry' | 'Fresh';
+const FILTERS: [Filter, string][] = [['All', 'All'], ['Callback', 'Callbacks'], ['FollowUp', 'Follow-ups'], ['NoShow', 'No-shows'], ['NewNumber', 'New numbers'], ['Retry', 'Retry'], ['Fresh', 'Fresh']];
 const baseWhy = (why: string) => why.replace(/^DONE TODAY - /, '');
 const groupOf = (why: string): Filter => {
   const k = chipClass(baseWhy(why));
-  return k === 'Callback' || k === 'NoShow' || k === 'NewNumber' || k === 'Fresh' ? k : 'Retry';
+  return k === 'Callback' || k === 'FollowUp' || k === 'NoShow' || k === 'NewNumber' || k === 'Fresh' ? k : 'Retry';
 };
 const money = (n: number) => '$' + Math.round(n).toLocaleString('en-US');
 const hourOf = (t: number) => Number(new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', hourCycle: 'h23' }).format(t));
@@ -183,7 +183,7 @@ export default function Today() {
   }, [hours]);
 
   const counts = useMemo(() => {
-    const m: Record<Filter, number> = { All: 0, Callback: 0, NoShow: 0, NewNumber: 0, Retry: 0, Fresh: 0 };
+    const m: Record<Filter, number> = { All: 0, Callback: 0, FollowUp: 0, NoShow: 0, NewNumber: 0, Retry: 0, Fresh: 0 };
     for (const r of d.today) { m.All++; m[groupOf(r.why)]++; }
     return m;
   }, [d.today]);
@@ -269,7 +269,7 @@ export default function Today() {
 
       {page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} />}
       {page === 'needs' && <NeedsPage d={d} />}
-      {page === 'results' && <ResultsPage d={d} />}
+      {page === 'results' && <ResultsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} />}
       {page === 'appts' && <AppointmentsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} />}
       {page === 'today' && <>
       <section className="hero">

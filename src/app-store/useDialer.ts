@@ -9,7 +9,7 @@ import { dialerAction, disposition, quickNote, confirmAppt, toggleQual, type Dia
 import { learnFreshScores } from '../rules/score';
 import { buildToday, buildAppointments, type TodayRow, type ApptRow } from '../rules/today';
 import { TAGS } from '../rules/tags';
-import { sameDay } from '../rules/time';
+import { sameDay, zoned } from '../rules/time';
 import { addNote } from '../rules/engine';
 import { saleNote, noSaleNote, saleDate, type SaleRecord, type NoSaleRecord } from '../rules/results';
 import { demoContacts, demoHistory } from './demoData';
@@ -73,10 +73,23 @@ function fresh(now: number): Saved {
 
 function resort(s: Saved, now: number): Saved {
   const sc = learnFreshScores(s.contacts, CFG.freshScoreMinResults);
-  const base = { now, snap: now, savedOrder: [], savedAppts: [], dialTimes: dialTimes(s.log), freshScore: sc.ready ? sc.score : undefined };
+  const base = { now, snap: now, savedOrder: [], savedAppts: [], dialTimes: dialTimes(s.log), freshScore: sc.ready ? sc.score : undefined, followUps: followUps(s.noSales) };
   const today = buildToday(s.contacts.filter(c => c.list !== 'Hardcards'), base, CFG);
   const appts = buildAppointments(s.contacts, base, CFG);
   return { ...s, pass: sameDay(s.snap, now, CFG.tz) ? (s.pass ?? 1) + 1 : 1, snap: now, savedOrder: today.map(r => r.contact.id), savedAppts: appts.map(r => r.contact.id), skips: [] };
+}
+
+/** Follow-up day per contact, from its latest no-sale form that set one (start of that day, Eastern). */
+function followUps(noSales: NoSale[]) {
+  const m = new Map<string, number>(), at = new Map<string, number>();
+  for (const n of noSales) {
+    if ((at.get(n.contactId) ?? -1) > n.at) continue;
+    at.set(n.contactId, n.at);
+    if (!n.followUp) { m.delete(n.contactId); continue; }
+    const [y, mo, d] = n.followUp.split('-').map(Number);
+    m.set(n.contactId, zoned(y, mo, d, 0, 0, CFG.tz));
+  }
+  return m;
 }
 
 function dialTimes(log: LogEvent[]) {
@@ -117,7 +130,7 @@ export function useDialer() {
 
   const byId = useMemo(() => new Map((s?.contacts ?? []).map(c => [c.id, c])), [s?.contacts]);
   const scorer = useMemo(() => learnFreshScores(s?.contacts ?? [], CFG.freshScoreMinResults), [s?.contacts]);
-  const ctx = useMemo(() => s && { now, snap: s.snap, savedOrder: s.savedOrder, savedAppts: s.savedAppts, dialTimes: dialTimes(s.log),
+  const ctx = useMemo(() => s && { now, snap: s.snap, savedOrder: s.savedOrder, savedAppts: s.savedAppts, dialTimes: dialTimes(s.log), followUps: followUps(s.noSales),
     freshScore: scorer.ready ? scorer.score : undefined }, [s, now, scorer]);
   const today: TodayRow[] = useMemo(() => (s && ctx ? buildToday(s.contacts.filter(c => c.list !== 'Hardcards'), ctx, CFG) : []), [s, ctx]);
   const appts: ApptRow[] = useMemo(() => (s && ctx ? buildAppointments(s.contacts, ctx, CFG) : []), [s, ctx]);

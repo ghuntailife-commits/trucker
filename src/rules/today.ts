@@ -4,7 +4,7 @@ import type { Config } from './config';
 import { DEFAULT_CONFIG } from './config';
 import type { Contact } from './types';
 import { tagKind, tagShort } from './tags';
-import { DAY_MS, parts, sameDay, startOfDay } from './time';
+import { DAY_MS, md, parts, sameDay, startOfDay } from './time';
 import { nextAction, callOrder, phoneToCall, whyLabel } from './schedule';
 
 export interface TodayContext {
@@ -19,6 +19,8 @@ export interface TodayContext {
   dialTimes?: Map<string, number[]>;
   /** v2: ranks fresh contacts (higher first). Leave out to keep the import order. */
   freshScore?: (c: Contact) => number;
+  /** v2: follow-ups set on a "Presented, not sold" form: contact ID → start of the follow-up day. */
+  followUps?: Map<string, number>;
 }
 
 export interface TodayRow {
@@ -53,7 +55,7 @@ export function buildToday(contacts: Contact[], ctx: TodayContext, cfg: Config =
 
   type W = { c: Contact; idx: number; na: number | null; untagged: boolean; dcn: number; dco: number;
     newn: boolean; dpm: boolean; ccu: boolean; dph: boolean; ctg: 1 | 2 | 3; sbk: number; kyb: number;
-    rka: number; kxa: number; kxc: number; fky: number; psn: number; done: boolean; auto: boolean; score: number };
+    rka: number; kxa: number; kxc: number; fky: number; psn: number; done: boolean; auto: boolean; score: number; fuDay: number | null };
 
   const isPm = (c: Contact, untagged: boolean) =>
     untagged && c.dials >= 1 && c.dials <= cfg.pmRetryMaxDials && c.lastDialed != null && sameDay(c.lastDialed, now, tz)
@@ -78,11 +80,14 @@ export function buildToday(contacts: Contact[], ctx: TodayContext, cfg: Config =
     const nxtd = na != null && na <= today;
     const ctc = cfg.catchUpHours != null && untagged && c.dials >= 1 && c.dials <= cfg.catchUpMaxDials
       && (now - lstd) / 3_600_000 >= cfg.catchUpHours && (c.callAt ?? 0) <= now;
-    const due = nxtd || frsh || (wkd && inord) || pmr || ctc;
-    const callable = tagKind(c.tag) !== 'scheduled' && callOrder(c, cfg) != null && phoneToCall(c) !== '';
+    // v2: a presented contact comes back on its follow-up day, and stays until it has been dialed on or after that day
+    const fuDay = tagKind(c.tag) === 'presented' ? ctx.followUps?.get(c.id) : undefined;
+    const fu = fuDay != null && fuDay <= today && (c.lastDialed == null || c.lastDialed < fuDay || (wkd && inord));
+    const due = nxtd || frsh || (wkd && inord) || pmr || ctc || fu;
+    const callable = (tagKind(c.tag) !== 'scheduled' && callOrder(c, cfg) != null || fu) && phoneToCall(c) !== '';
     if (!(due && (callable || (wkd && inord)))) return;
 
-    const dco = callOrder(c, cfg) ?? 5;
+    const dco = fu ? 2.5 : callOrder(c, cfg) ?? 5;   // follow-ups go right after callbacks
     const dwv = c.newNumberMark ?? -1;
     const newn = untagged && dwv >= 0 && Number.isInteger(dwv) && c.dials < dwv + cfg.newNumberPriorityDials;
     const dpm = pmr;
@@ -98,7 +103,7 @@ export function buildToday(contacts: Contact[], ctx: TodayContext, cfg: Config =
     }
     const kyb = ctg === 2 ? c.dials + 100 * (ccu ? 1 : 0) + cfg.timeOfDayNudge * tcur : 0;
     picked.push({ c, idx, na, untagged, dcn: c.dials, dco, newn, dpm, ccu, dph, ctg, sbk, kyb,
-      rka: 0, kxa: 0, kxc: 0, fky: 0, psn: order.get(c.id) ?? 100000, auto,
+      rka: 0, kxa: 0, kxc: 0, fky: 0, psn: order.get(c.id) ?? 100000, auto, fuDay: fu ? fuDay! : null,
       done: c.lastDialed != null && c.lastDialed > 0 && c.lastDialed >= snap && !auto,
       score: ctg === 3 && ctx.freshScore ? ctx.freshScore(c) : 1 });
   });
@@ -134,6 +139,7 @@ export function buildToday(contacts: Contact[], ctx: TodayContext, cfg: Config =
     const why = done ? 'DONE TODAY - ' + tagShort(w.c.tag)
       : w.c.status === 'Backup' && w.untagged ? 'New Number-backup'
       : w.newn ? 'New number'
+      : w.fuDay != null ? (w.fuDay < today ? `Follow-up · ${md(w.fuDay, tz)}` : 'Follow-up')
       : w.dpm ? 'PM retry'
       : w.ctg === 3 ? 'Fresh'
       : whyLabel(w.c, now, cfg);

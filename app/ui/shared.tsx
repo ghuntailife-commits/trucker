@@ -6,6 +6,7 @@ export const ZONE_TZ: Record<string, string> = { ET: 'America/New_York', CT: 'Am
 export function chipClass(why: string) {
   if (why.startsWith('DONE')) return 'Done';
   if (why.startsWith('Callback')) return 'Callback';
+  if (why.startsWith('Follow-up')) return 'FollowUp';
   if (why.startsWith('No-show') || why.startsWith('Did they')) return 'NoShow';
   if (why.startsWith('New Number') || why.startsWith('New number')) return 'NewNumber';
   if (why.startsWith('PM')) return 'PM';

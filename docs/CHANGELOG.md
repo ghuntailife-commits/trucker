@@ -66,3 +66,9 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 - Click any card on the Appointments week (sold, presented, no-show or follow-up, past or future) and use "Change this result": switch it to Sold, Presented not sold, No-show, or book it again, or edit the sale or no-sale details.
 - The old record is taken out and the new one is saved on the same date, so the Sales list, Results and the Activity Log all read as if it had been entered right. The contact gets a dated "Result changed" note. Its tag only changes when that result is still the latest thing that happened. Undo puts it all back.
 - Callback cards can now be marked Sold or Presented, or booked as an appointment, straight from the card.
+
+## 2026-11-26: Clickable Results, follow-ups on Today (George)
+- Every chart on Sales and Presentations opens the records behind it: bars (by day, weekday, time, cumulative, presentations this week, daily production), the objection donut and its table, the biggest-sales and source rows, the weekly presented-vs-sold rows, and the trial / standard tiles. A side sheet lists those sales and no-sales; open one to go to the dialer, call, edit it or change the result.
+- Recent no-sales and Follow-ups due rows open the same way.
+- Fixed ALP by day: the stacked bars had a gap between standard and trial (a style from the form buttons leaked into the chart).
+- Today: a "Presented, not sold" contact with a follow-up date shows up as "Follow-up" on that day, right after callbacks, and stays (marked with its date) until it has been dialed. New Follow-ups filter tab. A follow-up call can set a callback.

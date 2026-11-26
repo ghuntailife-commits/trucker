@@ -13,10 +13,10 @@ import type { ResultKind, ResultInitial } from './forms';
 import type { AmendTarget } from '../../src/rules/amend';
 
 type D = ReturnType<typeof useDialer>;
-type OnResult = (kind: ResultKind, id: string, extra?: { amend?: AmendTarget; initial?: ResultInitial }) => void;
+export type OnResult = (kind: ResultKind, id: string, extra?: { amend?: AmendTarget; initial?: ResultInitial }) => void;
 
 /** The saved result behind a card, if it is one: sold, presented (or its follow-up), or a no-show. */
-function resultTarget(it: CalItem): AmendTarget | null {
+function resultTarget(it: Pick<CalItem, 'key' | 'kind'>): AmendTarget | null {
   const i = Number(it.key.slice(1));
   if (it.kind === 'sold') return { from: 'sold', index: i };
   if (it.kind === 'presented' || it.kind === 'followup') return { from: 'presented', index: i };
@@ -24,7 +24,7 @@ function resultTarget(it: CalItem): AmendTarget | null {
   return null;
 }
 /** The contact for a card; for a sale or no-sale whose contact is gone (Production Desk), a stand-in from the record. */
-function contactFor(d: D, it: CalItem): Contact | undefined {
+export function contactFor(d: D, it: Pick<CalItem, 'contactId' | 'key' | 'kind'>): Contact | undefined {
   const c = d.byId.get(it.contactId); if (c) return c;
   const t = resultTarget(it);
   const w = t?.from === 'sold' ? d.sales[t.index]?.who : t?.from === 'presented' ? d.noSales[t.index]?.who : undefined;
@@ -196,7 +196,7 @@ function Detail({ it, c, d, onDial, onResult }: { it: CalItem; c: Contact; d: D;
           <button className="btn" onClick={() => onResult('reschedule', c.id)}>Book appointment</button>
         </div>
       )}
-      {target && <ChangeResult it={it} target={target} c={c} d={d} onResult={onResult} />}
+      {target && <ChangeResult at={it.at} target={target} c={c} d={d} onResult={onResult} />}
       <div className="dacts sub2">
         {d.byId.has(c.id) && <button className="linkish" onClick={() => onDial(c.id)}>Open in dialer</button>}
         {(it.kind === 'appt' || it.kind === 'callback') && it.at >= d.now && <button className="linkish" onClick={ics}>Add to my calendar</button>}
@@ -208,11 +208,11 @@ function Detail({ it, c, d, onDial, onResult }: { it: CalItem; c: Contact; d: D;
 }
 
 /** Change a result that was already saved: switch it to another result, or fix the details of the same one. */
-function ChangeResult({ it, target, c, d, onResult }: { it: CalItem; target: AmendTarget; c: Contact; d: D; onResult: OnResult }) {
+export function ChangeResult({ at, target, c, d, onResult, onDone }: { at: number; target: AmendTarget; c: Contact; d: D; onResult: OnResult; onDone?: () => void }) {
   const name = `${c.first} ${c.last}`;
   const sale = target.from === 'sold' ? d.sales[target.index] : undefined;
   const noSale = target.from === 'presented' ? d.noSales[target.index] : undefined;
-  const when = fmt({ month: 'numeric', day: 'numeric' }).format(it.at);
+  const when = fmt({ month: 'numeric', day: 'numeric' }).format(at);
   const opts: { k: 'sold' | 'presented' | 'noshow' | 'reschedule'; label: string; cls: string }[] = [
     { k: 'sold', label: target.from === 'sold' ? 'Edit sale' : 'Sold', cls: 'go' },
     { k: 'presented', label: target.from === 'presented' ? 'Edit no-sale' : 'Presented, not sold', cls: '' },
@@ -220,6 +220,7 @@ function ChangeResult({ it, target, c, d, onResult }: { it: CalItem; target: Ame
     { k: 'reschedule', label: 'Book again', cls: '' },
   ];
   const go = (k: typeof opts[number]['k']) => {
+    onDone?.();
     if (k === 'noshow') return d.amend(target, 'noshow');
     const title = k === 'reschedule' ? `Book again: ${name}` : k === target.from ? `Edit ${when} ${k === 'sold' ? 'sale' : 'no-sale'}: ${name}`
       : `Change ${when} to ${k === 'sold' ? 'sold' : 'presented, not sold'}: ${name}`;

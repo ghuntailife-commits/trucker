@@ -70,3 +70,23 @@ describe('changing a result', () => {
     expect(amendResult(st, { from: 'sold', index: 3 }, 'presented', { noSale }, now, TZ)).toEqual({ error: 'That sale is no longer there.' });
   });
 });
+
+import { buildToday } from '../src/rules/today';
+import { zoned } from '../src/rules/time';
+describe('follow-ups on Today', () => {
+  const day = (d: number) => zoned(2026, 11, d, 0, 0, TZ);
+  const ctx = (fu: Map<string, number>) => ({ now: et(27, 10), snap: et(27, 8), savedOrder: [], followUps: fu });
+  it('a presented contact shows up as Follow-up on its day, after callbacks', () => {
+    const p = contact({ tag: TAGS.presented, dials: 2, lastDialed: et(24, 19) });
+    const cb = contact({ tag: TAGS.callback, dials: 1, lastDialed: et(25, 10), callAt: et(27, 9) });
+    const rows = buildToday([p, cb], ctx(new Map([[p.id, day(27)]])));
+    expect(rows.map(r => r.why)).toEqual(['Callback', 'Follow-up']);
+  });
+  it('not before the day, carried over if missed, gone once dialed', () => {
+    const p = contact({ tag: TAGS.presented, dials: 2, lastDialed: et(24, 19) });
+    expect(buildToday([p], ctx(new Map([[p.id, day(28)]])))).toHaveLength(0);
+    expect(buildToday([p], ctx(new Map([[p.id, day(26)]])))[0].why).toBe('Follow-up · 11/26');
+    const dialed = { ...p, lastDialed: et(26, 15) };
+    expect(buildToday([dialed], ctx(new Map([[p.id, day(26)]])))).toHaveLength(0);
+  });
+});
