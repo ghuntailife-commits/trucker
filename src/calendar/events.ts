@@ -106,11 +106,31 @@ export function weekStart(ms: number, tz: string): number {
  * Everything on the calendar between `from` and `to`: booked appointments, callbacks, follow-ups from no-sale
  * forms, and the results already recorded (sold, presented, no-show).
  */
+/** Appointment times written in a contact's notes ("Scheduled Fri 11/13 11:00 AM", "No-showed (appt 11/13 11:00 AM)"). */
+export function apptTimesInNotes(notes: string, near: number, tz: string): number[] {
+  const y0 = parts(near, tz).y, out: number[] = [];
+  for (const m of notes.matchAll(/(?:Scheduled\s+\w{3}\s+|appt\s+)(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})\s*([AP]M)/gi)) {
+    const mo = +m[1], d = +m[2], h = (+m[3] % 12) + (/p/i.test(m[5]) ? 12 : 0);
+    for (const y of [y0 - 1, y0, y0 + 1]) out.push(zoned(y, mo, d, h, +m[4], tz));
+  }
+  return out;
+}
+/** The appointment a result belongs to: the latest one written in the notes at or before the moment the result was
+ *  recorded (an hour of slack for results entered early), within 10 days. Null when the notes don't say. */
+export function apptFor(c: Contact | undefined, recordedAt: number, tz: string): number | null {
+  if (!c) return null;
+  const t = apptTimesInNotes(c.notes, recordedAt, tz).filter(x => x <= recordedAt + 3_600_000 && x >= recordedAt - 10 * DAY_MS);
+  return t.length ? Math.max(...t) : null;
+}
+
 export function calendarItems(contacts: Contact[], sales: SaleRecord[], noSales: NoSaleRecord[], log: LogEvent[],
                               from: number, to: number, now: number, tz: string): CalItem[] {
   const out: CalItem[] = [];
   const today = startOfDay(now, tz);
   const inRange = (t: number) => t >= from && t < to;
+  const byId = new Map(contacts.map(c => [c.id, c]));
+  // results sit at the time of the appointment, not the moment they were recorded (George, 2026-11-26)
+  const when = (id: string, at: number) => apptFor(byId.get(id), at, tz) ?? at;
   for (const c of contacts) {
     const k = tagKind(c.tag);
     if (c.callAt == null || !inRange(c.callAt)) continue;
@@ -122,10 +142,11 @@ export function calendarItems(contacts: Contact[], sales: SaleRecord[], noSales:
       out.push({ key: 'c' + c.id, contactId: c.id, kind: 'callback', at: c.callAt, label: 'Callback' });
     }
   }
-  sales.forEach((s, i) => { if (inRange(s.at)) out.push({ key: 's' + i, contactId: s.contactId, kind: 'sold', at: s.at, label: 'Sold',
+  sales.forEach((s, i) => { const at = when(s.contactId, s.at); if (inRange(at)) out.push({ key: 's' + i, contactId: s.contactId, kind: 'sold', at, label: 'Sold',
     detail: `${s.alpType} ALP $${Math.round(s.alp).toLocaleString('en-US')}` }); });
   noSales.forEach((n, i) => {
-    if (inRange(n.at)) out.push({ key: 'n' + i, contactId: n.contactId, kind: 'presented', at: n.at, label: 'Presented',
+    const at = when(n.contactId, n.at);
+    if (inRange(at)) out.push({ key: 'n' + i, contactId: n.contactId, kind: 'presented', at, label: 'Presented',
       detail: n.objections.join(', ') || n.reason });
     if (n.followUp) {
       const [y, m, d] = n.followUp.split('-').map(Number);
@@ -135,8 +156,9 @@ export function calendarItems(contacts: Contact[], sales: SaleRecord[], noSales:
     }
   });
   log.forEach((e, i) => {
-    if (e.kind === 'Tag' && tagKind(e.tag) === 'noshow' && inRange(e.at))
-      out.push({ key: 'x' + i, contactId: e.contactId, kind: 'noshow', at: e.at, label: 'No-show' });
+    if (e.kind !== 'Tag' || tagKind(e.tag) !== 'noshow') return;
+    const at = when(e.contactId, e.at);
+    if (inRange(at)) out.push({ key: 'x' + i, contactId: e.contactId, kind: 'noshow', at, label: 'No-show' });
   });
   return out.sort((a, b) => a.at - b.at);
 }
