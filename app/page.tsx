@@ -69,7 +69,9 @@ import { mondayNote } from '../src/team/coaching';
 import { needsGroup } from '../src/contacts/needs';
 import { isOpen as sheetOpen, needsLook as sheetLook } from '../src/numbers/sheet';
 import { healthCheck, healthCount } from '../src/team/health';
-import type { TextKey } from '../src/quo/quo';
+import { suggestText, type TextKey } from '../src/quo/quo';
+import { useMyTexts } from '../src/app-store/useMyTexts';
+import { MyTextsDialog } from './ui/myTexts';
 import { LIVE, signOut, type Person } from '../src/live/supabase';
 import { LiveGate, SwitchPage, useSaveStatus } from './ui/live';
 import { newQuoEvents, markQuoApplied } from '../src/live/quoClient';
@@ -128,7 +130,7 @@ function whoContact(m: { initial?: ResultInitial }): Contact | undefined {
   return w ? ({ id: '', first: w.first, last: w.last, phone: w.phone, backup: '', company: w.company, job: '', list: w.list } as unknown as Contact) : undefined;
 }
 type Modal = null | { kind: ResultKind; id: string; amend?: AmendTarget; initial?: ResultInitial };
-type QuoModal = null | { id: string; apptAt?: number | null; first?: TextKey };
+type QuoModal = null | { id: string; apptAt?: number | null; first?: TextKey; afterBook?: boolean };
 const UNDO_LABEL: Record<string, string> = { noanswer: 'No answer', voicemail: 'Voicemail', callback: 'Callback', notint: 'Not interested',
   bad: 'Bad number', appt: 'Appointment', hungup: 'Hung up', calledinto: 'Called into', dnc: 'Do not call', note: 'note', sold: 'Sold', presented: 'Presented', noshow: 'No-show', reschedule: 'Move', confirm: 'Confirmed', tag: 'Qualifier' };
 type Filter = 'All' | 'Callback' | 'FollowUp' | 'NoShow' | 'NewNumber' | 'Retry' | 'Fresh';
@@ -176,6 +178,8 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const feed = useTeamFeed({ id: agent, name: me.name }, feedSnap, !!d0.ready, isAdmin);
   const quoOn = me.quo;
   const [quo, setQuo] = useState<QuoModal>(null);
+  const [textsOpen, setTextsOpen] = useState(false);
+  const myTexts = useMyTexts(agent);
   const [rowMenu, setRowMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [removeIds, setRemoveIds] = useState<string[] | null>(null);
   const [todaySet, setTodaySet] = useState(false);
@@ -271,7 +275,11 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   }, [current?.id]);
 
   /** Text button on client panels: the Quo text box when Quo is on (otherwise the panels use the computer's texting app). */
-  const textContact = quoOn ? (id: string) => { const c = d.byId.get(id); if (c) setQuo({ id, apptAt: tagKind(c.tag) === 'scheduled' ? c.callAt : null }); } : undefined;
+  // the text that fits opens first: no-show follow-up, 1 hour before, morning of, night before (George, 2026-11-27)
+  const textFirst = (c: Contact): TextKey => { const k = tagKind(c.tag), at = k === 'scheduled' ? c.callAt : null;
+    return suggestText(at, d.now, k === 'noshow', at != null && sameDay(at, d.now, TZ)); };
+  const quoFor = (c: Contact) => setQuo({ id: c.id, apptAt: tagKind(c.tag) === 'scheduled' ? c.callAt : null, first: textFirst(c) });
+  const textContact = quoOn ? (id: string) => { const c = d.byId.get(id); if (c) quoFor(c); } : undefined;
 
   /** Call: opens the phone app (or the web dialer) and starts the call timer. */
   const startCall = (c: Contact, useBackup = false) => {
@@ -289,6 +297,8 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
     if (!current) return;
     if ((key === 'callback' || key === 'appt') && !when.trim()) { setPending(key); setTimeout(() => whenRef.current?.focus(), 0); return; }
     d.press(current.id, key, { when: key === 'callback' || key === 'appt' ? when : '', email: key === 'appt' ? email : '', note: noteText, backupMode });
+    // just booked: the confirmation text opens to check and send (nothing goes out without Send)
+    if (key === 'appt' && quoOn && (current.phone || current.backup)) { const id = current.id; setTimeout(() => setQuo({ id, first: 'booked', afterBook: true }), 0); }
     endCall(current.id);
     setPicked(null);
     if (auto) setCountdown(3);
@@ -550,6 +560,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
             <i />{hc.fix || hc.check ? `${hc.fix + hc.check} to check` : 'All clear'}
           </button>
           <ProfileMenu t={t} me={me} theme={theme} setTheme={setTheme} items={[
+            { key: 'texts', label: 'My texts', sub: 'Reminders, confirmations and your own texts', onClick: () => setTextsOpen(true), hidden: !quoOn && !isAdmin },
             { key: 'settings', label: 'Settings', sub: 'Goals, rules, Quo, coaching', onClick: () => setPage('settings'), hidden: !pages.includes('settings') },
             { key: 'integrations', label: 'Integrations', sub: 'Quo, Google, Claude AI', onClick: () => setPage('integrations') },
             { key: 'catchup', label: 'Bring over sheet work', sub: 'For an agent who dialed in their old sheet today', onClick: () => setCatchOpen(true), hidden: !isAdmin },
@@ -586,7 +597,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       {!switching && page === 'status' && <StatusPage t={t} />}
       {!switching && page === 'results' && <ResultsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} onText={textContact} />}
       {!switching && page === 'appts' && <AppointmentsPage agent={agent} agentName={me.name} d={d} cal={cal} open={openAppt} onOpened={() => setOpenAppt(null)} onText={textContact} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} 
-        onQuoText={quoOn ? (id, at, tomorrow) => setQuo({ id, apptAt: at, first: tomorrow ? 'confirmTomorrow' : 'confirmToday' }) : undefined} />}
+        onQuoText={quoOn ? (id, at, tomorrow) => setQuo({ id, apptAt: at, first: suggestText(at, d.now, false, !tomorrow) }) : undefined} />}
       {!switching && page === 'today' && <>
       <section className="hero">
         <div className="title">
@@ -677,7 +688,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
                   {a.open && (
                     <span className="aacts">
                       {a.confirm && <button className="cf" onClick={() => d.confirm(a.id)}>Confirmed</button>}
-                      {a.confirm && a.phone && a.at && quoOn && <button className="txt" onClick={() => setQuo({ id: a.id, apptAt: a.at, first: a.tomorrow ? 'confirmTomorrow' : 'confirmToday' })}>Text with Quo</button>}
+                      {a.confirm && a.phone && a.at && quoOn && <button className="txt" onClick={() => setQuo({ id: a.id, apptAt: a.at, first: suggestText(a.at, d.now, false, !a.tomorrow) })}>Text with Quo</button>}
                       {a.confirm && a.phone && a.at && !quoOn && <a className="txt" href={`sms:${a.phone.replace(/[^\d+]/g, '')}?&body=${encodeURIComponent(`Hi ${a.first}, just a reminder about our appointment ${a.tomorrow ? 'tomorrow' : 'today'} at ${timeOnly(a.at)} ${TZ_ABBR}. Talk soon!`)}`}>Text reminder</a>}
                       <button onClick={() => setModal({ kind: 'sold', id: a.id })}>Sold</button>
                       <button onClick={() => setModal({ kind: 'presented', id: a.id })}>Presented</button>
@@ -790,7 +801,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
                     title="Ends this call and dials the other number"><Ico d={IC.phone} size={14} /> Call {backupMode ? 'main' : 'backup'} {otherNum}</button>
                   <button className="linkish" onClick={() => setBackupMode(!backupMode)} title="Switch number without calling (B)">switch</button>
                 </span> : <span />}
-                <span>{quoOn && dialNum && <button className="linkish quobtn" onClick={() => setQuo({ id: current.id, apptAt: tagKind(current.tag) === 'scheduled' ? current.callAt : null })}>Text with Quo</button>}
+                <span>{quoOn && dialNum && <button className="linkish quobtn" onClick={() => quoFor(current)}>Text with Quo</button>}
                   {current.dials} dials · last {current.lastDialed ? md(current.lastDialed, TZ) : 'never'}</span>
               </div>
 
@@ -893,8 +904,10 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
           .map(([l, run, tone]) => [l, () => { run(); if (picked === rowMenu.id && /Replace|Pause|Rest|Take off/.test(l)) setPicked(null); }, tone] as [string, () => void, string?])} />}
       {removeIds && <RemoveDialog d={d} ids={removeIds} agentName={me.name} onClose={() => { if (removeIds.includes(picked ?? '')) setPicked(null); setRemoveIds(null); }} />}
       {todaySet && <TodaySettings d={d} onClose={() => setTodaySet(false)} />}
-      {quo && d.byId.get(quo.id) && <QuoText c={d.byId.get(quo.id)!} agent={me} apptAt={quo.apptAt} first={quo.first} onClose={() => setQuo(null)}
+      {quo && d.byId.get(quo.id) && <QuoText key={`${quo.id}-${quo.first}`} c={d.byId.get(quo.id)!} agent={me} apptAt={quo.afterBook ? d.byId.get(quo.id)!.callAt : quo.apptAt} first={quo.first}
+        mine={myTexts.texts} onEditTexts={() => setTextsOpen(true)} onClose={() => setQuo(null)}
         onSent={body => { d.note(quo.id, `Texted (Quo): "${body}"`); setQuo(null); }} />}
+      {textsOpen && <MyTextsDialog agentName={me.name} texts={myTexts.texts} onSave={t => { myTexts.save(t); d0.say('Your texts are saved.'); }} onClose={() => setTextsOpen(false)} />}
       {keysOpen && <ShortcutsDialog onClose={() => setKeysOpen(false)} />}
       {catchOpen && isAdmin && <CatchUpDialog say={d0.say} onClose={() => setCatchOpen(false)} />}
       {allOpen !== null && <AllSearch agents={t.team.agents.map(a => ({ id: a.id, name: a.name }))} start={allOpen} onClose={() => setAllOpen(null)}

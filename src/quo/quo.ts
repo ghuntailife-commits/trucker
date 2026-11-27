@@ -17,23 +17,51 @@ export function e164(phone: string): string | null {
 }
 
 // ---------- texts ----------
-export type TextKey = 'confirmToday' | 'confirmTomorrow' | 'booked' | 'missed' | 'followUp';
+// Each agent can rewrite these and add their own (George, 2026-11-27: "My texts" in the profile menu).
+// Templates use {first} {last} {agent} {company} {time} {day} {when} {tz}; the defaults below are the starting point.
+export type TextKey = 'booked' | 'confirmTomorrow' | 'confirmToday' | 'hour' | 'noShow' | 'missed' | 'followUp';
+export const TEXT_KEYS: TextKey[] = ['booked', 'confirmTomorrow', 'confirmToday', 'hour', 'noShow', 'missed', 'followUp'];
 export const TEXT_LABEL: Record<TextKey, string> = {
-  confirmToday: 'Reminder: today', confirmTomorrow: 'Reminder: tomorrow', booked: 'Booked: confirmation',
-  missed: 'Sorry I missed you', followUp: 'Follow-up after a presentation',
+  booked: 'Confirmation after booking', confirmTomorrow: 'Night-before reminder', confirmToday: 'Morning reminder',
+  hour: '1 hour before', noShow: 'No-show follow-up', missed: 'Sorry I missed you', followUp: 'Follow-up after a presentation',
 };
-export interface TextFill { agent: string; when?: string; time?: string }
+export const TEXT_WHEN: Record<TextKey, string> = {
+  booked: 'Right after you set the appointment', confirmTomorrow: 'The day before the appointment', confirmToday: 'The morning of the appointment',
+  hour: 'About an hour before', noShow: 'After they miss the appointment', missed: 'After a call they did not pick up', followUp: 'After a presentation with no sale yet',
+};
+export const DEFAULT_TEXTS: Record<TextKey, string> = {
+  booked: "Hi {first}, this is {agent}. You're all set for {when} {tz}. I'll call you at this number. Text me here if anything changes.",
+  confirmTomorrow: 'Hi {first}, this is {agent}. Just a reminder about our appointment tomorrow at {time} {tz}. Reply YES to confirm or text me a better time.',
+  confirmToday: 'Hi {first}, this is {agent}. Just a reminder about our appointment today at {time} {tz}. Reply YES to confirm or text me a better time.',
+  hour: "Hi {first}, this is {agent}. I'll be calling you in about an hour, at {time} {tz}. Talk soon!",
+  noShow: "Hi {first}, this is {agent}. Sorry we missed each other for our {time} {tz} call. When's a good time to reschedule?",
+  missed: 'Hi {first}, this is {agent} about the benefits for {company} members. Sorry I missed you. When is a good time to call back?',
+  followUp: 'Hi {first}, this is {agent}. Following up on our talk. Is now still a good time to finish getting you set up?',
+};
+export const TEXT_FIELDS = ['first', 'last', 'agent', 'company', 'time', 'day', 'when', 'tz'] as const;
+export interface CustomText { id: string; name: string; body: string }
+/** An agent's own texts: rewritten defaults and templates they made. */
+export interface MyTexts { edits?: Partial<Record<TextKey, string>>; custom?: CustomText[] }
+export interface TextFill { agent: string; when?: string; time?: string; day?: string; tz?: string }
 
-/** The message for each kind of text. The agent can edit it in the preview before sending. */
-export function textFor(key: TextKey, c: Pick<Contact, 'first' | 'company'>, f: TextFill): string {
-  const hi = `Hi ${c.first || 'there'}, this is ${f.agent}`;
-  switch (key) {
-    case 'confirmToday': return `${hi}. Just a reminder about our appointment today at ${f.time ?? ''} ET. Reply YES to confirm or text me a better time.`;
-    case 'confirmTomorrow': return `${hi}. Just a reminder about our appointment tomorrow at ${f.time ?? ''} ET. Reply YES to confirm or text me a better time.`;
-    case 'booked': return `${hi}. You're all set for ${f.when ?? ''} ET. I'll call you at this number. Text me here if anything changes.`;
-    case 'missed': return `${hi} about the benefits for ${c.company ? c.company + ' ' : ''}members. Sorry I missed you. When is a good time to call back?`;
-    case 'followUp': return `${hi}. Following up on our talk. Is now still a good time to finish getting you set up?`;
-  }
+/** Fills a template's {fields}. Empty fields drop out cleanly ("for {company} members" with no company reads "for members"). */
+export function renderText(tpl: string, c: Partial<Pick<Contact, 'first' | 'last' | 'company'>>, f: TextFill): string {
+  const v: Record<string, string> = { first: c.first || 'there', last: c.last ?? '', agent: f.agent, company: c.company ?? '',
+    time: f.time ?? '', day: f.day ?? '', when: f.when ?? '', tz: f.tz ?? 'ET' };
+  return tpl.replace(/\{(\w+)\}/g, (m, k: string) => (k.toLowerCase() in v ? v[k.toLowerCase()] : m))
+    .replace(/[ \t]{2,}/g, ' ').replace(/ ([.,!?])/g, '$1').trim();
+}
+/** The message for each kind of text, the agent's own version when they wrote one. Edited in the preview before sending. */
+export function textFor(key: TextKey, c: Partial<Pick<Contact, 'first' | 'last' | 'company'>>, f: TextFill, mine?: MyTexts | null): string {
+  return renderText(mine?.edits?.[key]?.trim() || DEFAULT_TEXTS[key], c, f);
+}
+/** Which text fits first: by how soon the appointment is, or a no-show. */
+export function suggestText(apptAt: number | null | undefined, now: number, noShow: boolean, sameDay: boolean): TextKey {
+  if (noShow) return 'noShow';
+  if (apptAt == null) return 'missed';
+  if (apptAt < now) return 'noShow';
+  if (apptAt - now <= 90 * 60_000) return 'hour';
+  return sameDay ? 'confirmToday' : 'confirmTomorrow';
 }
 
 /** Texts are short: Quo splits anything over 160 characters into parts. */

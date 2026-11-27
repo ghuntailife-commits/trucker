@@ -164,3 +164,4 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 | 2026-11-27 | Appointments: a callback whose time has passed now has No answer and No-show buttons. |
 | 2026-11-27 | An outgoing Quo call now counts as a dial, even with no result tapped. Calls within an hour of a tapped result or another Quo call count once. |
 | 2026-11-27 | Redeploy so Bradley's Quo keys are picked up. |
+| 2026-11-27 | My texts (profile menu): each agent rewrites their texts for each moment (confirmation after booking, night-before, morning, 1 hour before, no-show follow-up, missed call, follow-up) and makes their own. Text with Quo opens the one that fits; booking from Today opens the confirmation to check and send. |

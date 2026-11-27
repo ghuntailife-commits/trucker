@@ -1384,3 +1384,16 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 @keyframes feedin { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
 .rfeed li.mine b { color: #4b6b40; } :root[data-theme="dark"] .rfeed li.mine b { color: #a9c79c; }
 .hcard.recent header .hint { margin-left: auto; font-size: 12px; }
+
+/* My texts (George, 2026-11-27) */
+.mytexts { display: grid; grid-template-columns: 220px 1fr; gap: 16px; min-height: 360px; }
+.mytexts .mtlist { display: flex; flex-direction: column; gap: 4px; border-right: 1px solid var(--line); padding-right: 12px; }
+.mytexts .mtitem { text-align: left; background: none; border: 1px solid transparent; border-radius: 8px; padding: 6px 8px; cursor: pointer; color: inherit; display: flex; flex-direction: column; }
+.mytexts .mtitem small { color: var(--muted); font-size: 11px; }
+.mytexts .mtitem:hover { background: var(--panel2); }
+.mytexts .mtitem.on { border-color: var(--accent); background: var(--cur); }
+.mytexts .mtedit { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.mytexts .mtedit h3 { margin: 0; }
+.mytexts .mtedit textarea { width: 100%; font: inherit; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: inherit; }
+.mytexts .chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+@media (max-width: 700px) { .mytexts { grid-template-columns: 1fr; } .mytexts .mtlist { border-right: 0; padding-right: 0; } }
