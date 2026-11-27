@@ -26,6 +26,7 @@ import { TeamPage, HealthList } from './ui/team';
 import { SettingsPage } from './ui/settings';
 import { QuoText } from './ui/quo';
 import { useSort } from './ui/sort';
+import { CoachPage } from './ui/coach';
 import { LibraryPage, LicensesDialog } from './ui/library';
 import { useLibrary } from '../src/app-store/useLibrary';
 import { ProfileMenu, ShortcutsDialog, IntegrationsPage } from './ui/profile';
@@ -44,7 +45,7 @@ import { LiveGate, SwitchPage, useSaveStatus } from './ui/live';
 import { newQuoEvents, markQuoApplied } from '../src/live/quoClient';
 import { matchContact } from '../src/quo/quo';
 
-const PAGE_LABEL: Record<Page, string> = { home: 'Home', today: 'Today', appts: 'Appointments', contacts: 'Contacts', needs: 'Needs Number', results: 'Results', team: 'Team', library: 'Contact library', settings: 'Settings', integrations: 'Integrations' };
+const PAGE_LABEL: Record<Page, string> = { home: 'Home', today: 'Today', appts: 'Appointments', contacts: 'Contacts', needs: 'Needs Number', results: 'Results', coach: 'Coaching', team: 'Team', library: 'Contact library', settings: 'Settings', integrations: 'Integrations' };
 const ROLE_LABEL = { admin: 'admin', lead: 'team lead', agent: 'agent', boss: 'results only' } as const;
 
 /** Day or night, remembered in this browser. */
@@ -116,7 +117,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const ns = useNumberSheet(agent, d0.contacts ?? [], d0.now, TZ, d0.batch, d0.say, !!d0.ready);
   const lib = useLibrary(agent, { contacts: d0.contacts ?? [], batch: d0.batch }, TZ);
   const [licOpen, setLicOpen] = useState(false);
-  const pages = pagesFor(t.role);
+  const pages = pagesFor(t.role).filter(p => p !== 'coach' || t.role === 'admin' || me.quo);
   const quoOn = me.quo;
   const [quo, setQuo] = useState<QuoModal>(null);
   const [healthOpen, setHealthOpen] = useState(false);
@@ -448,6 +449,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
         health={hc} sheet={{ waiting: sheetWaitN, look: sheetLookN, needs: needsN }} wins={wins} monthDays={monthDays} daysInMonth={daysInMonth}
         go={setPage} openHealth={() => setHealthOpen(true)} onDial={id => { setPicked(id); setPage('today'); }} timeOnly={timeOnly} md={x => md(x, TZ)} />}
       {!switching && page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} />}
+      {!switching && page === 'coach' && <CoachPage me={me} admin={t.role === 'admin'} agents={t.team.agents} contacts={d.contacts} now={d.now} />}
       {!switching && page === 'needs' && <NeedsPage d={d} ns={ns} states={me.states} />}
       {!switching && page === 'team' && <TeamPage t={t} now={d.now} live={{ id: agent, data: { contacts: d.contacts, log: d.log, sales: d.sales, noSales: d.noSales } }}
         onViewAs={id => t.setViewer(id)} onDial={id => { setPicked(id); setPage('today'); }} />}

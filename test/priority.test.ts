@@ -37,7 +37,13 @@ describe('column sorting', () => {
 describe('mixing companies', () => {
   it('lets a second company in before the first one repeats too much', async () => {
     const { mixOrder } = await import('../src/contacts/priority');
-    const items = [{ id: 'a1', co: 'A', s: 80 }, { id: 'a2', co: 'A', s: 80 }, { id: 'a3', co: 'A', s: 80 }, { id: 'b1', co: 'B', s: 75 }];
-    expect(mixOrder(items, x => x.s, x => x.co).map(x => x.id)).toEqual(['a1', 'b1', 'a2', 'a3']);
+    const items = [{ id: 'a1', co: 'A', s: 80 }, { id: 'a2', co: 'A', s: 80 }, { id: 'a3', co: 'A', s: 80 }, { id: 'b1', co: 'B', s: 85 }, { id: 'c1', co: 'C', s: 60 }];
+    expect(mixOrder(items, x => x.s, x => x.co).map(x => x.id)).toEqual(['b1', 'a1', 'a2', 'a3', 'c1']);
+  });
+  it('never drops a strong contact below a weaker tier', async () => {
+    const { mixOrder } = await import('../src/contacts/priority');
+    const items = [...Array.from({ length: 50 }, (_, i) => ({ id: `u${i}`, co: 'UPS', s: 90 })), ...Array.from({ length: 50 }, (_, i) => ({ id: `x${i}`, co: `Co${i}`, s: 70 }))];
+    const out = mixOrder(items, x => x.s, x => x.co).map(x => x.id);
+    expect(out.slice(0, 50).every(id => id.startsWith('u'))).toBe(true);
   });
 });

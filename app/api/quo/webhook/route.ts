@@ -6,6 +6,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { adminDb, teamSettings, agentByNumber } from '../../../../src/live/server';
 import { verifySignature, verifyStandard } from '../../../../src/quo/quo';
 import { quoParts, quoNumberId, transcriptText, NOTE_PROMPT } from '../../../../src/quo/events';
+import { CALL_TOOL, readCallTool, type CallTags } from '../../../../src/quo/coach';
 
 /** The agent's Quo number from Quo's id for it (PN...), asked from Quo once per server start. */
 const numberIds = new Map<string, string>();
@@ -51,25 +52,31 @@ export async function POST(req: Request) {
     if (data?.[0]) { agentId ??= data[0].agent_id; phone ||= data[0].phone; }
   }
 
-  let ai: string | null = null;
+  let ai: string | null = null, tags: CallTags | null = null;
   if (ev.type === 'call.transcript.completed' && process.env.ANTHROPIC_API_KEY) {
     const text = transcriptText(body, ev.ours);
     if (text.length > 40) {
       try {
         const client = new Anthropic();
-        const r = await client.messages.create({ model: 'claude-opus-5-5', max_tokens: 600, system: NOTE_PROMPT,
+        const r = await client.messages.create({ model: 'claude-opus-5-5', max_tokens: 1000,
+          system: `${NOTE_PROMPT}\nAlso tag the call for the agent's coaching. Save everything with the save_call tool.`,
+          tools: [CALL_TOOL], tool_choice: { type: 'tool', name: CALL_TOOL.name },
           messages: [{ role: 'user', content: `Call transcript:\n\n${text.slice(0, 60_000)}` }] });
-        ai = r.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('\n').trim() || null;
+        const use = r.content.find(b => b.type === 'tool_use') as { input: unknown } | undefined;
+        const got = readCallTool(use?.input);
+        ai = got?.note || null; tags = got?.tags ?? null;
       } catch (e) { ai = null; console.error('call notes failed', (e as Error).message); }
     }
   }
 
-  const { error } = await db.from('quo_events').upsert({ id: `${ev.type}:${ev.id}`, agent_id: agentId, type: ev.type, call_id: ev.callId,
-    phone, at: new Date(ev.at).toISOString(), payload: body, ai_note: ai }, { onConflict: 'id', ignoreDuplicates: true });
+  const row: Record<string, unknown> = { id: `${ev.type}:${ev.id}`, agent_id: agentId, type: ev.type, call_id: ev.callId, phone, at: new Date(ev.at).toISOString(), payload: body, ai_note: ai };
+  let { error } = await db.from('quo_events').upsert(tags ? { ...row, ai_tags: tags } : row, { onConflict: 'id', ignoreDuplicates: true });
+  // before the ai_tags column is added (supabase/live-quo.sql), keep the event and its notes without the tags
+  if (error && tags && /ai_tags/.test(error.message)) ({ error } = await db.from('quo_events').upsert(row, { onConflict: 'id', ignoreDuplicates: true }));
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   // a transcript or summary that arrived before its call: give it this call's agent and number now
   if (agentId && ev.callId) await db.from('quo_events').update({ agent_id: agentId, phone }).eq('call_id', ev.callId).is('agent_id', null);
-  console.log('quo webhook: stored', ev.type, 'agent', agentId, 'ours', ev.ours, 'them', ev.them ? 'yes' : 'no', 'ai note', !!ai);
+  console.log('quo webhook: stored', ev.type, 'agent', agentId, 'ours', ev.ours, 'them', ev.them ? 'yes' : 'no', 'ai note', !!ai, 'tags', tags?.outcome ?? '-');
   return NextResponse.json({ ok: true });
 }
 
