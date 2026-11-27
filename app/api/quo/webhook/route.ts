@@ -9,15 +9,19 @@ import { quoParts, transcriptText, NOTE_PROMPT } from '../../../../src/quo/event
 
 export async function POST(req: Request) {
   const raw = await req.text();
+  console.log('quo webhook', raw.length, 'bytes', JSON.stringify(raw.slice(0, 120)));
   const signing = process.env.QUO_SIGNING_KEY;
   if (!signing) return NextResponse.json({ error: 'QUO_SIGNING_KEY is not set on Vercel' }, { status: 500 });
   const sig = req.headers.get('openphone-signature') ?? req.headers.get('quo-signature');
-  if (!(await verifySignature(sig, raw, signing))) return NextResponse.json({ error: 'bad signature' }, { status: 401 });
+  if (!(await verifySignature(sig, raw, signing).catch(() => false))) {
+    console.error('quo webhook: signature did not match', [...req.headers.keys()].join(','));
+    return NextResponse.json({ error: 'bad signature' }, { status: 401 });
+  }
 
   let body: unknown;
   try { body = JSON.parse(raw); } catch { return NextResponse.json({ error: 'not JSON' }, { status: 400 }); }
   const ev = quoParts(body);
-  if (!ev) return NextResponse.json({ ok: true, ignored: true });
+  if (!ev) { console.log('quo webhook: ignored', (body as { type?: string })?.type); return NextResponse.json({ ok: true, ignored: true }); }
 
   const db = adminDb();
   let agentId: string | null = null, phone = ev.them;
@@ -46,5 +50,9 @@ export async function POST(req: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   // a transcript or summary that arrived before its call: give it this call's agent and number now
   if (agentId && ev.callId) await db.from('quo_events').update({ agent_id: agentId, phone }).eq('call_id', ev.callId).is('agent_id', null);
+  console.log('quo webhook: stored', ev.type, 'agent', agentId, 'ai note', !!ai);
   return NextResponse.json({ ok: true });
 }
+
+/** Opening the address in a browser shows this, to check the webhook is reachable. */
+export async function GET() { return NextResponse.json({ ok: true, webhook: 'quo', signingKey: !!process.env.QUO_SIGNING_KEY, secretKey: !!process.env.SUPABASE_SECRET_KEY }); }
