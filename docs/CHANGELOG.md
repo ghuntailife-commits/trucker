@@ -144,3 +144,4 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 | 2026-11-27 | Admin on another agent's Dispatch: every change (add, import, edit, remove, notes, results) goes through the agent's inbox and shows on their open screen within a minute; nobody saves over anyone | George |
 | 2026-11-27 | Admin imports now also skip anyone already on another agent's Dispatch (by phone, backup or name + company) and say whose list they're on | George |
 | 2026-11-27 | Admin: tick contacts on the Contacts tab (shift-click for a range) and Move them to another agent, with the same review as the library's move | George |
+| 2026-11-27 | Saving never wipes someone else's changes: if another screen changed a contact list since this one last saved, the two are merged contact by contact. Open screens on an old version reload themselves between calls | George |

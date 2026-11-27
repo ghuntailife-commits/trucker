@@ -39,3 +39,31 @@ export function join(parts: Record<string, unknown>): unknown {
   const log = Object.keys(parts).filter(k => k.startsWith('l:')).sort().flatMap(k => parts[k] as Obj[]).sort((a, b) => a.at - b.at);
   return { ...others, contacts, log };
 }
+
+/**
+ * Someone else saved this part since this screen last saved it (George, 2026-11-27: Ivan's open screen kept wiping
+ * contacts the admin imported). Keep their changes and lay ours on top, contact by contact: `base` is what this
+ * screen last saved, `mine` what it has now, `theirs` what is in the database. Contact lists merge by id (our edits
+ * and removals win, contacts only they have stay); history months keep every line from both.
+ */
+export function mergePart(part: string, base: unknown, mine: unknown, theirs: unknown): unknown {
+  if (!Array.isArray(mine) || !Array.isArray(theirs)) return mine;
+  if (part.startsWith('l:')) {
+    const k = (e: Obj) => `${e.at}|${e.contactId}|${e.kind}|${e.tag ?? ''}`;
+    const seen = new Set((mine as Obj[]).map(k));
+    return [...(mine as Obj[]), ...(theirs as Obj[]).filter(e => !seen.has(k(e)))].sort((a, b) => a.at - b.at);
+  }
+  if (!part.startsWith('c:')) return mine;
+  const b = new Map((Array.isArray(base) ? base as Obj[] : []).map(c => [c.id, JSON.stringify(c)]));
+  const m = new Map((mine as Obj[]).map(c => [c.id, c]));
+  const out: Obj[] = [];
+  const used = new Set<string>();
+  for (const t of theirs as Obj[]) {
+    const my = m.get(t.id);
+    if (my) { out.push(b.get(t.id) === JSON.stringify(my) ? t : my); used.add(t.id); }   // unchanged here: take theirs
+    else if (!b.has(t.id)) out.push(t);                                                    // only they have it: keep
+    // else: this screen removed it: leave it out
+  }
+  for (const c of mine as Obj[]) if (!used.has(c.id)) out.push(c);                         // new here
+  return out;
+}

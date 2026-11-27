@@ -1,7 +1,7 @@
 // Live storage: the same load/save calls the demo uses, but kept in the database, in parts (see parts.ts).
 // Saves wait a moment so a burst of clicks becomes one save, and only parts that changed are sent.
 import { db } from './supabase';
-import { split, join, ownerOf } from './parts';
+import { split, join, ownerOf, mergePart } from './parts';
 
 const lastSaved = new Map<string, Map<string, string>>();   // key → part → JSON as last saved or loaded
 const pending = new Map<string, unknown>(), timers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -32,7 +32,25 @@ export async function writeNow(key: string, value: unknown, owner = ownerOf(key)
   const before = lastSaved.get(key) ?? new Map<string, string>();
   const now = new Map(Object.entries(parts).map(([p, v]) => [p, JSON.stringify(v)]));
   const changed = [...now].filter(([p, j]) => before.get(p) !== j);
-  const gone = [...before.keys()].filter(p => !now.has(p));
+  let gone = [...before.keys()].filter(p => !now.has(p));
+  // what the database has now for the parts we are about to write: if someone else wrote one since we last did,
+  // merge instead of saving over them
+  const touch = [...changed.map(([p]) => p), ...gone].filter(p => p.startsWith('c:') || p.startsWith('l:'));
+  if (touch.length) {
+    const server = new Map<string, string>();
+    for (let i = 0; i < touch.length; i += 50) {
+      const { data, error } = await db().from('kv').select('part,value').eq('key', key).in('part', touch.slice(i, i + 50));
+      if (error) throw new Error(error.message);
+      for (const r of data ?? []) server.set(r.part, JSON.stringify(r.value));
+    }
+    for (const [p] of changed) {
+      const sv = server.get(p);
+      if (sv === undefined || sv === before.get(p) || sv === now.get(p)) continue;
+      parts[p] = mergePart(p, before.has(p) ? JSON.parse(before.get(p)!) : [], parts[p], JSON.parse(sv));
+    }
+    // a list someone else changed since we loaded it is not ours to delete
+    gone = gone.filter(p => !server.has(p) || server.get(p) === before.get(p));
+  }
   const stamp = new Date().toISOString();
   // send in batches so no single request is too big
   let batch: { key: string; part: string; owner: string; value: unknown; updated_at: string }[] = [], size = 0;
