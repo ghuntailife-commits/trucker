@@ -1336,3 +1336,13 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 .allsearch-bar .libq { width: auto; flex: 0 1 200px; }
 .allsearch-bar .libq:first-child { flex: 1 1 320px; }
 .allsearch td.nowrap, td.nowrap { white-space: nowrap; }
+
+/* System status (George, 2026-11-27) */
+.stlines { display: grid; gap: 7px; }
+.stline { display: grid; grid-template-columns: 10px 130px 1fr; gap: 10px; align-items: baseline; font-size: 13px; }
+.stline i { width: 9px; height: 9px; border-radius: 50%; background: var(--done); align-self: center; }
+.stline.ok i { background: var(--green); } .stline.warn i { background: var(--amber); } .stline.bad i { background: var(--red); }
+.stline b { font-weight: 600; } .stline span { color: var(--muted); }
+.stline.bad span { color: var(--red); }
+.spill.red { background: var(--red); color: #fff; }
+@media (max-width: 640px) { .stline { grid-template-columns: 10px 1fr; } .stline span { grid-column: 2; } }

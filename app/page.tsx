@@ -21,6 +21,7 @@ import { ResultForm, type ResultKind, type ResultInitial } from './ui/forms';
 import type { AmendTarget } from '../src/rules/amend';
 import { saleAlp } from '../src/rules/results';
 import { AllSearch } from './ui/allSearch';
+import { StatusPage } from './ui/status';
 import { useUpdateCheck } from '../src/live/useUpdateCheck';
 import { MoveContacts } from './ui/transfer';
 import { Dialog, TZ, TZ_ABBR, TZ_NAME, ZONE_TZ, chipClass, localTime, Ico, IC, fmtSecs, ZONE_NAME, timeOnly, saveText, NoteText } from './ui/shared';
@@ -55,7 +56,7 @@ import { LiveGate, SwitchPage, useSaveStatus } from './ui/live';
 import { newQuoEvents, markQuoApplied } from '../src/live/quoClient';
 import { matchContact } from '../src/quo/quo';
 
-const PAGE_LABEL: Record<Page, string> = { home: 'Home', today: 'Today', appts: 'Appointments', contacts: 'Contacts', needs: 'Needs Number', results: 'Results', coach: 'Coaching', team: 'Team', library: 'Contact library', settings: 'Settings', integrations: 'Integrations' };
+const PAGE_LABEL: Record<Page, string> = { home: 'Home', today: 'Today', appts: 'Appointments', contacts: 'Contacts', needs: 'Needs Number', results: 'Results', coach: 'Coaching', team: 'Team', library: 'Contact library', settings: 'Settings', integrations: 'Integrations', status: 'System status' };
 const ROLE_LABEL = { admin: 'admin', lead: 'team lead', agent: 'agent', boss: 'results only' } as const;
 
 /** Day or night, remembered in this browser. */
@@ -206,11 +207,13 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const [modal, setModal] = useState<Modal>(null);
   const [call, setCall] = useState<{ id: string; at: number } | null>(null);
   const callRef = useRef(call); callRef.current = call;
-  const stale = useUpdateCheck(() => !!callRef.current);   // a newer Dispatch is live: reload between calls
+  const infoRef = useRef({ viewing: '', page: '' });
+  const stale = useUpdateCheck(() => !!callRef.current, () => infoRef.current);   // a newer Dispatch is live: reload between calls
   const [auto, setAuto] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [filter, setFilter] = useState<Filter>('All');
   const [page, setPage0] = useState<Page>('home');
+  infoRef.current = { viewing: agent, page };
   const setPage = (p: Page) => { setPage0(pages.includes(p) ? p : 'today'); window.scrollTo?.(0, 0); };
   const sb = useSidebar();
   const [chartBy, setChartBy] = useState<'hour' | 'dial'>('hour');
@@ -511,6 +514,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
           <ProfileMenu t={t} me={me} theme={theme} setTheme={setTheme} items={[
             { key: 'settings', label: 'Settings', sub: 'Goals, rules, Quo, coaching', onClick: () => setPage('settings'), hidden: !pages.includes('settings') },
             { key: 'integrations', label: 'Integrations', sub: 'Quo, Google, Claude AI', onClick: () => setPage('integrations') },
+            { key: 'status', label: 'System status', sub: 'Is everything working for everyone', onClick: () => setPage('status'), hidden: !pages.includes('status') },
             { key: 'tz', label: 'My time zone', sub: `${TZ_NAME} (${TZ_ABBR})`, onClick: () => setTzOpen(true) },
             { key: 'lic', label: 'My licensed states', sub: me.states.length ? `${me.states.length} state${me.states.length === 1 ? '' : 's'}` : 'None set yet', onClick: () => setLicOpen(true) },
             { key: 'goal', label: 'My monthly goal', sub: `${money(monthAlp)} of ${money(me.goal)}`, onClick: () => setPage('results') },
@@ -540,6 +544,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       {!switching && page === 'library' && <LibraryPage t={t} lib={lib} now={d.now} say={d.say} onLicenses={() => setLicOpen(true)} mine={d.contacts} />}
       {!switching && page === 'settings' && <SettingsPage t={t} />}
       {!switching && page === 'integrations' && <IntegrationsPage t={t} />}
+      {!switching && page === 'status' && <StatusPage t={t} />}
       {!switching && page === 'results' && <ResultsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} onText={textContact} />}
       {!switching && page === 'appts' && <AppointmentsPage agent={agent} agentName={me.name} d={d} cal={cal} onText={textContact} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} 
         onQuoText={quoOn ? (id, at, tomorrow) => setQuo({ id, apptAt: at, first: tomorrow ? 'confirmTomorrow' : 'confirmToday' }) : undefined} />}

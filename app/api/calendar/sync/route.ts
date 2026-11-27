@@ -8,12 +8,20 @@ import { accessToken, adoptOriginals, deleteEvent, strayCopies, hashOf, listOthe
 export const maxDuration = 60;
 const MAX = 20;
 
+// what the admin's System status page shows for this agent's calendar
+async function noteStatus(agent: string, v: { ok: boolean; error?: string; written?: number }) {
+  try { await adminDb().from('kv').upsert({ key: 'dispatch-status-cal', part: agent, owner: 'george', value: { lastSync: Date.now(), ...v }, updated_at: new Date().toISOString() }, { onConflict: 'key,part' }); }
+  catch { /* status only */ }
+}
+
 export async function POST(req: Request) {
+  let agentForStatus = '';
   try {
     const db = adminDb();
     const me = await whoIsCalling(db, req.headers.get('authorization'));
     if ('error' in me) return NextResponse.json({ error: me.error }, { status: 401 });
     const { agent, events } = await req.json() as { agent: string; events: WantedEvent[] };
+    agentForStatus = agent;
     if (agent !== me.agentId && me.role !== 'admin') return NextResponse.json({ error: 'Not yours.' }, { status: 403 });
     const { data: tok } = await db.from('google_tokens').select('refresh_token').eq('agent_id', agent).maybeSingle();
     if (!tok) return NextResponse.json({ connected: false });
@@ -61,9 +69,11 @@ export async function POST(req: Request) {
     const more = plan.upsert.length + adopted.length + stray.length + plan.remove.length > writes;
     // the agent's own Google events, shown on the Appointments calendar as busy time
     const others = more ? undefined : await listOthers(token, now - 8 * 86_400_000, now + 36 * 86_400_000).catch(() => undefined);
+    await noteStatus(agent, { ok: true, written: writes });
     return NextResponse.json({ connected: true, moves: plan.moves, written: writes, more, others });
   } catch (e) {
     const msg = (e as Error).message;
+    if (agentForStatus) await noteStatus(agentForStatus, { ok: false, error: msg === 'RECONNECT' ? 'Needs to reconnect Google' : msg.slice(0, 200) });
     return NextResponse.json(msg === 'RECONNECT' ? { connected: false, reconnect: true } : { error: msg }, { status: msg === 'RECONNECT' ? 200 : 500 });
   }
 }

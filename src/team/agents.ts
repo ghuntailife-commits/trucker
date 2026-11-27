@@ -8,9 +8,9 @@ export type Role = 'admin' | 'lead' | 'agent' | 'boss';
 /** Agent IDs are first names in lowercase (the roster in roster.ts); the database uses its own UUIDs. */
 export type AgentId = string;
 export type ViewerId = AgentId | 'boss';
-export type Page = 'home' | 'today' | 'appts' | 'contacts' | 'needs' | 'results' | 'coach' | 'team' | 'library' | 'settings' | 'integrations';
+export type Page = 'home' | 'today' | 'appts' | 'contacts' | 'needs' | 'results' | 'coach' | 'team' | 'library' | 'settings' | 'integrations' | 'status';
 /** Pages reached from the profile menu, not the top bar. */
-export const MENU_PAGES: Page[] = ['settings', 'integrations'];
+export const MENU_PAGES: Page[] = ['settings', 'integrations', 'status'];
 
 export interface AgentSetting {
   id: AgentId;
@@ -87,7 +87,7 @@ export function configFor(rules: Partial<RuleSettings> | undefined): Config {
 
 /** What each role can open. The boss sees results and totals only, never contact details. */
 export function pagesFor(role: Role): Page[] {
-  if (role === 'admin') return ['home', 'today', 'appts', 'contacts', 'needs', 'results', 'coach', 'team', 'library', 'settings', 'integrations'];
+  if (role === 'admin') return ['home', 'today', 'appts', 'contacts', 'needs', 'results', 'coach', 'team', 'library', 'settings', 'integrations', 'status'];
   if (role === 'lead') return ['home', 'today', 'appts', 'contacts', 'needs', 'results', 'coach', 'team', 'integrations'];
   if (role === 'agent') return ['home', 'today', 'appts', 'contacts', 'needs', 'results', 'coach', 'integrations'];
   return ['team'];
