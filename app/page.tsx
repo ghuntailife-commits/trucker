@@ -190,7 +190,8 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const saveSt = useSaveStatus();
   // live Quo: calls, texts, recordings and AI call notes land on the contact's notes (checked every 30 seconds)
   const dRef = useRef(d0); dRef.current = d0;
-  const endRef = useRef<(id: string) => void>(() => {});   // stops the call timer when Quo says the call ended
+  const endRef = useRef<(id: string) => void>(() => {});
+  const onCallRef = useRef(false);   // a call is going on this screen   // stops the call timer when Quo says the call ended
   useEffect(() => {
     if (!LIVE || !quoOn || !d0.ready) return;
     let stop = false;
@@ -221,7 +222,9 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
         if (!r.more) { try { localStorage.setItem(flag, String(Date.now())); } catch { /* */ } return; }
       }
     })();
-    const id = setInterval(pull, 10_000);
+    // every 10 seconds, or every 3 while a call is going, so hanging up in Quo ends the call here quickly (George, 2026-11-27)
+    let n = 0;
+    const id = setInterval(() => { n++; if (onCallRef.current || n % 3 === 0) void pull(); }, 3_000);
     return () => { stop = true; clearInterval(id); };
   }, [agent, quoOn, d0.ready]);
   const [keysOpen, setKeysOpen] = useState(false);
@@ -294,6 +297,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
     if (call && call.id === id) { d.logCall(id, Math.round((Date.now() - call.at) / 1000)); setCall(null); }
   };
   endRef.current = endCall;
+  onCallRef.current = !!call;
 
   const act = (key: DialerKey) => {
     if (!current) return;
