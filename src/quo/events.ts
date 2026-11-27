@@ -5,7 +5,7 @@ import { presNote, type PresTags } from '../meet/present';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
-export const QUO_TYPES = ['call.completed', 'call.recording.completed', 'call.transcript.completed', 'call.summary.completed', 'message.received'] as const;
+export const QUO_TYPES = ['call.ringing', 'call.completed', 'call.recording.completed', 'call.transcript.completed', 'call.summary.completed', 'message.received'] as const;
 
 export interface QuoParts { type: string; id: string; callId: string | null; ours: string; them: string; at: number }
 

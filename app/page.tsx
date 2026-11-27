@@ -71,6 +71,7 @@ import { isOpen as sheetOpen, needsLook as sheetLook } from '../src/numbers/shee
 import { healthCheck, healthCount } from '../src/team/health';
 import { suggestText, type TextKey } from '../src/quo/quo';
 import { useMyTexts } from '../src/app-store/useMyTexts';
+import { useIncomingCall } from '../src/live/useIncomingCall';
 import { MyTextsDialog } from './ui/myTexts';
 import { LIVE, signOut, type Person } from '../src/live/supabase';
 import { LiveGate, SwitchPage, useSaveStatus } from './ui/live';
@@ -180,6 +181,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const [quo, setQuo] = useState<QuoModal>(null);
   const [textsOpen, setTextsOpen] = useState(false);
   const myTexts = useMyTexts(agent);
+  const incoming = useIncomingCall(agent, !!me.quo);
   const [rowMenu, setRowMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [removeIds, setRemoveIds] = useState<string[] | null>(null);
   const [todaySet, setTodaySet] = useState(false);
@@ -920,6 +922,25 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
             {z.name} <small>{new Intl.DateTimeFormat('en-US', { timeZone: z.tz, hour: 'numeric', minute: '2-digit' }).format(d.now)}</small></button>)}</div>
         </div>
       </Dialog>}
+      {incoming.ring && (() => {
+        // who is calling the agent's Quo number (George, 2026-11-27)
+        const c = matchContact(d.contacts, incoming.ring.phone);
+        const p = incoming.ring.phone.replace(/\D/g, '').slice(-10);
+        const num = p.length === 10 ? `(${p.slice(0, 3)}) ${p.slice(3, 6)}-${p.slice(6)}` : incoming.ring.phone;
+        const last = c ? notesNewestFirst(c.notes)[0] : '';
+        return <div className="ringcard" role="alert">
+          <div className="ringhead"><span className="ringdot" />Incoming call · {num}</div>
+          {c ? <>
+            <div className="ringname">{c.first} {c.last}</div>
+            <div className="ringsub">{[c.company, c.job].filter(Boolean).join(' — ')}{c.list ? ` · ${c.list}` : ''}{c.tag ? ` · ${c.tag}` : ''}</div>
+            {last && <div className="ringnote">{last.length > 140 ? last.slice(0, 140) + '…' : last}</div>}
+          </> : <div className="ringsub">Not in your contacts</div>}
+          <div className="ringbar">
+            {c && <button className="btn primary sm" onClick={() => { setPicked(c.id); setPage('today'); incoming.close(); }}>Open contact</button>}
+            <button className="btn sm" onClick={incoming.close}>Close</button>
+          </div>
+        </div>;
+      })()}
       <FeedToasts toasts={feed.toasts} me={agent} nameOf={nameOf} dismiss={feed.dismiss} onLeads={() => setPage('contacts')} />
       {licOpen && <LicensesDialog states={me.states} onClose={() => setLicOpen(false)} onSave={st => { t.setAgent(agent, { states: st }); d.say(`Licensed states saved: ${st.length}.`); }} />}
       {healthOpen && (

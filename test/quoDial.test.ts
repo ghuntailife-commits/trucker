@@ -32,3 +32,10 @@ describe('a result tapped during a long call', () => {
     expect(quoDial(c, start + 40 * MIN, start + 41 * MIN).ignored).toBe(true);
   });
 });
+import { quoParts } from '../src/quo/events';
+describe('incoming call ringing', () => {
+  it('reads call.ringing with whose number is whose', () => {
+    const p = quoParts({ type: 'call.ringing', data: { object: { id: 'AC1', direction: 'incoming', from: '+12145550142', to: '+17865550100', createdAt: '2026-11-27T22:00:00Z' } } });
+    expect(p).toMatchObject({ type: 'call.ringing', callId: 'AC1', ours: '+17865550100', them: '+12145550142' });
+  });
+});
