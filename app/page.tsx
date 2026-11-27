@@ -799,14 +799,14 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
               )}
               {call?.id === current.id ? (
                 <button className="callbtn live" title="Hung up? Click to end the call here, then pick how it went" onClick={() => endCall(current.id)}>
-                  <span className="wave"><i /><i /><i /><i /></span>
-                  <span>{dialNum}</span>
-                  <small>{fmtSecs(Math.round((Date.now() - call.at) / 1000))}</small>
-                  <span className="endcall">End call</span>
+                  <span className="cb-ico"><span className="wave"><i /><i /><i /><i /></span></span>
+                  <span className="cb-txt"><small className="cb-lbl">On the call <b>{fmtSecs(Math.round((Date.now() - call.at) / 1000))}</b></small><span className="cb-num">{dialNum}</span></span>
+                  <span className="endcall"><Ico d={IC.phone} size={16} /> End</span>
                 </button>
               ) : (
                 <button className="callbtn" disabled={!dialNum} onClick={() => startCall(current, backupMode)}>
-                  <Ico d={IC.phone} size={20} /><span>{dialNum || 'No number'}</span>{tw.ready && dialNum ? <small className="via" title="Calls through Dispatch from your local number">Dispatch</small>
+                  <span className="cb-ico"><Ico d={IC.phone} size={22} /></span>
+                  <span className="cb-txt"><small className="cb-lbl">{dialNum ? `Call ${current.first || ''}`.trim() : 'No number to call'}</small><span className="cb-num">{dialNum || '—'}</span></span>{tw.ready && dialNum ? <small className="via" title="Calls through Dispatch from your local number">Dispatch</small>
                     : quoOn && dialNum && <small className="via" title={localLine(me, dialNum)?.title}>{localLine(me, dialNum)?.label ?? 'Quo'}</small>}
                 </button>
               )}
