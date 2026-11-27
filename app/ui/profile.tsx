@@ -8,7 +8,7 @@ import { viewers } from '../../src/team/agents';
 import { Panel } from './charts';
 import { Dialog } from './shared';
 
-const ROLE = { admin: 'Admin', agent: 'Agent', boss: 'Results only' } as const;
+const ROLE = { admin: 'Admin', lead: 'Team lead', agent: 'Agent', boss: 'Results only' } as const;
 
 export interface MenuItem { key: string; label: string; sub?: string; onClick: () => void; hidden?: boolean; disabled?: boolean }
 

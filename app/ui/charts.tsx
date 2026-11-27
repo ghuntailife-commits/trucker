@@ -8,7 +8,7 @@ export const fmtK = (n: number) => (n >= 1000 ? '$' + (n / 1000).toFixed(n >= 10
 export const pctTxt = (a: number, b: number) => (b > 0 ? Math.round(100 * a / b) + '%' : '—');
 
 /** Series colors by meaning, the same on every chart (see globals.css --s-*). */
-export type Hue = 'dials' | 'connects' | 'sched' | 'pres' | 'sold' | 'trial' | 'noshow' | 'callback' | 'muted' | 'a1' | 'a2' | 'a3';
+export type Hue = 'dials' | 'connects' | 'sched' | 'pres' | 'sold' | 'trial' | 'noshow' | 'callback' | 'muted' | 'a1' | 'a2' | 'a3' | 'a4';
 
 export function Panel({ title, meta, children, foot, span = 1, className = '' }: { title: ReactNode; meta?: ReactNode; children: ReactNode; foot?: ReactNode; span?: number; className?: string }) {
   return (

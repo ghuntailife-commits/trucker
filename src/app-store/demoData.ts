@@ -78,7 +78,7 @@ export function demoHistory(contacts: Contact[], now: number, tz: string): { sal
   const sales: SaleRecord[] = [], noSales: NoSaleRecord[] = [], log: LogEvent[] = [];
   const tagEv = (c: Contact, t: number, tag: string): LogEvent => ({ at: t, contactId: c.id, list: c.list, first: c.first, last: c.last,
     phone: c.phone, kind: 'Tag', count: 1, tag, dials: c.dials, reach: false });
-  const use = (i: number) => contacts[i];
+  const use = (i: number) => contacts[i % contacts.length];
   const sold: [number, number, number, number][] = [[11, 2, 18, 1320], [31, 1, 19, 960]];
   for (const [i, d, h, alp] of sold) {
     const c = use(i), t = at(d, h);

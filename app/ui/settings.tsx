@@ -1,6 +1,7 @@
 // Settings (admin only): each agent's goal, Quo and coaching switches, and the calling rules (was the Rules tab).
 // Nothing saves until the preview of the changes is confirmed.
 'use client';
+import { parseState } from '../../src/contacts/states';
 import { useState } from 'react';
 import type { Team } from '../../src/app-store/useTeam';
 import { agentChanges, checkRules, defaultRules, ruleChanges, RULE_LABEL, type AgentSetting, type RuleSettings, type Role } from '../../src/team/agents';
@@ -48,14 +49,16 @@ export function SettingsPage({ t }: { t: Team }) {
         <Panel span={4} title="Agents" meta="Goals, Quo and the Monday coaching note, per agent">
           <div className="tscroll">
             <table className="rt settable">
-              <thead><tr><th>Agent</th><th>Role</th><th>States</th><th>Monthly goal</th><th>Quo</th><th>Quo number</th><th>Monday note</th></tr></thead>
+              <thead><tr><th>Agent</th><th>Role</th><th>Under</th><th>Licensed states</th><th>Monthly goal</th><th>Quo</th><th>Quo number</th><th>Monday note</th></tr></thead>
               <tbody>
                 {agents.map(a => (
                   <tr key={a.id}>
                     <td><b>{a.name}</b><small className="muted"> · {a.team}</small></td>
-                    <td><select value={a.role} onChange={e => setA(a.id, { role: e.target.value as Role })} aria-label={`${a.name} role`}>
-                      <option value="admin">Admin: sees everyone</option><option value="agent">Agent: own contacts</option></select></td>
-                    <td className="states">{a.states.join(', ')}</td>
+                    <td>{a.role === 'admin' ? <b className="muted">Admin</b> : <select value={a.role} onChange={e => setA(a.id, { role: e.target.value as Role })} aria-label={`${a.name} role`}>
+                      <option value="lead">Team lead: sees their agents</option><option value="agent">Agent: own contacts</option></select>}</td>
+                    <td>{a.role === 'admin' ? <span className="muted">—</span> : <select value={a.leadId ?? ''} onChange={e => setA(a.id, { leadId: e.target.value || null })} aria-label={`Who ${a.name} is under`}>
+                      <option value="">Nobody</option>{agents.filter(x => x.id !== a.id && (x.role === 'admin' || x.role === 'lead')).map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select>}</td>
+                    <td className="states" title={a.states.join(', ')}>{a.states.map(st => parseState(st)?.abbr ?? st).join(', ') || <span className="muted">Not set</span>}</td>
                     <td><input className="money" inputMode="decimal" value={goalText[a.id] ?? ''} aria-label={`${a.name} monthly goal`}
                       onChange={e => { setGoalText(g => ({ ...g, [a.id]: e.target.value })); const n = num(e.target.value); setA(a.id, { goal: n > 0 ? Math.round(n) : 0 }); }} /></td>
                     <td><Toggle on={a.quo} label={`Quo for ${a.name}`} onChange={v => setA(a.id, { quo: v })} /></td>
@@ -67,7 +70,7 @@ export function SettingsPage({ t }: { t: Team }) {
               </tbody>
             </table>
           </div>
-          <p className="hint">The boss signs in with results-only access. Quo needs each agent&rsquo;s Quo API key, which goes into the server&rsquo;s locked settings at go-live, never into this page.</p>
+          <p className="hint">You are the only admin. A team lead sees their own agents on the Team page; nobody but you sees the contact library. The boss signs in with results-only access. Quo needs each agent&rsquo;s Quo API key, which goes into the server&rsquo;s locked settings at go-live, never into this page.</p>
         </Panel>
 
         <Panel span={2} title="Who gets called, and when" meta={fromApproved.length ? `${fromApproved.length} different from the approved settings` : 'Approved settings'}>

@@ -40,7 +40,7 @@ import { healthCheck, healthCount } from '../src/team/health';
 import type { TextKey } from '../src/quo/quo';
 
 const PAGE_LABEL: Record<Page, string> = { home: 'Home', today: 'Today', appts: 'Appointments', contacts: 'Contacts', needs: 'Needs Number', results: 'Results', team: 'Team', library: 'Contact library', settings: 'Settings', integrations: 'Integrations' };
-const ROLE_LABEL = { admin: 'admin', agent: 'agent', boss: 'results only' } as const;
+const ROLE_LABEL = { admin: 'admin', lead: 'team lead', agent: 'agent', boss: 'results only' } as const;
 
 /** Day or night, remembered in this browser. */
 function useTheme() {

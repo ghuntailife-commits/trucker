@@ -2,7 +2,7 @@
 // The team settings (agents, goals, Quo, coaching, rules) and who is signed in. In the demo there is no sign-in:
 // a "Viewing as" switch shows each person's screen. With the database connected, the role comes from Google sign-in.
 import { useCallback, useEffect, useState } from 'react';
-import { defaultTeam, type TeamSettings, type ViewerId, type AgentId, type AgentSetting, type RuleSettings, configFor } from '../team/agents';
+import { defaultTeam, withRoster, type TeamSettings, type ViewerId, type AgentId, type AgentSetting, type RuleSettings, configFor } from '../team/agents';
 import { loadState, saveState } from './store';
 import { agentSeed, storageKey } from './agentSeeds';
 import type { Seed } from './agentSeeds';
@@ -14,8 +14,12 @@ export function useTeam() {
   const [viewer, setViewerState] = useState<ViewerId>('george');
   useEffect(() => {
     let live = true;
-    loadState<TeamSettings>(KEY).then(t => { if (live) setTeam(t && t.v === 1 ? { ...defaultTeam(), ...t } : defaultTeam()); });
-    try { const v = localStorage.getItem(VIEW); if (v === 'george' || v === 'austin' || v === 'gracie' || v === 'boss') setViewerState(v); } catch { /* */ }
+    loadState<TeamSettings>(KEY).then(t => {
+      if (!live) return;
+      const team = t && t.v === 1 ? withRoster({ ...defaultTeam(), ...t }) : defaultTeam();
+      setTeam(team);
+      try { const v = localStorage.getItem(VIEW); if (v && (v === 'boss' || team.agents.some(a => a.id === v))) setViewerState(v); } catch { /* */ }
+    });
     return () => { live = false; };
   }, []);
   useEffect(() => { if (team) saveState(KEY, team); }, [team]);

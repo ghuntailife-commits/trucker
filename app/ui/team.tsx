@@ -17,7 +17,25 @@ import { useTips } from './results';
 
 type RangeKind = 'week' | 'lastweek' | 'month' | '30d';
 const RANGES: [RangeKind, string][] = [['week', 'This week'], ['lastweek', 'Last week'], ['month', 'This month'], ['30d', 'Last 30 days']];
-const HUE: Record<AgentId, Hue> = { george: 'a1', austin: 'a2', gracie: 'a3' };
+const HUES: Hue[] = ['a1', 'a2', 'a3', 'a4'];
+
+/** Which group an agent belongs to on the Team page: the admin's or a lead's team, or the Greater agents with no lead. */
+export function groupOf(a: AgentSetting): string { return a.role === 'admin' || a.role === 'lead' ? a.id : a.leadId ?? '_none'; }
+export function groupName(key: string, team: AgentSetting[]): string {
+  if (key === '_none') return 'Greater, no lead';
+  return `${team.find(a => a.id === key)?.name ?? key}'s team`;
+}
+interface Series { key: string; name: string; hue: Hue; ids: Set<AgentId> }
+/** At most four series in the charts (George, 2026-11-26: 21 agents): one per agent when four or fewer, else one per
+ *  team, else the top three by ALP and everyone else. `ranked` is the agents in leaderboard order. */
+export function seriesFor(ranked: AgentSetting[], team: AgentSetting[]): Series[] {
+  if (ranked.length <= 4) return ranked.map((a, i) => ({ key: a.id, name: a.name, hue: HUES[i], ids: new Set([a.id]) }));
+  const keys = [...new Set(ranked.map(groupOf))].sort((x, y) => (x === '_none' ? 1 : y === '_none' ? -1 : 0));
+  if (keys.length >= 2 && keys.length <= 4) return keys.map((k, i) => ({ key: k, name: groupName(k, team), hue: HUES[i], ids: new Set(ranked.filter(a => groupOf(a) === k).map(a => a.id)) }));
+  const top = ranked.slice(0, 3);
+  return [...top.map((a, i) => ({ key: a.id, name: a.name, hue: HUES[i], ids: new Set([a.id]) })),
+    { key: '_rest', name: 'Everyone else', hue: HUES[3], ids: new Set(ranked.slice(3).map(a => a.id)) }];
+}
 const wdIdx = (t: number) => (parts(t, TZ).wd + 6) % 7;
 const f = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('en-US', { timeZone: TZ, ...o });
 const mdShort = f({ month: 'short', day: 'numeric' }), wdShort = f({ weekday: 'short' });
@@ -43,7 +61,10 @@ export function TeamPage({ t, now, live, onViewAs, onDial }: {
   t: Team; now: number; live?: { id: AgentId; data: Seed };
   onViewAs?: (id: AgentId) => void; onDial?: (id: string) => void;
 }) {
-  const agents = visibleAgents({ id: t.viewer, role: t.role }, t.team);
+  const allVisible = visibleAgents({ id: t.viewer, role: t.role }, t.team);
+  const [grp, setGrp] = useState<string>('all');
+  const groups = [...new Set(allVisible.map(groupOf))];
+  const agents = grp === 'all' ? allVisible : allVisible.filter(a => groupOf(a) === grp);
   const [data, setData] = useState<Partial<Record<AgentId, Seed>>>({});
   const [rk, setRk] = useState<RangeKind>('month');
   const [sel, setSel] = useState<AgentId>(agents[0]?.id ?? 'george');
@@ -63,7 +84,7 @@ export function TeamPage({ t, now, live, onViewAs, onDial }: {
 
   const board = useMemo(() => (ready ? agents.map(a => boardRow(a, all[a.id]!, r, now)).sort((x, y) => y.alp - x.alp || y.presented - x.presented) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ready, rk, now, all.george, all.austin, all.gracie, t.team]);
+    [ready, rk, now, data, live?.data, t.team, grp]);
   if (!ready) return <div className="respage"><div className="empty">Loading the team…</div></div>;
 
   const tot = board.reduce((acc, b) => ({ alp: acc.alp + b.alp, sold: acc.sold + b.sold, presented: acc.presented + b.presented,
@@ -77,28 +98,35 @@ export function TeamPage({ t, now, live, onViewAs, onDial }: {
   const days = Array.from({ length: 14 }, (_, i) => addDays(startOfDay(now, TZ), i - 13, TZ));
   const alpIn = (s: Seed, a: number, b: number) => s.sales.filter(x => x.at >= a && x.at < b).reduce((t2, x) => t2 + x.alp, 0);
   const dialsIn = (s: Seed, a: number, b: number) => s.log.filter(e => e.kind === 'Dial' && e.at >= a && e.at < b).reduce((t2, e) => t2 + e.count, 0);
+  const series = seriesFor(board.map(b => b.a), t.team.agents);
+  const hueOf = (id: AgentId) => series.find(x => x.ids.has(id))?.hue ?? 'muted';
+  const sumOver = (x: Series, f: (s: Seed) => number) => [...x.ids].reduce((n, id) => n + f(all[id]!), 0);
   const weekCols = weeks.map(w => {
     const to = addDays(w, 7, TZ);
-    return { label: mdShort.format(w), tip: `Week of ${mdShort.format(w)}: ${agents.map(a => `${a.name} ${fmt$(alpIn(all[a.id]!, w, to))}`).join(' · ')}`,
-      bars: agents.map(a => ({ v: alpIn(all[a.id]!, w, to), hue: HUE[a.id], tip: `${a.name}, week of ${mdShort.format(w)}: ${fmt$(alpIn(all[a.id]!, w, to))} ALP` })) };
+    return { label: mdShort.format(w), tip: `Week of ${mdShort.format(w)}: ${series.map(x => `${x.name} ${fmt$(sumOver(x, s => alpIn(s, w, to)))}`).join(' · ')}`,
+      bars: series.map(x => ({ v: sumOver(x, s => alpIn(s, w, to)), hue: x.hue, tip: `${x.name}, week of ${mdShort.format(w)}: ${fmt$(sumOver(x, s => alpIn(s, w, to)))} ALP` })) };
   });
   const dayCols = days.map(dd => {
     const to = addDays(dd, 1, TZ);
     return { label: wdShort.format(dd).slice(0, 2), sub: String(parts(dd, TZ).d), on: dd === startOfDay(now, TZ),
-      tip: `${md(dd, TZ)}: ${agents.map(a => `${a.name} ${dialsIn(all[a.id]!, dd, to)}`).join(' · ')} dials`,
-      bars: agents.map(a => ({ v: dialsIn(all[a.id]!, dd, to), hue: HUE[a.id], tip: `${a.name}, ${md(dd, TZ)}: ${dialsIn(all[a.id]!, dd, to)} dials` })) };
+      tip: `${md(dd, TZ)}: ${series.map(x => `${x.name} ${sumOver(x, s => dialsIn(s, dd, to))}`).join(' · ')} dials`,
+      bars: series.map(x => ({ v: sumOver(x, s => dialsIn(s, dd, to)), hue: x.hue, tip: `${x.name}, ${md(dd, TZ)}: ${sumOver(x, s => dialsIn(s, dd, to))} dials` })) };
   });
-  const legend = agents.map(a => [HUE[a.id], a.name] as [Hue, string]);
+  const legend = series.map(x => [x.hue, x.name] as [Hue, string]);
   const selA = agents.find(a => a.id === sel) ?? agents[0];
 
   return (
     <div className="respage teampage">
       <section className="hero">
         <div className="title">
-          <div className="eyebrow">{boss ? 'Results and totals' : `${agents.length} agents · ${t.team.agents.filter(a => a.quo).map(a => a.name).join(' and ')} on Quo`}</div>
+          <div className="eyebrow">{boss ? 'Results and totals' : `${agents.length} agents${grp === 'all' ? '' : ` · ${groupName(grp, t.team.agents)}`}`}</div>
           <h1>Team</h1>
         </div>
         <div className="rtools">
+          {groups.length > 1 && <label className="grpsel">Show <select value={grp} onChange={e => setGrp(e.target.value)} aria-label="Which team">
+            <option value="all">Everyone ({allVisible.length})</option>
+            {groups.map(g => <option key={g} value={g}>{groupName(g, t.team.agents)} ({allVisible.filter(a => groupOf(a) === g).length})</option>)}
+          </select></label>}
           <div className="seg mini" role="group" aria-label="Date range">
             {RANGES.map(([k, l]) => <button key={k} className={rk === k ? 'on' : ''} onClick={() => setRk(k)}>{l}</button>)}
           </div>
@@ -126,8 +154,8 @@ export function TeamPage({ t, now, live, onViewAs, onDial }: {
                     <tr key={b.a.id} className={`pick ${sel === b.a.id && !boss ? 'sel' : ''}`} tabIndex={0} onClick={() => setSel(b.a.id)}
                         onKeyDown={e => { if (e.key === 'Enter') setSel(b.a.id); }}>
                       <td className="muted">{i + 1}</td>
-                      <td><span className="agentn"><i className={`sw ${HUE[b.a.id]}`} /><b>{b.a.name}</b>{b.a.role === 'admin' && <small>admin</small>}{b.a.quo && <small className="quo">Quo</small>}</span></td>
-                      <td className="alpc"><span className="inbar"><i className={HUE[b.a.id]} style={{ width: `${100 * b.alp / maxAlp}%` }} /></span><b>{fmt$(b.alp)}</b></td>
+                      <td><span className="agentn"><i className={`sw ${hueOf(b.a.id)}`} /><b>{b.a.name}</b>{b.a.role === 'admin' && <small>admin</small>}{b.a.role === 'lead' && <small>lead</small>}{b.a.quo && <small className="quo">Quo</small>}</span></td>
+                      <td className="alpc"><span className="inbar"><i className={hueOf(b.a.id)} style={{ width: `${100 * b.alp / maxAlp}%` }} /></span><b>{fmt$(b.alp)}</b></td>
                       <td className="num">{b.sold}</td><td className="num">{b.presented}</td><td className="num">{pctTxt(b.sold, b.presented)}</td>
                       <td className="num">{b.scheduled}</td><td className="num">{b.presented - b.calledInto + b.noShows ? Math.round(100 * showRate(b)) + '%' : '—'}</td>
                       <td className="num">{b.dials.toLocaleString('en-US')}</td><td className="num">{pctTxt(b.connects, b.dials)}</td>

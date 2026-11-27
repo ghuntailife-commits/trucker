@@ -99,3 +99,4 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 | 2026-11-26 | The top bar no longer repeats the page title | George |
 | 2026-11-26 | Page name back in the top bar (smaller); the big heading under it is gone | George |
 | 2026-11-26 | Results, Daily history: fixed the table being pushed left (dates cut off, Imported column out of view); all columns fit, the day stays in view when scrolling sideways, and days with sales but no dials are no longer greyed | George |
+| 2026-11-27 | Whole team on Dispatch: all 20 people from the Truckers Registry, new "team lead" role (Braga, Bradley) who see only their own people on Team, "Under" setting, Team page filter by team. Contact library stays admin-only. |

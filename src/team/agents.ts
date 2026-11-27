@@ -1,9 +1,12 @@
+import { ROSTER, type RosterRow } from './roster';
+import { parseState } from '../contacts/states';
 // The team: who signs in, what each role can open, and the settings the admin keeps (was the Rules tab plus
 // a few cells per agent). In the database these are the agents and agent_settings tables (migration 0003).
 import { DEFAULT_CONFIG, type Config } from '../rules/config';
 
-export type Role = 'admin' | 'agent' | 'boss';
-export type AgentId = 'george' | 'austin' | 'gracie';
+export type Role = 'admin' | 'lead' | 'agent' | 'boss';
+/** Agent IDs are first names in lowercase (the roster in roster.ts); the database uses its own UUIDs. */
+export type AgentId = string;
 export type ViewerId = AgentId | 'boss';
 export type Page = 'home' | 'today' | 'appts' | 'contacts' | 'needs' | 'results' | 'team' | 'library' | 'settings' | 'integrations';
 /** Pages reached from the profile menu, not the top bar. */
@@ -14,6 +17,8 @@ export interface AgentSetting {
   name: string;
   team: string;
   role: Role;
+  /** Who this agent is under: they show on that person's Team page (George, 2026-11-26). */
+  leadId?: AgentId | null;
   states: string[];
   /** Monthly ALP goal. */
   goal: number;
@@ -53,18 +58,26 @@ export function defaultRules(): RuleSettings {
 export function defaultTeam(): TeamSettings {
   return {
     v: 1,
-    agents: [
-      { id: 'george', name: 'George', team: 'Direct', role: 'admin', goal: 20000, quo: true, quoNumber: '', coaching: true, active: true,
-        states: ['Texas', 'Iowa', 'Georgia', 'Louisiana', 'Alabama', 'North Carolina', 'Oklahoma', 'Tennessee'] },
-      { id: 'austin', name: 'Austin', team: 'Direct', role: 'agent', goal: 12000, quo: false, quoNumber: '', coaching: true, active: true,
-        states: ['Florida', 'Pennsylvania', 'West Virginia'] },
-      { id: 'gracie', name: 'Gracie', team: 'Direct', role: 'agent', goal: 15000, quo: true, quoNumber: '', coaching: true, active: true,
-        states: ['Arkansas', 'Florida', 'Pennsylvania', 'South Carolina', 'Virginia', 'Oklahoma', 'Tennessee'] },
-    ],
+    agents: ROSTER.map(rosterAgent),
     rules: defaultRules(),
     coachingHour: 8,
     coachingCopyTo: 'george',
   };
+}
+
+const GOALS: Record<string, number> = { george: 20000, austin: 12000, gracie: 15000 };
+/** A roster row as the team settings start out. Quo on for George and Gracie only; coaching for everybody. */
+export function rosterAgent(r: RosterRow): AgentSetting {
+  return { id: r.id, name: r.name, team: r.team, role: r.role, leadId: r.lead, goal: GOALS[r.id] ?? 10000, quo: r.id === 'george' || r.id === 'gracie',
+    quoNumber: '', coaching: true, active: r.id !== 'cameron',
+    states: r.states.split(',').map(x => parseState(x.trim())?.name).filter((x): x is string => !!x) };
+}
+/** Adds anyone on the roster who is missing from saved settings, and fills in who they are under. */
+export function withRoster(t: TeamSettings): TeamSettings {
+  const have = new Map(t.agents.map(a => [a.id, a]));
+  const agents = ROSTER.map(r => { const base = rosterAgent(r), saved = have.get(r.id);
+    return saved ? { ...base, ...saved, leadId: saved.leadId === undefined ? base.leadId : saved.leadId, role: saved.role === 'agent' && base.role === 'lead' ? 'lead' as Role : saved.role } : base; });
+  return { ...t, agents: [...agents, ...t.agents.filter(a => !ROSTER.some(r => r.id === a.id))] };
 }
 
 /** The rules in force: the approved defaults with the admin's changes on top. */
@@ -75,13 +88,16 @@ export function configFor(rules: Partial<RuleSettings> | undefined): Config {
 /** What each role can open. The boss sees results and totals only, never contact details. */
 export function pagesFor(role: Role): Page[] {
   if (role === 'admin') return ['home', 'today', 'appts', 'contacts', 'needs', 'results', 'team', 'library', 'settings', 'integrations'];
+  if (role === 'lead') return ['home', 'today', 'appts', 'contacts', 'needs', 'results', 'team', 'integrations'];
   if (role === 'agent') return ['home', 'today', 'appts', 'contacts', 'needs', 'results', 'integrations'];
   return ['team'];
 }
 export const canSeeContacts = (role: Role) => role !== 'boss';
-/** Whose numbers a viewer can see on the Team page. Agents see only their own (no Team page). */
+/** Whose numbers a viewer can see on the Team page. Agents see only their own (no Team page); a team lead sees
+ *  themselves and the agents under them; the admin and the boss see everyone. */
 export function visibleAgents(viewer: { id: ViewerId; role: Role }, team: TeamSettings): AgentSetting[] {
   if (viewer.role === 'agent') return team.agents.filter(a => a.id === viewer.id);
+  if (viewer.role === 'lead') return team.agents.filter(a => a.active && (a.id === viewer.id || a.leadId === viewer.id));
   return team.agents.filter(a => a.active);
 }
 
@@ -136,6 +152,7 @@ export function agentChanges(before: AgentSetting[], after: AgentSetting[]): str
   for (const a of after) {
     const b = before.find(x => x.id === a.id);
     if (!b) { out.push(`${a.name}: added`); continue; }
+    if ((a.leadId ?? null) !== (b.leadId ?? null)) out.push(`${a.name}: now under ${after.find(x => x.id === a.leadId)?.name ?? 'nobody'}`);
     if (a.role !== b.role) out.push(`${a.name}: role ${b.role} to ${a.role}`);
     if (a.goal !== b.goal) out.push(`${a.name}: monthly goal $${b.goal.toLocaleString('en-US')} → $${a.goal.toLocaleString('en-US')}`);
     if (a.quo !== b.quo) out.push(`${a.name}: Quo ${a.quo ? 'on' : 'off'}`);

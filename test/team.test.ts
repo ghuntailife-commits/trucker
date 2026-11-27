@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { contact, et, TZ } from './helpers';
 import { TAGS } from '../src/rules/tags';
 import type { LogEvent } from '../src/rules/types';
+import { withRoster } from '../src/team/agents';
+import { groupOf, seriesFor } from '../app/ui/team';
 import { defaultTeam, pagesFor, visibleAgents, configFor, checkRules, ruleChanges, defaultRules, viewers } from '../src/team/agents';
 import { healthCheck, healthCount } from '../src/team/health';
 import { mondayNote, lastWeek } from '../src/team/coaching';
@@ -22,8 +24,31 @@ describe('roles', () => {
   });
   it('an agent sees only their own numbers; admin and boss see everyone', () => {
     expect(visibleAgents({ id: 'gracie', role: 'agent' }, team).map(a => a.id)).toEqual(['gracie']);
-    expect(visibleAgents({ id: 'boss', role: 'boss' }, team)).toHaveLength(3);
-    expect(viewers(team).map(v => v.name)).toEqual(['George', 'Austin', 'Gracie', 'Boss']);
+    expect(visibleAgents({ id: 'boss', role: 'boss' }, team)).toHaveLength(19);   // everyone signed up (Cameron isn't yet)
+    expect(viewers(team).map(v => v.name).slice(0, 3)).toEqual(['George', 'Austin', 'Gracie']);
+    expect(viewers(team).at(-1)!.name).toBe('Boss');
+  });
+  it('a team lead sees themselves and the agents under them (George, 2026-11-26)', () => {
+    expect(pagesFor('lead')).toContain('team');
+    expect(pagesFor('lead')).not.toContain('library');
+    expect(visibleAgents({ id: 'braga', role: 'lead' }, team).map(a => a.id)).toEqual(['braga', 'ayden', 'carlos', 'anum']);
+    expect(visibleAgents({ id: 'bradley', role: 'lead' }, team).map(a => a.id)).toEqual(['bradley', 'harvey']);
+    expect(team.agents.filter(a => a.leadId === 'george').map(a => a.name)).toEqual(['Austin', 'Gracie', 'Marshall', 'Dan', 'Sophia', 'Aaron']);
+    expect(team.agents.filter(a => a.role === 'admin').map(a => a.id)).toEqual(['george']);
+    expect(team.agents.find(a => a.id === 'austin')!.states).toEqual(['Florida', 'Texas', 'Pennsylvania', 'West Virginia']);
+  });
+  it('saved settings from before keep their changes and gain the rest of the roster', () => {
+    const old = { ...team, agents: [{ ...team.agents[1], goal: 9000, leadId: undefined }] };
+    const t = withRoster(old);
+    expect(t.agents).toHaveLength(team.agents.length);
+    expect(t.agents.find(a => a.id === 'austin')).toMatchObject({ goal: 9000, leadId: 'george' });
+  });
+  it('the Team charts never show more than four series', () => {
+    const all = visibleAgents({ id: 'george', role: 'admin' }, team);
+    expect(seriesFor(all, team.agents).map(x => x.name)).toEqual(["George's team", "Braga's team", "Bradley's team", 'Greater, no lead']);
+    const mine = all.filter(a => groupOf(a) === 'george');
+    expect(seriesFor(mine, team.agents).map(x => x.name)).toEqual(['George', 'Austin', 'Gracie', 'Everyone else']);
+    expect(seriesFor(all.slice(0, 2), team.agents)).toHaveLength(2);
   });
   it('Quo is on for George and Gracie only; coaching for everybody', () => {
     expect(team.agents.filter(a => a.quo).map(a => a.id)).toEqual(['george', 'gracie']);
