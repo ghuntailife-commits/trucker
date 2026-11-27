@@ -37,7 +37,8 @@ const whenFull = fmt({ weekday: 'short', month: 'numeric', day: 'numeric', hour:
 const TONE: Record<CalItem['kind'], string> = { appt: 'blue', callback: 'amber', followup: 'grey', sold: 'green', presented: 'violet', noshow: 'red' };
 const pillTone = (it: CalItem) => it.kind === 'appt' ? (it.label === 'Confirmed' ? 'teal' : it.label === 'Booked' ? 'blue' : 'amber') : TONE[it.kind];
 
-export function AppointmentsPage({ d, onDial, onResult }: { d: D; onDial: (id: string) => void; onResult: OnResult }) {
+/** onQuoText: when the agent has Quo, reminders open the Quo text box instead of the computer's own texting app. */
+export function AppointmentsPage({ d, onDial, onResult, onQuoText }: { d: D; onDial: (id: string) => void; onResult: OnResult; onQuoText?: (id: string, at: number, tomorrow: boolean) => void }) {
   const [offset, setOffset] = useState(0);
   const [sel, setSel] = useState<string | null>(null);
   const start = addDays(weekStart(d.now, TZ), offset * 7, TZ);
@@ -127,7 +128,7 @@ export function AppointmentsPage({ d, onDial, onResult }: { d: D; onDial: (id: s
 
         <aside className="apptside">
           <section className="panel adetail">
-            {picked && c ? <Detail it={picked} c={c} d={d} onDial={onDial} onResult={onResult} />
+            {picked && c ? <Detail it={picked} c={c} d={d} onDial={onDial} onResult={onResult} onQuoText={onQuoText} />
               : <div className="pad16"><div className="eyebrow">Details</div><p className="hint">Pick anything on the week to see the contact, confirm it, or record how it went.</p></div>}
           </section>
           <section className="panel needs2">
@@ -156,7 +157,7 @@ export function AppointmentsPage({ d, onDial, onResult }: { d: D; onDial: (id: s
   );
 }
 
-function Detail({ it, c, d, onDial, onResult }: { it: CalItem; c: Contact; d: D; onDial: (id: string) => void; onResult: OnResult }) {
+function Detail({ it, c, d, onDial, onResult, onQuoText }: { it: CalItem; c: Contact; d: D; onDial: (id: string) => void; onResult: OnResult; onQuoText?: (id: string, at: number, tomorrow: boolean) => void }) {
   const phone = c.phone || c.backup;
   const open = tagKind(c.tag) === 'scheduled' && it.kind === 'appt';
   const soon = open && it.at >= d.now && it.at < startOfDay(d.now, TZ) + 2 * DAY_MS;
@@ -182,7 +183,8 @@ function Detail({ it, c, d, onDial, onResult }: { it: CalItem; c: Contact; d: D;
       {open && (
         <div className="dacts">
           {soon && !confirmed && <button className="btn primary" onClick={() => d.confirm(c.id)}>Confirmed</button>}
-          {soon && phone && <a className="btn" href={`sms:${phone.replace(/[^\d+]/g, '')}?&body=${encodeURIComponent(`Hi ${c.first}, just a reminder about our appointment ${tomorrow ? 'tomorrow' : 'today'} at ${timeOnly(it.at)} ET. Talk soon!`)}`}>Text reminder</a>}
+          {soon && phone && onQuoText && <button className="btn" onClick={() => onQuoText(c.id, it.at, !!tomorrow)}>Text reminder</button>}
+          {soon && phone && !onQuoText && <a className="btn" href={`sms:${phone.replace(/[^\d+]/g, '')}?&body=${encodeURIComponent(`Hi ${c.first}, just a reminder about our appointment ${tomorrow ? 'tomorrow' : 'today'} at ${timeOnly(it.at)} ET. Talk soon!`)}`}>Text reminder</a>}
           <button className="btn go" onClick={() => onResult('sold', c.id)}>Sold</button>
           <button className="btn" onClick={() => onResult('presented', c.id)}>Presented</button>
           <button className="btn" onClick={() => d.outcome(c.id, 'noshow')}>No-show</button>
