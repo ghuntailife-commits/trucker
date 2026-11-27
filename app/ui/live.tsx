@@ -84,8 +84,8 @@ interface Row { id: string; name: string; sheetId: string; email: string; status
   check?: { contacts: number; log: number; sales: number; noSales: number }; include: boolean;
   tabs?: SheetTabs; skip?: string[] }
 
-/** Tabs left out unless ticked: blank templates, copies of another tab, and George's old Utah test import. */
-const skipByDefault = (agent: string, list: string) => /template/i.test(list) || /^copy of /i.test(list) || (agent === 'george' && list === 'Utah');
+/** Tabs left out unless ticked: blank templates and copies of another tab. (George keeps his Utah tab, 2026-11-26.) */
+const skipByDefault = (_agent: string, list: string) => /template/i.test(list) || /^copy of /i.test(list);
 
 function built(agent: string, tabs: SheetTabs, skip: string[]) {
   const data = buildAgentData({ ...tabs, lists: tabs.lists.filter(l => !skip.includes(l.list)) });
@@ -99,7 +99,7 @@ const when = (t: number | null) => t == null ? '' : new Intl.DateTimeFormat('en-
 
 export function SwitchPage({ onDone }: { onDone: () => void }) {
   const [token, setToken] = useState<string | null>(null);
-  const [rows, setRows] = useState<Row[]>(() => ROSTER.map(r => ({ id: r.id, name: r.name, sheetId: r.sheetId, email: '', status: 'waiting', include: r.id !== 'cameron' })));
+  const [rows, setRows] = useState<Row[]>(() => ROSTER.map(r => ({ id: r.id, name: r.name, sheetId: r.sheetId, email: '', status: 'waiting', include: !['cameron', 'seth', 'general'].includes(r.id) })));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const upd = (id: string, ch: Partial<Row>) => setRows(rs => rs.map(r => (r.id === id ? { ...r, ...ch } : r)));
