@@ -1098,3 +1098,10 @@ kbd { font: 600 12px var(--mono); background: var(--panel2); border: 1px solid v
 .dragtip { margin: 0 0 6px; }
 tr.draggable { cursor: grab; }
 .skipwhy { margin: 0 0 10px; padding-left: 18px; color: var(--muted); font-size: 13px; }
+/* Long lists: always-visible scrollbars and a "Show" picker */
+.tscroll { scrollbar-width: auto; scrollbar-color: var(--muted) transparent; }
+.tscroll::-webkit-scrollbar { width: 12px; height: 12px; }
+.tscroll::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 55%, transparent); border-radius: 8px; border: 3px solid var(--panel); }
+.tscroll::-webkit-scrollbar-track { background: transparent; }
+.showcount { display: inline-flex; align-items: center; gap: 6px; margin-right: 8px; }
+.showcount select { height: 26px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--text); padding: 0 6px; }

@@ -75,3 +75,12 @@ export function NoteText({ text }: { text: string }) {
   const parts = text.split(/(https?:\/\/\S+)/);
   return <>{parts.map((p, i) => i % 2 ? <a key={i} href={p} target="_blank" rel="noreferrer">link</a> : p)}</>;
 }
+
+/** "Show 100 / 500 / 1,000 / All" for long tables. */
+export function ShowCount({ value, total, onChange }: { value: number; total: number; onChange: (n: number) => void }) {
+  return <label className="showcount">Show
+    <select value={value >= total ? 'all' : String(value)} onChange={e => onChange(e.target.value === 'all' ? Number.MAX_SAFE_INTEGER : +e.target.value)}>
+      {[100, 500, 1000].filter(n => n < total).map(n => <option key={n} value={n}>{n.toLocaleString('en-US')}</option>)}
+      <option value="all">All {total.toLocaleString('en-US')}</option>
+    </select></label>;
+}

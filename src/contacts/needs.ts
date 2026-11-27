@@ -77,3 +77,55 @@ export function returnCannotFind(c: Contact): Contact {
   return c.status === 'Cannot Find' ? { ...c, status: '' } : c;
 }
 
+
+// ---------- CSV out and back in (George, 2026-11-26) ----------
+// Export the contacts you want numbers for, have them filled in anywhere, import the file back:
+// numbers land in the Needs Number boxes for the usual review and save. Nothing is saved by the import itself.
+
+export const NEEDS_CSV_HEAD = ['Dispatch ID', 'First', 'Last', 'Company', 'Job', 'City', 'State', 'LinkedIn', 'List', 'Phone', 'Backup', 'Note'];
+
+export function needsCsvRows(cs: Contact[]): string[][] {
+  return [NEEDS_CSV_HEAD, ...cs.map(c => [c.id, c.first, c.last, c.company, c.job, c.city, c.state, c.linkedin, c.list, '', '', ''])];
+}
+
+const hk = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+const pick = (head: string[], ...names: string[]) => head.findIndex(h => names.includes(hk(h)));
+
+export interface NeedsCsvMatch { entries: NeedsEntry[]; matched: number; noNumber: number; unmatched: string[] }
+
+/**
+ * Reads a filled-in file back. Rows match their contact by Dispatch ID, or else by first + last name (+ company when
+ * it's there). Only contacts still on Needs Number are filled; rows with no number are counted, not used.
+ */
+export function matchNeedsCsv(rows: string[][], waiting: Contact[]): NeedsCsvMatch {
+  const head = rows[0] ?? [];
+  const col = { id: pick(head, 'dispatchid', 'id'), first: pick(head, 'first', 'firstname'), last: pick(head, 'last', 'lastname'), co: pick(head, 'company', 'employer'),
+    phone: pick(head, 'phone', 'phonenumber', 'number', 'mobile', 'cell', 'newnumber'), backup: pick(head, 'backup', 'backupphone', 'phone2'), note: pick(head, 'note', 'notes', 'source', 'wherefound') };
+  const byId = new Map(waiting.map(c => [c.id, c]));
+  const byName = new Map<string, Contact[]>();
+  for (const c of waiting) { const k = `${hk(c.first)}|${hk(c.last)}`; byName.set(k, [...(byName.get(k) ?? []), c]); }
+  const out: NeedsCsvMatch = { entries: [], matched: 0, noNumber: 0, unmatched: [] };
+  const seen = new Set<string>();
+  for (const r of rows.slice(1)) {
+    const g = (i: number) => (i >= 0 ? String(r[i] ?? '').trim() : '');
+    const name = `${g(col.first)} ${g(col.last)}`.trim();
+    let c = byId.get(g(col.id));
+    if (!c) { const list = byName.get(`${hk(g(col.first))}|${hk(g(col.last))}`) ?? []; c = list.length === 1 ? list[0] : list.find(x => g(col.co) && hk(x.company) === hk(g(col.co))); }
+    if (!c) { if (name) out.unmatched.push(name); continue; }
+    if (seen.has(c.id)) continue;
+    const phone = g(col.phone), backup = g(col.backup);
+    if (!phone && !backup) { out.noNumber++; continue; }
+    seen.add(c.id);
+    out.entries.push({ id: c.id, phone, backup, note: g(col.note) || 'From CSV', cannotFind: false });
+    out.matched++;
+  }
+  return out;
+}
+
+/** The Needs Number search: name, company, job, city, state or list. */
+export function needsSearch(c: Contact, q: string): boolean {
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const hay = `${c.first} ${c.last} ${c.company} ${c.job} ${c.city} ${c.state} ${c.list}`.toLowerCase();
+  return words.every(w => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(hay));
+}

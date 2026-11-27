@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import type { useDialer } from '../../src/app-store/useDialer';
 import type { Contact } from '../../src/rules/types';
 import { notesNewestFirst } from '../../src/rules/notes';
-import { needsGroup, planNeeds, returnCannotFind, type NeedsEntry, type NeedsGroup, type NeedsPlanLine } from '../../src/contacts/needs';
-import { TZ, Dialog } from './shared';
+import { needsGroup, planNeeds, returnCannotFind, needsCsvRows, matchNeedsCsv, needsSearch, type NeedsEntry, type NeedsGroup, type NeedsPlanLine } from '../../src/contacts/needs';
+import { TZ, Dialog, ShowCount, saveText } from './shared';
+import { parseTable, toCsv } from '../../src/contacts/csv';
 import type { NumberSheet } from '../../src/app-store/useNumberSheet';
 import { CHECK_EVERY_MIN } from '../../src/app-store/useNumberSheet';
 import { BANNER, LEFT_HEAD, LEFT_TITLE, LEFT_TYPE, RIGHT_HEAD, RIGHT_TITLE, RIGHT_TYPE, WIDTHS, FIRST_DATA_ROW, isDone, isOpen, leftValues, needsLook, planSend, rightValues, tone, type SendPlan, type SheetRow } from '../../src/numbers/sheet';
@@ -64,11 +65,25 @@ export function NeedsPage({ d, ns, states = [] }: { d: D; ns: NumberSheet; state
     setDraft(x => { const n = { ...x }; for (const o of ok) delete n[o.id]; return n; });
     setReview(null);
   };
-  const [limit, setLimit] = useState(200);
-  const { sorted: rows, th } = useSort<Contact>(tab === 'sheet' ? [] : groups[tab], {
+  const [limit, setLimit] = useState(100);
+  const [q, setQ] = useState('');
+  const found = useMemo(() => (tab === 'sheet' ? [] : q.trim() ? groups[tab].filter(c => needsSearch(c, q)) : groups[tab]), [tab, groups, q]);
+  const { sorted: rows, th } = useSort<Contact>(found, {
     best: c => score(c).score, name: c => `${c.last} ${c.first}`, company: c => c.company, loc: c => `${c.state} ${c.city}`, dials: c => c.dials,
     note: c => notesNewestFirst(c.notes)[0] ?? '' });
-  useEffect(() => setLimit(200), [tab]);
+  useEffect(() => setLimit(100), [tab, q]);
+  const exportCsv = () => {
+    const out = rows.filter(c => picked.has(c.id));
+    const list = out.length ? out : rows;
+    saveText(`needs-number-${list.length}.csv`, toCsv(needsCsvRows(list)));
+    d.say(`Exported ${list.length.toLocaleString('en-US')} contact${list.length === 1 ? '' : 's'}${out.length ? ' (the ticked ones)' : q ? ' (this search)' : ''}. Fill in Phone, Backup and Note, then use Import numbers.`);
+  };
+  const importCsv = async (f: File) => {
+    const waiting = [...groups.needs, ...groups.newNumber];
+    const m = matchNeedsCsv(parseTable(await f.text()), waiting);
+    setDraft(x => { const n = { ...x }; for (const e of m.entries) n[e.id] = e; return n; });
+    d.say(`${m.matched.toLocaleString('en-US')} number${m.matched === 1 ? '' : 's'} filled in from ${f.name}.${m.noNumber ? ` ${m.noNumber} rows had no number.` : ''}${m.unmatched.length ? ` ${m.unmatched.length} rows didn't match anyone waiting.` : ''} Check them, then Review and save.`, m.matched ? 'ok' : 'warn');
+  };
   const pickable = rows.slice(0, limit).filter(c => !onSheet.has(c.id));
   const pick = (id: string, on: boolean) => setPicked(x => { const n = new Set(x); if (on) n.add(id); else n.delete(id); return n; });
 
@@ -98,6 +113,9 @@ export function NeedsPage({ d, ns, states = [] }: { d: D; ns: NumberSheet; state
                 : tab === 'cannotFind'
                 ? <button className="btn" disabled={!rows.length} onClick={() => setConfirmReturn(rows)}>Return all to Needs Number</button>
                 : <>
+                  <input className="libq" type="search" placeholder="Search name, company, city, state" value={q} onChange={e => setQ(e.target.value)} aria-label="Search Needs Number" />
+                  <button className="btn" disabled={!rows.length} onClick={exportCsv} title="Ticked contacts, or everyone shown if none are ticked">Export CSV{picked.size ? ` (${picked.size})` : ''}</button>
+                  <label className="btn" title="A CSV with numbers filled in. They go into the boxes below for you to review and save.">Import numbers<input type="file" accept=".csv,.tsv,.txt,text/csv" hidden onChange={e => { const f = e.target.files?.[0]; if (f) importCsv(f); e.target.value = ''; }} /></label>
                   <button className="btn" disabled={!picked.size} onClick={() => setSendPlan(planSend([...picked], d.contacts, sheetRows, d.now, TZ))}>Send {picked.size || ''} to number sheet</button>
                   <button className="btn" disabled={!entries.length} onClick={() => setDraft({})}>Clear typed</button>
                   <button className="btn primary" disabled={!entries.length} onClick={openReview}>Review and save {entries.length || ''}</button>
@@ -137,7 +155,7 @@ export function NeedsPage({ d, ns, states = [] }: { d: D; ns: NumberSheet; state
                     </tr>
                   );
                 })}
-                {rows.length > limit && <tr><td colSpan={11} className="emptyrow"><button className="btn sm" onClick={() => setLimit(l => l + 500)}>Show 500 more ({rows.length - limit} not shown)</button></td></tr>}
+                {rows.length > limit && <tr><td colSpan={11} className="emptyrow"><button className="btn sm" onClick={() => setLimit(l => l + 500)}>Show 500 more ({(rows.length - limit).toLocaleString('en-US')} not shown)</button> <button className="btn sm" onClick={() => setLimit(Number.MAX_SAFE_INTEGER)}>Show all</button></td></tr>}
                 {!rows.length && <tr><td colSpan={11} className="emptyrow">{tab === 'needs' ? 'Every contact has a number.' : tab === 'newNumber' ? 'No bad numbers waiting.' : 'Nobody is on the Cannot Find list.'}</td></tr>}
               </tbody>
             </table>
@@ -145,7 +163,7 @@ export function NeedsPage({ d, ns, states = [] }: { d: D; ns: NumberSheet; state
           <div className="tfoot">{tab === 'sheet'
             ? <><span>{sheetRows.length} row{sheetRows.length === 1 ? '' : 's'} · checked every {CHECK_EVERY_MIN} minutes{ns.sheet?.lastCheck ? ` · last checked ${mdTime(ns.sheet.lastCheck, TZ)}` : ''}</span>
               <span>Demo: a pretend sheet in this browser. At go-live it is a real Google Sheet only you (and your number finder) can open.</span></>
-            : <><span>{rows.length} contact{rows.length === 1 ? '' : 's'}{tab !== 'cannotFind' ? ' · tick contacts to send them to your number sheet, or type numbers here' : ''}</span>
+            : <><span>{rows.length > 100 && <ShowCount value={limit} total={rows.length} onChange={setLimit} />} {Math.min(limit, rows.length).toLocaleString('en-US')} of {rows.length.toLocaleString('en-US')}{q ? ` matching "${q}"` : ''}{tab !== 'cannotFind' ? ' · tick to send to your number sheet or export' : ''}</span>
               <span>Best first: licensed states, people you talked to, companies that buy, easy to find, mixed so no one company fills the top. Click any column to sort.</span></>}</div>
         </section>
       </main>

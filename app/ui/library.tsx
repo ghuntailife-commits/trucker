@@ -13,7 +13,7 @@ import { LIVE, db, signInGoogle } from '../../src/live/supabase';
 import { readLeadLibrary } from '../../src/live/sheets';
 import { parseState, STATES } from '../../src/contacts/states';
 import { mdTime } from '../../src/rules/time';
-import { Dialog, TZ } from './shared';
+import { Dialog, TZ, ShowCount } from './shared';
 
 type Show = 'open' | 'given' | 'all';
 let seq = 0;
@@ -34,6 +34,7 @@ export function LibraryPage({ t, lib, now, say, onLicenses, mine = [] }: { t: Te
   const [adding, setAdding] = useState<null | (LibraryAddPlan & { from: string })>(null);
   const [reading, setReading] = useState('');
   const [over, setOver] = useState<string | null>(null);
+  const [limit, setLimit] = useState(400);
 
   const counts = useMemo(() => stateCounts(lib.lib), [lib.lib]);
   const given = useMemo(() => givenCounts(lib.lib), [lib.lib]);
@@ -170,7 +171,7 @@ export function LibraryPage({ t, lib, now, say, onLicenses, mine = [] }: { t: Te
                 {th('name', 'Contact')}{th('company', 'Company — Role')}{th('loc', 'Location')}{th('phone', 'Phone')}{th('given', 'Given to')}{th('at', 'Date given', 'num')}
               </tr></thead>
               <tbody>
-                {sortedRows.slice(0, 400).map(c => {
+                {sortedRows.slice(0, limit).map(c => {
                   const ok = canPick(c), noLic = !c.givenTo && agent && !licensed(agent.states, c.state);
                   return <tr key={c.id} className={`${picked.has(c.id) ? 'typed' : ''} ${noLic ? 'nolic' : ''} ${!c.givenTo ? 'draggable' : ''}`}
                     draggable={!c.givenTo} onDragStart={e => { e.dataTransfer.setData('text/plain', dragIds(c.id).join(',')); e.dataTransfer.effectAllowed = 'copy'; }}>
@@ -187,7 +188,7 @@ export function LibraryPage({ t, lib, now, say, onLicenses, mine = [] }: { t: Te
               </tbody>
             </table>
           </div>
-          <div className="tfoot"><span>{rows.length.toLocaleString('en-US')} shown{rows.length > 400 ? ' (first 400)' : ''}</span>
+          <div className="tfoot"><span>{rows.length > 100 && <ShowCount value={limit} total={rows.length} onChange={setLimit} />} {Math.min(limit, rows.length).toLocaleString('en-US')} of {rows.length.toLocaleString('en-US')}</span>
             <span>{LIVE ? 'Import a CSV any time. "Bring over Lead Library" reads the sheet once, read only, and leaves out anyone already given out.' : 'Demo: made-up library contacts.'}</span></div>
           {recent.length > 0 && <div className="handouts">
             <h3>Recent sends</h3>

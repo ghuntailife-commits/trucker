@@ -10,7 +10,7 @@ import { parseTable, toCsv } from '../../src/contacts/csv';
 import { IMPORT_COLUMNS, planImport, type ImportLine } from '../../src/contacts/importer';
 import { needsGroup } from '../../src/contacts/needs';
 import { EDIT_LABELS, planEdit, type EditFields } from '../../src/contacts/edit';
-import { TZ, ZONE_NAME, Dialog, saveText, NoteText } from './shared';
+import { TZ, ZONE_NAME, Dialog, saveText, NoteText, ShowCount } from './shared';
 import { useSort } from './sort';
 
 type D = ReturnType<typeof useDialer>;
@@ -148,7 +148,7 @@ export function ContactsPage({ d, onDial }: { d: D; onDial: (id: string) => void
               </table>
             </div>
             <div className="tfoot">
-              <span>Showing {Math.min(shown, rows.length)} of {rows.length}</span>
+              <span>{rows.length > PAGE && <ShowCount value={shown} total={rows.length} onChange={setShown} />} Showing {Math.min(shown, rows.length).toLocaleString('en-US')} of {rows.length.toLocaleString('en-US')}</span>
               {rows.length > shown && <button className="linkish" onClick={() => setShown(s => s + PAGE)}>Show {Math.min(PAGE, rows.length - shown)} more</button>}
             </div>
           </section>

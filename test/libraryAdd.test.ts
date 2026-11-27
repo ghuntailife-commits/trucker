@@ -22,3 +22,19 @@ describe('adding to the contact library', () => {
     expect(planLibraryAdd(p.add, p.add).add).toEqual([]);      // running it twice adds nothing
   });
 });
+
+describe('Needs Number CSV round trip', () => {
+  it('fills numbers back by ID or by name, and finds UPS by search', async () => {
+    const { needsCsvRows, matchNeedsCsv, needsSearch } = await import('../src/contacts/needs');
+    const mk = (id: string, first: string, last: string, company: string) => ({ id, first, last, company, job: 'Driver', city: 'Austin', state: 'TX', list: 'Texas', linkedin: '' }) as never;
+    const a = mk('c1', 'Pat', 'One', 'UPS'), b = mk('c2', 'Sam', 'Two', 'Made Up Freight');
+    const rows = needsCsvRows([a, b]);
+    rows[1][9] = '(555) 555-0101';
+    rows.push(['', 'Sam', 'Two', 'Made Up Freight', '', '', '', '', '', '555-555-0102', '', 'Found online']);
+    rows[2][9] = '';                                          // c2 by ID has no number; the name row below has one
+    const m = matchNeedsCsv(rows, [a, b]);
+    expect(m.entries.map(e => [e.id, e.phone, e.note])).toEqual([['c1', '(555) 555-0101', 'From CSV'], ['c2', '555-555-0102', 'Found online']]);
+    expect(m.noNumber).toBe(1);
+    expect(needsSearch(a, 'ups')).toBe(true); expect(needsSearch(b, 'ups')).toBe(false);
+  });
+});
