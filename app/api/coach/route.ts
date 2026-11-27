@@ -2,6 +2,8 @@
 // action "week": Claude writes this week's coaching note from the tagged calls and saves it (kv dispatch-coach-<agent>).
 // action "ask": Ask the coach - answers from the team Playbook, George's teachings and the agent's own numbers.
 // action "tag": tags up to 15 older transcribed calls that have notes but no coaching tags yet.
+// action "profile": re-reads up to 4 recent calls tagged before "What we know" existed (George, 2026-11-27) and
+//   returns the facts by phone so the agent's Dispatch can add them to the contacts. Called again while `more`.
 import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { adminDb, whoIsCalling } from '../../../src/live/server';
@@ -19,7 +21,7 @@ export async function POST(req: Request) {
     const db = adminDb();
     const me = await whoIsCalling(db, req.headers.get('authorization'));
     if ('error' in me) return NextResponse.json({ error: me.error }, { status: 401 });
-    const { agent, action, question, history } = await req.json() as { agent: string; action: 'week' | 'tag' | 'ask'; question?: string; history?: { q: string; a: string }[] };
+    const { agent, action, question, history } = await req.json() as { agent: string; action: 'week' | 'tag' | 'ask' | 'profile'; question?: string; history?: { q: string; a: string }[] };
     if (agent !== me.agentId && me.role !== 'admin') return NextResponse.json({ error: 'You can only see your own coaching.' }, { status: 403 });
     if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: 'ANTHROPIC_API_KEY is not set on Vercel.' }, { status: 500 });
     const client = new Anthropic();
@@ -51,6 +53,22 @@ export async function POST(req: Request) {
         system: `${ASK_PROMPT}\n\n# Team Playbook\n${book}\n\n# George's teachings\n${teachText}\n\n# ${mineText}`, messages: msgs });
       const text = r.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('\n').trim();
       return NextResponse.json({ ok: true, text });
+    }
+
+    if (action === 'profile') {
+      const { data, error } = await db.from('quo_events').select('id,payload,phone,at,ai_tags').eq('agent_id', agent).eq('type', 'call.transcript.completed')
+        .gte('at', new Date(Date.now() - 60 * 86_400_000).toISOString()).order('at', { ascending: false }).limit(300);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      const todo = (data ?? []).filter(e => !Array.isArray((e.ai_tags as { facts?: unknown } | null)?.facts));
+      const out: { phone: string; at: number; facts: unknown }[] = [];
+      for (const e of todo.slice(0, 4)) {
+        const text = transcriptText(e.payload);
+        const got = text.length > 40 ? await tagTranscript(client, text) : null;
+        const tags = got?.tags ?? { ...((e.ai_tags as object | null) ?? { outcome: 'Other', objections: [], wentWell: '', tryNext: '' }), facts: [] };
+        await db.from('quo_events').update({ ai_tags: tags }).eq('id', e.id);
+        if (got?.tags.facts?.length) out.push({ phone: e.phone ?? '', at: Date.parse(e.at), facts: got.tags.facts });
+      }
+      return NextResponse.json({ ok: true, found: out, more: todo.length > 4 });
     }
 
     if (action === 'tag') {

@@ -8,7 +8,7 @@ describe('coaching tags', () => {
   it('reads Claude\'s tool input and guards odd values', () => {
     const r = readCallTool({ note: ' Booked Tue 6 PM. ', outcome: 'Booked', objections: ['Money is tight', ''], went_well: 'Warm open', try_next: '' })!;
     expect(r.note).toBe('Booked Tue 6 PM.');
-    expect(r.tags).toEqual({ outcome: 'Booked', objections: ['Money is tight'], wentWell: 'Warm open', tryNext: '', opener: '', stage: undefined, exchanges: [] });
+    expect(r.tags).toEqual({ outcome: 'Booked', objections: ['Money is tight'], wentWell: 'Warm open', tryNext: '', opener: '', stage: undefined, exchanges: [], facts: [] });
     expect(readCallTool({ note: 'x', outcome: 'Something new', objections: 'nope' })!.tags.outcome).toBe('Other');
     expect(readCallTool(null)).toBeNull();
   });

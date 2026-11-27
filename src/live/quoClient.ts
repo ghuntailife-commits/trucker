@@ -2,6 +2,7 @@
 // (calls, texts, recordings, AI call notes) to put on the contacts' notes.
 import { db } from './supabase';
 import { quoNote } from '../quo/events';
+import { readFacts, type Topic } from '../brief/profile';
 
 export async function sendQuoText(to: string, content: string): Promise<string | null> {
   const { data } = await db().auth.getSession();
@@ -16,14 +17,16 @@ export async function sendQuoText(to: string, content: string): Promise<string |
   } catch (e) { return (e as Error).message; }
 }
 
-export interface QuoNew { id: string; phone: string; note: string; at: number }
+export interface QuoNew { id: string; phone: string; note: string; at: number; facts: { topic: Topic; fact: string }[] }
 
 /** Events for this agent not yet put on a contact. Waits for a call's AI notes a little before giving up on them. */
 export async function newQuoEvents(agent: string): Promise<QuoNew[]> {
-  const { data, error } = await db().from('quo_events').select('id,type,phone,at,payload,ai_note').eq('agent_id', agent).eq('applied', false)
-    .order('at', { ascending: true }).limit(100);
+  const q = (cols: string) => db().from('quo_events').select(cols).eq('agent_id', agent).eq('applied', false).order('at', { ascending: true }).limit(100);
+  let { data, error } = await q('id,type,phone,at,payload,ai_note,ai_tags');
+  if (error && /ai_tags/.test(error.message)) ({ data, error } = await q('id,type,phone,at,payload,ai_note'));   // before the coaching column exists
   if (error || !data) return [];
-  return data.map(e => ({ id: e.id as string, phone: (e.phone as string) ?? '', at: Date.parse(e.at as string), note: quoNote(e) }));
+  return (data as unknown as Record<string, unknown>[]).map(e => ({ id: e.id as string, phone: (e.phone as string) ?? '', at: Date.parse(e.at as string),
+    note: quoNote(e as Parameters<typeof quoNote>[0]), facts: readFacts((e.ai_tags as { facts?: unknown } | null)?.facts) }));
 }
 
 export async function markQuoApplied(ids: string[]) {

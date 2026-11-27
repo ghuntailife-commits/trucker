@@ -6,7 +6,7 @@ import { NOTE_PROMPT } from './events';
 
 export async function tagTranscript(client: Anthropic, text: string) {
   const r = await client.messages.create({ model: 'claude-opus-5-5', max_tokens: 2500,
-    system: `${NOTE_PROMPT}\nAlso tag the call for the agent's coaching and the team Playbook (opener, how far it got, each objection with the agent's answer). Save everything with the save_call tool.`,
+    system: `${NOTE_PROMPT}\nAlso tag the call for the agent's coaching and the team Playbook (opener, how far it got, each objection with the agent's answer), and list every fact the contact shared about themselves (job, hours, best time, family, what they had going on that day, and so on) for the next call's brief. Save everything with the save_call tool.`,
     tools: [CALL_TOOL], tool_choice: { type: 'tool', name: CALL_TOOL.name },
     messages: [{ role: 'user', content: `Call transcript:\n\n${text.slice(0, 60_000)}` }] });
   return readCallTool((r.content.find(b => b.type === 'tool_use') as { input: unknown } | undefined)?.input);

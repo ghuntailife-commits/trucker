@@ -53,6 +53,18 @@ export async function askCoach(agent: string, action: 'week' | 'tag'): Promise<{
   } catch (e) { return { error: (e as Error).message }; }
 }
 
+/** Re-reads older calls for "What we know" in the call brief, a few at a time. */
+export async function profileBackfill(agent: string): Promise<{ error?: string; found?: { phone: string; at: number; facts: unknown }[]; more?: boolean }> {
+  const { data } = await db().auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) return { error: 'signed out' };
+  try {
+    const r = await fetch('/api/coach', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ agent, action: 'profile' }) });
+    const j = await r.json().catch(() => ({}));
+    return r.ok ? j : { error: j.error ?? `status ${r.status}` };
+  } catch (e) { return { error: (e as Error).message }; }
+}
+
 // ---------- team Playbook (everyone reads; George teaches and can run the learning by hand) ----------
 export interface TeachItem { id: string; title: string; text: string; at: number }
 

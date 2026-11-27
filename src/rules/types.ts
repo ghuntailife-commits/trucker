@@ -47,6 +47,8 @@ export interface Contact {
   /** Kept off Today until this time: paused by the agent (until they resume) or resting (George, 2026-11-26). */
   holdUntil?: number | null;
   holdKind?: 'pause' | 'rest';
+  /** What the calls taught us about the person (src/brief/profile.ts), gleaned by Claude from transcripts (George, 2026-11-27). */
+  profile?: import('../brief/profile').Fact[];
 }
 
 export type EventKind = 'Dial' | 'Tag' | 'Swap' | 'Note' | 'Import';

@@ -9,6 +9,7 @@ import { dialerAction, disposition, quickNote, confirmAppt, toggleQual, type Dia
 import { learnFreshScores } from '../rules/score';
 import { buildToday, buildAppointments, type TodayRow, type ApptRow } from '../rules/today';
 import { TAGS } from '../rules/tags';
+import { mergeFacts, type Topic } from '../brief/profile';
 import { sameDay, zoned } from '../rules/time';
 import { addNote } from '../rules/engine';
 import { saleNote, noSaleNote, saleDate, type SaleRecord, type NoSaleRecord } from '../rules/results';
@@ -215,6 +216,16 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
   }, [commit, s?.lastBackupTry]);
 
   const note = useCallback((id: string, text: string) => commit(id, 'note', (c, t) => quickNote(c, text, t, CFG)), [commit]);
+  /** Facts from older calls, added quietly (no undo step, no message). */
+  const learnFacts = useCallback((list: { id: string; facts: { topic: Topic; fact: string }[]; at: number }[]) => {
+    if (!list.length) return;
+    setS(prev => prev && { ...prev, contacts: prev.contacts.map(c => list.filter(l => l.id === c.id).reduce((x, l) => ({ ...x, profile: mergeFacts(x.profile, l.facts, l.at) }), c)) });
+  }, []);
+  /** A call's AI notes plus what it taught us about the person (the call brief's "What we know"). */
+  const noteFacts = useCallback((id: string, text: string, facts: { topic: Topic; fact: string }[], at: number) => commit(id, 'note', (c, t) => {
+    const r = quickNote(c, text, t, CFG);
+    return facts.length ? { ...r, contact: { ...r.contact, profile: mergeFacts(r.contact.profile, facts, at) } } : r;
+  }), [commit]);
   const confirm = useCallback((id: string) => commit(id, 'confirm', (c, t) => confirmAppt(c, t, CFG)), [commit]);
   const qual = useCallback((id: string, q: string) => commit(id, 'tag', c => toggleQual(c, q)), [commit]);
 
@@ -388,6 +399,6 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
     }).slice(0, 25);
   }, [s?.contacts]);
 
-  return { ready: !!s, now, today, appts, queue, stats, toast, byId, recent, log: s?.log ?? [], canUndo: !!s?.undo.length, batch, book, addOutsideSale, confirm, qual, scorer, cfg: CFG, say: say2, contacts: s?.contacts ?? [], pass: s?.pass ?? 1, noSales: s?.noSales ?? [],
+  return { ready: !!s, now, today, appts, queue, stats, toast, byId, recent, noteFacts, learnFacts, log: s?.log ?? [], canUndo: !!s?.undo.length, batch, book, addOutsideSale, confirm, qual, scorer, cfg: CFG, say: say2, contacts: s?.contacts ?? [], pass: s?.pass ?? 1, noSales: s?.noSales ?? [],
     undoLabel: s?.undo.at(-1)?.label, press, note, outcome, amend, skip, replace, pin, unpin, hold, resume, prefs: s?.prefs ?? {}, setPrefs, removeToLibrary, pins: s?.pins ?? [], logCall, undo, reSort, resetDemo, find, sales: s?.sales ?? [], goal: s?.goal ?? 25000, agent, setGoal, calls: s?.calls ?? [] };
 }

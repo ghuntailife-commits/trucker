@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDialer } from '../src/app-store/useDialer';
 import type { Contact } from '../src/rules/types';
 import type { DialerKey } from '../src/rules/engine';
@@ -33,6 +33,8 @@ import { LibraryPage, LicensesDialog } from './ui/library';
 import { useLibrary } from '../src/app-store/useLibrary';
 import { ProfileMenu, ShortcutsDialog, IntegrationsPage } from './ui/profile';
 import { buildBrief, briefKind } from '../src/brief/brief';
+import { factsByTopic, lastCallNotes, readFacts } from '../src/brief/profile';
+import { profileBackfill } from '../src/live/coachClient';
 import { MENU_PAGES } from '../src/team/agents';
 import { Sidebar, useSidebar, Mark, Wordmark } from './ui/sidebar';
 import { HomePage } from './ui/home';
@@ -143,12 +145,23 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       if (stop || !evs.length) return;
       for (const e of evs) {
         const c = matchContact(dRef.current.contacts ?? [], e.phone);
-        if (c && e.note) dRef.current.note(c.id, e.note);
+        if (c && e.note) dRef.current.noteFacts(c.id, e.note, e.facts, e.at);
         else if (e.note && /^Text from/.test(e.note)) dRef.current.say(`Quo: a text from ${e.phone}, who is not in your contacts.`, 'warn');
       }
       await markQuoApplied(evs.map(e => e.id));
     };
     pull();
+    // once per computer: read the calls from before "What we know" existed into the contacts (George, 2026-11-27)
+    const flag = `dispatch-profile-backfill-v1-${agent}`;
+    let first = true; try { first = !localStorage.getItem(flag); } catch { /* */ }
+    if (first) (async () => {
+      for (let i = 0; i < 15 && !stop; i++) {
+        const r = await profileBackfill(agent);
+        if (r.error || stop) return;
+        dRef.current.learnFacts((r.found ?? []).flatMap(f => { const c = matchContact(dRef.current.contacts ?? [], f.phone); return c ? [{ id: c.id, facts: readFacts(f.facts), at: f.at }] : []; }));
+        if (!r.more) { try { localStorage.setItem(flag, String(Date.now())); } catch { /* */ } return; }
+      }
+    })();
     const id = setInterval(pull, 10_000);
     return () => { stop = true; clearInterval(id); };
   }, [agent, quoOn, d0.ready]);
@@ -371,6 +384,9 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const bk = current ? briefKind(why) : null;
   const brief = current && bk ? buildBrief({ c: current, kind: bk, agent: me.name, now: d.now, tz: TZ, cfg: d.cfg, noShowRate,
     noSale: bk === 'followUp' ? [...d.noSales].reverse().find(n => n.contactId === current.id) : undefined }) : null;
+  // George 2026-11-27: the brief also shows the AI notes from the last call and what the calls taught us about the person
+  const lastCall = current ? lastCallNotes(current.notes) : null;
+  const known = current ? factsByTopic(current.profile, d.now) : [];
   const history = lines.filter(isHistoryNote), research = lines.filter(l => !isHistoryNote(l));
   const dialNum = current ? (backupMode && current.backup ? current.backup : current.phone || current.backup) : '';
   const otherNum = current ? (backupMode ? current.phone : current.backup) : '';
@@ -648,13 +664,20 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
                 })}
               </div>
 
-              {brief && (
-                <div className={`brief b-${brief.kind}`} aria-label="Call brief">
-                  <div className="bhead"><span className="eyebrow">Call brief</span><small title="At go-live Claude writes this from the notes">rules draft · AI at go-live</small></div>
-                  <p><b>Who.</b> {brief.who}</p>
-                  <p><b>Where it stands.</b> {brief.stands}</p>
-                  <p className="open"><b>Open with.</b> {brief.openWith}</p>
-                  {brief.watch.length > 0 && <ul>{brief.watch.map(w => <li key={w}>{w}</li>)}</ul>}
+              {(brief || lastCall || known.length > 0) && (
+                <div className={`brief b-${brief?.kind ?? 'known'}`} aria-label="Call brief">
+                  <div className="bhead"><span className="eyebrow">Call brief</span>{brief && <small title="Built from the contact's notes and history">from notes and history</small>}</div>
+                  {brief && <>
+                    <p><b>Who.</b> {brief.who}</p>
+                    <p><b>Where it stands.</b> {brief.stands}</p>
+                    <p className="open"><b>Open with.</b> {brief.openWith}</p>
+                    {brief.watch.length > 0 && <ul>{brief.watch.map(w => <li key={w}>{w}</li>)}</ul>}
+                  </>}
+                  {lastCall && <p className="blast"><b>Last call · {lastCall.day}.</b> {lastCall.text}</p>}
+                  {known.length > 0 && <div className="bknown">
+                    <span className="eyebrow">What we know</span>
+                    <dl>{known.map(g => <Fragment key={g.topic}><dt>{g.topic}</dt><dd>{g.items.map(f => f.fact).join(' · ')}{g.topic === 'That day' ? <small> ({md(g.items[0].at, TZ)})</small> : null}</dd></Fragment>)}</dl>
+                  </div>}
                 </div>
               )}
               {call?.id === current.id ? (
