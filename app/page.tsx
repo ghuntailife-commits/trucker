@@ -511,7 +511,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
         ...(p === 'today' ? { badge: s.left } : p === 'needs' && sheetLookN ? { badge: sheetLookN, tone: 'red' as const } : p === 'appts' && showQ ? { badge: showQ, tone: 'amber' as const } : {}) }))} />
       <div className="mainc">
       {!LIVE && <div className="demo-banner">{REAL_SEED && agent === 'george' ? `Demo with your real contacts, copied from your sheet on ${md(REAL_SEED.builtAt, TZ)}. Changes stay in this browser and never touch your sheet.` : agent !== 'george' ? `Demo: ${me.name}\u2019s screen with made-up contacts on ${me.name}\u2019s states. Changes stay in this browser only.` : 'Demo with made-up contacts. Changes stay in this browser only.'}</div>}
-      {stale && <div className="demo-banner">Dispatch was updated. It will reload itself between calls, or <button className="linkish" onClick={() => window.location.reload()}>reload now</button>.</div>}
+      {stale && <div className="demo-banner">Dispatch was updated. It will reload itself when you step away, or <button className="linkish" onClick={() => window.location.reload()}>reload now</button>.</div>}
       {LIVE && t.person && agent !== t.person.agent_id && <div className="demo-banner">You are looking at {me.name}&rsquo;s Dispatch. Changes you make here are saved to {me.name}&rsquo;s data.</div>}
       <header className="top">
         <button className="menubtn" aria-label="Open the menu" onClick={() => sb.setMobileOpen(true)}>

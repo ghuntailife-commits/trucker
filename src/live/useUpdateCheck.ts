@@ -1,5 +1,7 @@
 // An open Dispatch screen left running an old build can save over newer data. Check every 2 minutes; when a new
-// build is live, reload as soon as nothing is waiting to save and the agent isn't mid-click (idle 20 s or tab hidden).
+// build is live, show a banner. Reload by itself only when it can't get in the way (George, 2026-11-27: screens were
+// reloading too often): the build has been out 3 minutes (several quick updates = one reload), nothing is waiting to
+// save, no call is on, and the tab has been in the background a minute or nobody has touched it for 10 minutes.
 import { useEffect, useState } from 'react';
 import { LIVE } from './supabase';
 import { unsaved, onSaveStatus, type SaveStatus } from './kvStore';
@@ -12,7 +14,7 @@ export function useUpdateCheck(busy: () => boolean, info: () => { viewing: strin
   const [stale, setStale] = useState(false);
   useEffect(() => {
     if (!LIVE) return;
-    let idleAt = Date.now(), dead = false, save: SaveStatus | null = null;
+    let idleAt = Date.now(), hiddenAt = 0, staleAt = 0, dead = false, save: SaveStatus | null = null;
     const off = onSaveStatus(x => { save = x; });
     // check in for the admin's System status page
     const ping = async (build: string) => {
@@ -26,25 +28,30 @@ export function useUpdateCheck(busy: () => boolean, info: () => { viewing: strin
       } catch { /* status only */ }
     };
     const touch = () => { idleAt = Date.now(); };
-    ['keydown', 'pointerdown'].forEach(e => window.addEventListener(e, touch, true));
+    const vis = () => { hiddenAt = document.visibilityState === 'hidden' ? Date.now() : 0; };
+    document.addEventListener('visibilitychange', vis);
+    ['keydown', 'pointerdown', 'wheel', 'input'].forEach(e => window.addEventListener(e, touch, true));
     const tick = async () => {
       try {
         const j = await (await fetch('/api/version', { cache: 'no-store' })).json() as { build?: string };
         if (!j.build || j.build === 'dev') return;
         if (BOOT == null) BOOT = j.build;
         void ping(BOOT);
-        if (j.build !== BOOT) setStale(true);
+        if (j.build !== BOOT) { if (!staleAt) staleAt = Date.now(); setStale(true); }
       } catch { /* offline: try later */ }
     };
     const reloadIfQuiet = () => {
       if (dead || !BOOT) return;
       if (!document.body.dataset.stale) return;
       if (unsaved() || busy()) return;
-      if (document.visibilityState === 'hidden' || Date.now() - idleAt > 20_000) window.location.reload();
+      const now = Date.now();
+      if (!staleAt || now - staleAt < 3 * 60_000) return;
+      const hiddenLong = document.visibilityState === 'hidden' && hiddenAt && now - hiddenAt > 60_000;
+      if (hiddenLong || now - idleAt > 10 * 60_000) window.location.reload();
     };
     void tick();
     const a = setInterval(() => void tick(), 120_000), b = setInterval(reloadIfQuiet, 5_000);
-    return () => { dead = true; off(); clearInterval(a); clearInterval(b); ['keydown', 'pointerdown'].forEach(e => window.removeEventListener(e, touch, true)); };
+    return () => { dead = true; off(); document.removeEventListener('visibilitychange', vis); clearInterval(a); clearInterval(b); ['keydown', 'pointerdown', 'wheel', 'input'].forEach(e => window.removeEventListener(e, touch, true)); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (stale) document.body.dataset.stale = '1'; }, [stale]);
   return stale;
