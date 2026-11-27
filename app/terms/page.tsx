@@ -1,7 +1,9 @@
 import { LegalPage, BRAND } from '../ui/legal';
-export const metadata = { title: `SMS Terms · ${BRAND}` };
+export const metadata = { title: `Terms & Conditions · ${BRAND}` };
 export default function Terms() {
-  return <LegalPage title="SMS Terms and Conditions" updated="November 27, 2026">
+  return <LegalPage title="Terms & Conditions" updated="November 27, 2026">
+    <p>These terms cover text messages from {BRAND}.</p>
+    <h2>SMS Terms</h2>
     <p><b>Program:</b> {BRAND} appointment texts. After you agree on a call with your licensed agent, you may receive texts confirming and reminding you about your appointment and following up afterward.</p>
     <p><b>Frequency:</b> message frequency varies, usually a few messages per appointment.</p>
     <p><b>Cost:</b> message and data rates may apply.</p>
