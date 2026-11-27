@@ -127,3 +127,58 @@ export function undoHandout(state: LibraryState, handoutId: string, theirs: Cont
     remove, kept,
   };
 }
+
+// ---------- adding to the library (CSV import, Lead Library sheet move) ----------
+
+const H: Record<string, keyof LibraryContact | 'name'> = {
+  first: 'first', firstname: 'first', last: 'last', lastname: 'last', name: 'name', fullname: 'name', phone: 'phone', phonenumber: 'phone', mobile: 'phone', cell: 'phone',
+  job: 'job', jobtitle: 'job', title: 'job', role: 'job', position: 'job', company: 'company', employer: 'company', union: 'company', city: 'city', state: 'state',
+  linkedin: 'linkedin', linkedinurl: 'linkedin', backup: 'backup', backupphone: 'backup', phone2: 'backup', notes: 'notes', note: 'notes',
+  givento: 'givenTo', dategiven: 'givenAt',
+};
+const nk = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/** A pasted or uploaded table to library contacts. Uses the header row when it has one (any column order), else the sheet's order. */
+export function libraryFromTable(rows: string[][], nextId: (i: number) => string, tz = 'America/New_York'): LibraryContact[] {
+  const head = (rows[0] ?? []).map(c => H[nk(c)]);
+  if (head.filter(Boolean).length < 2) return fromSheet('', rows, nextId, tz);
+  return rows.slice(1).flatMap((r, i) => {
+    const o: Record<string, string> = {};
+    head.forEach((k, j) => { if (k && !o[k]) o[k] = String(r[j] ?? '').trim(); });
+    if (o.name && !o.first && !o.last) { const w = o.name.split(/\s+/); o.first = w[0] ?? ''; o.last = w.slice(1).join(' '); }
+    if (!o.first && !o.last) return [];
+    const st = parseState(o.state ?? '');
+    return [{ id: nextId(i), first: o.first ?? '', last: o.last ?? '', phone: o.phone ?? '', job: o.job ?? '', company: o.company ?? '', city: o.city ?? '',
+      state: st?.abbr ?? (o.state ?? ''), linkedin: o.linkedin ?? '', backup: o.backup ?? '', notes: o.notes ?? '', givenTo: o.givenTo ?? '', givenAt: parseDay(o.givenAt ?? '', tz) }];
+  });
+}
+
+export interface LibraryAddPlan { add: LibraryContact[]; skipped: { name: string; why: string }[] }
+
+/**
+ * What adding these contacts would do, without doing it. Skips ones already given to an agent (George 2026-11-26:
+ * "if it shows on the sheet that it has been given to an agent already don't add it"), ones with no usable state,
+ * and ones already in the library or already in an agent's lists (same phone, or same name and company).
+ */
+export function planLibraryAdd(incoming: LibraryContact[], lib: LibraryContact[], agentsContacts: { phone: string; backup: string; first: string; last: string; company: string }[] = []): LibraryAddPlan {
+  const d10 = (p: string) => p.replace(/\D/g, '').slice(-10);
+  const phones = new Set<string>(), names = new Set<string>();
+  const remember = (c: { phone: string; backup: string; first: string; last: string; company: string }) => {
+    for (const p of [c.phone, c.backup]) { const d = d10(p); if (d.length === 10) phones.add(d); }
+    names.add(`${nk(c.first)}|${nk(c.last)}|${nk(c.company)}`);
+  };
+  lib.forEach(remember); agentsContacts.forEach(remember);
+  const add: LibraryContact[] = [], skipped: { name: string; why: string }[] = [];
+  for (const c of incoming) {
+    const name = `${c.first} ${c.last}`.trim();
+    if (nk(c.first) === 'first' && nk(c.last) === 'last') continue;                       // a header row
+    if (!c.last && !c.company && !c.phone && !c.city) continue;                            // a title or note row, not a person
+    if (c.givenTo) { skipped.push({ name, why: `Already given to ${c.givenTo}` }); continue; }
+    if (!parseState(c.state)) { skipped.push({ name, why: `No state${c.state ? ` ("${c.state}")` : ''}` }); continue; }
+    const ph = [c.phone, c.backup].map(d10).filter(d => d.length === 10);
+    if (ph.some(d => phones.has(d)) || names.has(`${nk(c.first)}|${nk(c.last)}|${nk(c.company)}`)) { skipped.push({ name, why: 'Already in the library or with an agent' }); continue; }
+    add.push({ ...c, state: parseState(c.state)!.abbr, givenTo: '', givenAt: null });
+    remember(c);
+  }
+  return { add, skipped };
+}

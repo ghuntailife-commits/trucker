@@ -6,7 +6,11 @@ import { useMemo, useState } from 'react';
 import type { AgentId } from '../../src/team/agents';
 import type { Team } from '../../src/app-store/useTeam';
 import type { Library } from '../../src/app-store/useLibrary';
-import { givenCounts, licensed, planHandout, stateCounts, type HandoutLine } from '../../src/library/library';
+import { givenCounts, licensed, planHandout, stateCounts, fromSheet, libraryFromTable, planLibraryAdd, type HandoutLine, type LibraryAddPlan } from '../../src/library/library';
+import type { Contact } from '../../src/rules/types';
+import { parseTable } from '../../src/contacts/csv';
+import { LIVE, db, signInGoogle } from '../../src/live/supabase';
+import { readLeadLibrary } from '../../src/live/sheets';
 import { parseState, STATES } from '../../src/contacts/states';
 import { mdTime } from '../../src/rules/time';
 import { Dialog, TZ } from './shared';
@@ -16,7 +20,7 @@ let seq = 0;
 const newId = () => `c-${Date.now().toString(36)}-l${(seq++).toString(36)}`;
 const md = (ms: number) => new Intl.DateTimeFormat('en-US', { timeZone: TZ, month: 'numeric', day: 'numeric' }).format(ms);
 
-export function LibraryPage({ t, lib, now, say, onLicenses }: { t: Team; lib: Library; now: number; say: (s: string, k?: 'ok' | 'warn') => void; onLicenses: () => void }) {
+export function LibraryPage({ t, lib, now, say, onLicenses, mine = [] }: { t: Team; lib: Library; now: number; say: (s: string, k?: 'ok' | 'warn') => void; onLicenses: () => void; mine?: Contact[] }) {
   const agents = t.team.agents.filter(a => a.active);
   const [state, setState] = useState<string>('all');
   const [show, setShow] = useState<Show>('open');
@@ -27,6 +31,9 @@ export function LibraryPage({ t, lib, now, say, onLicenses }: { t: Team; lib: Li
   const [plan, setPlan] = useState<HandoutLine[] | null>(null);
   const [busy, setBusy] = useState(false);
   const agent = agents.find(a => a.id === to);
+  const [adding, setAdding] = useState<null | (LibraryAddPlan & { from: string })>(null);
+  const [reading, setReading] = useState('');
+  const [over, setOver] = useState<string | null>(null);
 
   const counts = useMemo(() => stateCounts(lib.lib), [lib.lib]);
   const given = useMemo(() => givenCounts(lib.lib), [lib.lib]);
@@ -47,10 +54,42 @@ export function LibraryPage({ t, lib, now, say, onLicenses }: { t: Team; lib: Li
     const a = agents.find(x => x.id === id);
     if (a) setPicked(p => new Set([...p].filter(pid => { const c = lib.lib.find(x => x.id === pid); return c && licensed(a.states, c.state); })));
   };
-  const review = async () => {
-    if (!agent) return;
-    const theirs = await lib.contactsOf(agent.id, now);
-    setPlan(planHandout([...picked], lib.lib, { id: agent.id, name: agent.name, states: agent.states }, theirs, { now, nextId: newId }));
+  const review = async (who = agent, ids = [...picked]) => {
+    if (!who || !ids.length) return;
+    const theirs = await lib.contactsOf(who.id, now);
+    setPlan(planHandout(ids, lib.lib, { id: who.id, name: who.name, states: who.states }, theirs, { now, nextId: newId }));
+  };
+  // drag a contact (or every picked contact, when the one you drag is picked) onto an agent's card
+  const dragIds = (id: string) => (picked.has(id) ? [...picked] : [id]);
+  const dropOn = (id: AgentId, e: React.DragEvent) => {
+    e.preventDefault(); setOver(null);
+    const ids = (e.dataTransfer.getData('text/plain') || '').split(',').filter(Boolean);
+    const a = agents.find(x => x.id === id);
+    if (!a || !ids.length) return;
+    setTo(id); setPicked(new Set(ids)); review(a, ids);
+  };
+  // adding to the library: preview first, then add
+  const importCsv = async (f: File) => {
+    const rows = parseTable(await f.text());
+    setAdding({ ...planLibraryAdd(libraryFromTable(rows, i => `${newId()}-${i}`), lib.lib, mine), from: f.name });
+  };
+  const readSheet = async () => {
+    setReading('Reading your Lead Library sheet (read only)…');
+    try {
+      const { data } = await db().auth.getSession();
+      const token = data.session?.provider_token;
+      if (!token) { setReading(''); return signInGoogle(true); }
+      const tabs = await readLeadLibrary(token);
+      const all = tabs.flatMap(x => fromSheet(x.tab, x.rows, i => `${newId()}-${i}`));
+      setReading('');
+      setAdding({ ...planLibraryAdd(all, lib.lib, mine), from: `Lead Library sheet (${tabs.length} tabs)` });
+    } catch (e) { setReading(''); say((e as Error).message, 'warn'); }
+  };
+  const addNow = () => {
+    if (!adding) return;
+    lib.addToLibrary(adding.add);
+    say(`${adding.add.length.toLocaleString('en-US')} contacts added to the library.`);
+    setAdding(null);
   };
   const send = async () => {
     if (!agent || !plan) return;
@@ -82,16 +121,20 @@ export function LibraryPage({ t, lib, now, say, onLicenses }: { t: Team; lib: Li
 
       <main className="work single libwork">
         <section className="panel libside">
+          <h3>Agents <button className="linkish" onClick={onLicenses}>My states</button></h3>
+          <p className="hint dragtip">Drag contacts onto an agent to send them. Tick several first to drag them all.</p>
+          <ul className="lic agentdrop">
+            {agents.map(a => <li key={a.id} className={`${over === a.id ? 'over' : ''} ${to === a.id ? 'on' : ''}`}
+              onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setOver(a.id); }} onDragLeave={() => setOver(o => (o === a.id ? null : o))}
+              onDrop={e => dropOn(a.id, e)} onClick={() => choose(a.id)}>
+              <b>{a.name}</b><span>{a.states.length ? a.states.map(s => parseState(s)?.abbr ?? s).join(', ') : 'No licensed states yet'}</span></li>)}
+          </ul>
           <h3>States</h3>
           <div className="stlist">
             <button className={state === 'all' ? 'on' : ''} onClick={() => setState('all')}><span>All states</span><em>{open}</em></button>
             {counts.map(s => <button key={s.state} className={state === s.state ? 'on' : ''} onClick={() => setState(s.state)}>
               <span>{s.name}</span><em title={`${s.open} not given out of ${s.total}`}>{s.open}<small>/{s.total}</small></em></button>)}
           </div>
-          <h3>Licensed states <button className="linkish" onClick={onLicenses}>Edit mine</button></h3>
-          <ul className="lic">
-            {agents.map(a => <li key={a.id}><b>{a.name}</b><span>{a.states.length ? a.states.map(s => parseState(s)?.abbr ?? s).join(', ') : 'None set yet'}</span></li>)}
-          </ul>
           <h3>Given out</h3>
           <ul className="lic">
             {given.map(g => <li key={g.name}><b>{g.name}</b><span>{g.n}{known.has(g.name.toLowerCase()) ? '' : ' · not on Dispatch yet'}</span></li>)}
@@ -113,7 +156,9 @@ export function LibraryPage({ t, lib, now, say, onLicenses }: { t: Team; lib: Li
                 </select></label>
               <span className="firstn">First <input type="number" min={1} max={500} value={firstN} onChange={e => setFirstN(Math.max(1, +e.target.value || 1))} />
                 <button className="btn" disabled={!pickable.length} onClick={pickFirst}>Pick</button></span>
-              <button className="btn primary" disabled={!agent || !picked.size} onClick={review}>Review {picked.size || ''}{agent ? ` for ${agent.name}` : ''}</button>
+              <label className="btn">Import CSV<input type="file" accept=".csv,.tsv,.txt,text/csv" hidden onChange={e => { const f = e.target.files?.[0]; if (f) importCsv(f); e.target.value = ''; }} /></label>
+              {LIVE && <button className="btn" disabled={!!reading} onClick={readSheet} title="Reads your Lead Library sheet once, read only. Contacts already given out are left out.">{reading ? 'Reading…' : 'Bring over Lead Library'}</button>}
+              <button className="btn primary" disabled={!agent || !picked.size} onClick={() => review()}>Review {picked.size || ''}{agent ? ` for ${agent.name}` : ''}</button>
             </div>
           </div>
           {agent && <div className="libnote">{agent.name} is licensed in {agent.states.join(', ') || 'no states yet'}. Contacts in other states can&rsquo;t be picked.</div>}
@@ -127,7 +172,8 @@ export function LibraryPage({ t, lib, now, say, onLicenses }: { t: Team; lib: Li
               <tbody>
                 {sortedRows.slice(0, 400).map(c => {
                   const ok = canPick(c), noLic = !c.givenTo && agent && !licensed(agent.states, c.state);
-                  return <tr key={c.id} className={`${picked.has(c.id) ? 'typed' : ''} ${noLic ? 'nolic' : ''}`}>
+                  return <tr key={c.id} className={`${picked.has(c.id) ? 'typed' : ''} ${noLic ? 'nolic' : ''} ${!c.givenTo ? 'draggable' : ''}`}
+                    draggable={!c.givenTo} onDragStart={e => { e.dataTransfer.setData('text/plain', dragIds(c.id).join(',')); e.dataTransfer.effectAllowed = 'copy'; }}>
                     <td className="pickc"><input type="checkbox" disabled={!ok} aria-label={`Pick ${c.first} ${c.last}`} checked={picked.has(c.id)} onChange={e => pick(c.id, e.target.checked)} /></td>
                     <td className="strong">{c.first} {c.last}{c.linkedin && /^https:\/\//.test(c.linkedin) && <> <a href={c.linkedin} target="_blank" rel="noopener noreferrer" className="li">in</a></>}</td>
                     <td>{c.company}{c.job ? ` — ${c.job}` : ''}</td>
@@ -142,7 +188,7 @@ export function LibraryPage({ t, lib, now, say, onLicenses }: { t: Team; lib: Li
             </table>
           </div>
           <div className="tfoot"><span>{rows.length.toLocaleString('en-US')} shown{rows.length > 400 ? ' (first 400)' : ''}</span>
-            <span>Demo: made-up library contacts. At go-live the app copies your Lead Library sheet in once, read only.</span></div>
+            <span>{LIVE ? 'Import a CSV any time. "Bring over Lead Library" reads the sheet once, read only, and leaves out anyone already given out.' : 'Demo: made-up library contacts.'}</span></div>
           {recent.length > 0 && <div className="handouts">
             <h3>Recent sends</h3>
             {recent.map(h => <div key={h.id} className="hrow"><span>{mdTime(h.at, TZ)}</span><b>{h.items.length} to {h.agentName}</b>
@@ -151,6 +197,20 @@ export function LibraryPage({ t, lib, now, say, onLicenses }: { t: Team; lib: Li
         </section>
       </main>
 
+      {reading && <div className="toast ok">{reading}</div>}
+      {adding && (
+        <Dialog title="Add to the contact library?" onClose={() => setAdding(null)} wide>
+          <p>From <b>{adding.from}</b>: <b>{adding.add.length.toLocaleString('en-US')}</b> will be added{adding.skipped.length ? <>, <b>{adding.skipped.length.toLocaleString('en-US')}</b> left out</> : ''}.</p>
+          {(() => { const why = new Map<string, number>(); adding.skipped.forEach(s => why.set(s.why.replace(/^Already given to .*/, 'Already given to an agent').replace(/^No state.*/, 'No state'), (why.get(s.why.replace(/^Already given to .*/, 'Already given to an agent').replace(/^No state.*/, 'No state')) ?? 0) + 1));
+            return why.size ? <ul className="skipwhy">{[...why].map(([w, n]) => <li key={w}>{w}: {n.toLocaleString('en-US')}</li>)}</ul> : null; })()}
+          <div className="plan">
+            {adding.add.slice(0, 200).map(c => <div key={c.id} className="ok"><span>✓</span><b>{c.first} {c.last}</b><em>{c.state} · {c.company || '—'}{c.phone ? '' : ' · needs a number'}</em></div>)}
+            {adding.add.length > 200 && <div className="ok"><span /><b /><em>…and {(adding.add.length - 200).toLocaleString('en-US')} more</em></div>}
+          </div>
+          <div className="bar"><button className="btn" onClick={() => setAdding(null)}>Cancel</button>
+            <button className="btn primary" disabled={!adding.add.length} onClick={addNow}>Add {adding.add.length.toLocaleString('en-US')} to library</button></div>
+        </Dialog>
+      )}
       {plan && agent && (
         <Dialog title={`Send to ${agent.name}?`} onClose={() => setPlan(null)} wide>
           <p><b>{plan.filter(l => l.ok).length}</b> will go into {agent.name}&rsquo;s lists and be marked given to {agent.name} today{plan.some(l => !l.ok) ? <>, <b>{plan.filter(l => !l.ok).length}</b> won&rsquo;t</> : ''}. Same duplicate and Do Not Call check as Import.</p>

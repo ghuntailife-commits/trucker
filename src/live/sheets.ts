@@ -84,3 +84,12 @@ export async function readRegistryEmails(token: string): Promise<Record<string, 
   }
   return out;
 }
+
+export const LEAD_LIBRARY_ID = '1DiRw9KhXndEe0HSrA0yorLjoSI9oRmgnFOVkpZmJW9Y';
+/** Every tab of the Lead Library sheet (A: First … L: Date given), read only. */
+export async function readLeadLibrary(token: string): Promise<{ tab: string; rows: string[][] }[]> {
+  const meta = await get<{ sheets: { properties: { title: string } }[] }>(token, `${API}/${LEAD_LIBRARY_ID}?fields=sheets(properties(title))`);
+  const tabs = meta.sheets.map(s => s.properties.title);
+  const vals = await readRanges(token, LEAD_LIBRARY_ID, tabs.map(t => `${q(t)}!A1:L`));
+  return tabs.map((tab, i) => ({ tab, rows: vals[i].map(r => r.map(c => String(c ?? ''))) }));
+}

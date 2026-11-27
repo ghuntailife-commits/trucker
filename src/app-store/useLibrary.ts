@@ -6,7 +6,7 @@ import { LIVE } from '../live/supabase';
 import { useCallback, useEffect, useState } from 'react';
 import type { Contact } from '../rules/types';
 import type { AgentId } from '../team/agents';
-import { applyHandout, undoHandout, type HandoutLine, type LibraryState, type Recipient } from '../library/library';
+import { applyHandout, undoHandout, type HandoutLine, type LibraryState, type LibraryContact, type Recipient } from '../library/library';
 import { demoLibrary } from '../library/demoLibrary';
 import { loadState, saveState } from './store';
 import { loadAgentData } from './useTeam';
@@ -62,7 +62,10 @@ export function useLibrary(me: AgentId, mine: { contacts: Contact[]; batch: (lab
     return { back: h.items.length - u.kept.length, kept: u.kept };
   }, [st, me, mine, contactsOf]);
 
-  return { ready: !!st, lib: st?.contacts ?? [], handouts: st?.handouts ?? [], send, undo, contactsOf,
+  /** Adds contacts to the library (after a previewed CSV import or the Lead Library move). */
+  const addToLibrary = useCallback((cs: LibraryContact[]) => setSt(x => x ? { ...x, contacts: [...x.contacts, ...cs] } : x), []);
+
+  return { ready: !!st, lib: st?.contacts ?? [], handouts: st?.handouts ?? [], send, undo, contactsOf, addToLibrary,
     resetLibrary: () => setSt({ v: 1, contacts: demoLibrary(tz), handouts: [] }) };
 }
 export type Library = ReturnType<typeof useLibrary>;
