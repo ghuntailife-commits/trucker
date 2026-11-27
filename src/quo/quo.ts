@@ -30,7 +30,7 @@ export const TEXT_WHEN: Record<TextKey, string> = {
   hour: 'About an hour before', noShow: 'After they miss the appointment', missed: 'After a call they did not pick up', followUp: 'After a presentation with no sale yet',
 };
 export const DEFAULT_TEXTS: Record<TextKey, string> = {
-  booked: "Hi {first}, this is {agent}. You're all set for {when} {tz}. I'll call you at this number. Text me here if anything changes.",
+  booked: "Hi {first}, this is {agent}. You're all set for {when} {tz}. I'll call you at this number. Text me here if anything changes. Reply STOP to opt out.",
   confirmTomorrow: 'Hi {first}, this is {agent}. Just a reminder about our appointment tomorrow at {time} {tz}. Reply YES to confirm or text me a better time.',
   confirmToday: 'Hi {first}, this is {agent}. Just a reminder about our appointment today at {time} {tz}. Reply YES to confirm or text me a better time.',
   hour: "Hi {first}, this is {agent}. I'll be calling you in about an hour, at {time} {tz}. Talk soon!",
