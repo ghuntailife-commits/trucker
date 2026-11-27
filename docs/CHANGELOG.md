@@ -169,3 +169,4 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 | 2026-11-27 | Hanging up in Quo ends the call in Dispatch within a few seconds (checks every 3 seconds during a call). |
 | 2026-11-27 | Texts sent from the Quo app go on the contact too (message.delivered); Dispatch's own sends aren't doubled. Quo notes are saved word for word, so a client's text like "tomorrow 2pm" no longer sets a callback. |
 | 2026-11-27 | The default booking confirmation text ends with "Reply STOP to opt out." (needed for texting registration). |
+| 2026-11-27 | Public pages for texting registration: /privacy, /terms, /sms-consent (George Hunt Insurance Team). |
