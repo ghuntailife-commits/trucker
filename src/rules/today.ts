@@ -133,7 +133,10 @@ export function buildToday(contacts: Contact[], ctx: TodayContext, cfg: Config =
     w.kxc = w.ctg === 3 ? (ctx.freshScore ? -w.score : w.idx) : (w.c.callAt ?? w.na ?? Number.MAX_SAFE_INTEGER);
   }
   // 3. Order inside each category, then mix retries and fresh contacts by the fresh share
-  const b = sortBy(a, w => w.ctg, w => w.kxa, w => w.kyb, w => w.kxc);
+  // the agent's "companies first" (My Today, George 2026-11-27): inside retries and inside fresh, those companies lead
+  const focus = (cfg.focusCompanies ?? []).map(f => f.toLowerCase().trim()).filter(Boolean);
+  const isFocus = (w: { c: Contact; ctg: number }) => w.ctg !== 1 && focus.length > 0 && focus.some(f => `${w.c.company} ${w.c.job}`.toLowerCase().includes(f));
+  const b = sortBy(a, w => w.ctg, w => (isFocus(w) ? 0 : 1), w => w.kxa, w => w.kyb, w => w.kxc);
   const share = cfg.freshShareByBlock ? cfg.freshShareByBlock[block(nowH)] : cfg.freshShare;
   const shr = Math.min(Math.max(share, 0.05), 0.95);
   const rk = new Map<number, number>();
@@ -142,7 +145,7 @@ export function buildToday(contacts: Contact[], ctx: TodayContext, cfg: Config =
     w.fky = w.ctg === 1 ? r - 1_000_000 : w.ctg === 2 ? r / (1 - shr) : r / shr;
   }
   // 4. The saved order wins; contacts added since go after it
-  const c = sortBy(b, w => (w.quiet ? 1 : 0), w => w.psn, w => w.fky).slice(0, Math.min(cfg.listSize, 200));
+  const c = sortBy(b, w => (w.quiet ? 1 : 0), w => w.psn, w => w.fky).slice(0, Math.min(cfg.listSize, 1000));   // George 2026-11-27: agents may go past 200
 
   return c.map(w => {
     const done = w.done;

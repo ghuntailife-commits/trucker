@@ -68,12 +68,19 @@ interface Saved {
   prefs?: TodayPrefs;
 }
 /** An agent's own Today settings (George, 2026-11-26): how many, the fresh/retry mix, lists left out. */
-export interface TodayPrefs { listSize?: number; freshShare?: number; offLists?: string[] }
+/** The agent's own Today settings (My Today). zonesOff: time zones left off; focus: companies first; freshOnly / retriesOnly. */
+export interface TodayPrefs { listSize?: number; freshShare?: number; offLists?: string[]; zonesOff?: string[]; focus?: string[]; minDials?: number; maxDials?: number }
 export function withPrefs(CFG: Config, p?: TodayPrefs): Config {
   if (!p) return CFG;
-  return { ...CFG, ...(p.listSize ? { listSize: p.listSize } : {}), ...(p.freshShare != null ? { freshShare: p.freshShare, freshShareByBlock: null } : {}) };
+  return { ...CFG, ...(p.listSize ? { listSize: p.listSize } : {}), ...(p.freshShare != null ? { freshShare: p.freshShare, freshShareByBlock: null } : {}),
+    ...(p.focus?.length ? { focusCompanies: p.focus } : {}) };
 }
-const feeds = (s: Saved) => { const off = new Set(s.prefs?.offLists ?? []); return s.contacts.filter(c => c.list !== 'Hardcards' && !off.has(c.list)); };
+const feeds = (s: Saved) => {
+  const p = s.prefs ?? {}, off = new Set(p.offLists ?? []), zoff = new Set(p.zonesOff ?? []);
+  // callbacks, appointments and follow-ups (tagged) always stay; the zone and dial filters only shape untagged contacts
+  return s.contacts.filter(c => c.list !== 'Hardcards' && !off.has(c.list)
+    && (c.tag ? true : !(zoff.has(c.zone || '?')) && (p.maxDials == null || c.dials <= p.maxDials) && (p.minDials == null || c.dials >= p.minDials)));
+};
 
 type Inbox = InboxT<Sale, NoSale>;
 const fromInbox = (s: Saved, box: Inbox): Saved => applyInbox(s, box, withZone);

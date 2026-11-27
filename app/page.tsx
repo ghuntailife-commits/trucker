@@ -616,7 +616,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
                   else { setAuto(true); if (current && !call) startCall(current); }
                 }}><span className="led" />{auto ? (countdown != null ? `Next in ${countdown}…` : 'Auto-dial on') : 'Auto-dial'}</button>
                 <button className="btn" onClick={d.reSort}>Re-sort</button>
-                <button className="btn" onClick={() => setTodaySet(true)} title="How many contacts, the fresh/retry mix and which lists">My Today</button>
+                <button className="btn" onClick={() => setTodaySet(true)} title="How many contacts, the mix, fresh or retries, time zones, companies first and which lists">My Today</button>
                 <button className="btn" onClick={exportCsv}>Export CSV</button>
               </div>
             </div>

@@ -40,6 +40,8 @@ export interface Config {
   /** Calling hours in the contact's own time zone, [start, end) in whole hours: [8, 21] = 8 AM to 9 PM. Outside them a
    *  contact stays off Today, so after 9 PM Eastern the list fills from states where it is earlier. null = off (v27). */
   callHours: [number, number] | null;
+  /** The agent's own "companies first" (My Today): words matched against company and job. */
+  focusCompanies?: string[];
 }
 
 /** Exactly the v27 sheet: used by the tests that prove the new app orders calls the same way. */

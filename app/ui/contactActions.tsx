@@ -1,7 +1,7 @@
 'use client';
 // The agent's own say over Today (George, 2026-11-26): call next, add to Today, replace, pause, rest 75 days,
 // resume, send back to the library, and their own Today settings. Shared by Today, Contacts and anywhere a contact shows.
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { useDialer } from '../../src/app-store/useDialer';
 import type { Contact } from '../../src/rules/types';
 import { holdLabel, isHeld, REST_DAYS } from '../../src/rules/hold';
@@ -66,17 +66,39 @@ export function TodaySettings({ d, onClose }: { d: D; onClose: () => void }) {
   const [size, setSize] = useState(p.listSize ?? DEFAULT_CONFIG.listSize);
   const [mix, setMix] = useState<number | null>(p.freshShare ?? null);
   const [off, setOff] = useState<Set<string>>(new Set(p.offLists ?? []));
+  const [zoff, setZoff] = useState<Set<string>>(new Set(p.zonesOff ?? []));
+  const [focus, setFocus] = useState<string[]>(p.focus ?? []);
+  const [dials, setDials] = useState<'all' | 'fresh' | 'retries'>(p.maxDials === 0 ? 'fresh' : p.minDials === 1 ? 'retries' : 'all');
+  // the companies with the most contacts, to pick from
+  const topCos = useMemo(() => { const m = new Map<string, number>(); for (const c of d.contacts) { const k = (c.company || '').trim(); if (k) m.set(k, (m.get(k) ?? 0) + 1); }
+    return [...m].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, n]) => ({ k, n })); }, [d.contacts]);
+  const [coText, setCoText] = useState('');
+  const zones = ['ET', 'CT', 'MT', 'PT', 'AKT', 'HT'];
   const count = (l: string) => d.contacts.filter(c => c.list === l).length;
-  const save = () => { d.setPrefs({ listSize: size, freshShare: mix ?? undefined, offLists: [...off] }); d.reSort(); d.say('Today settings saved. Your list was re-sorted.'); onClose(); };
+  const save = () => { d.setPrefs({ listSize: size, freshShare: mix ?? undefined, offLists: [...off], zonesOff: [...zoff], focus,
+    ...(dials === 'fresh' ? { maxDials: 0 } : dials === 'retries' ? { minDials: 1 } : {}) }); d.reSort(); d.say('Today settings saved. Your list was re-sorted.'); onClose(); };
   return <Dialog title="My Today" onClose={onClose}>
     <div className="newev">
-      <label><span>Contacts on Today: <b>{size}</b></span><input type="range" min={25} max={200} step={25} value={size} onChange={e => setSize(+e.target.value)} /></label>
+      <label><span>Contacts on Today: <b>{size}</b></span><input type="range" min={25} max={500} step={25} value={size} onChange={e => setSize(+e.target.value)} /></label>
+      <div><span className="hint">Who to call</span>
+        <div className="seg mini" role="group" aria-label="Who to call">{([['all', 'Everyone'], ['fresh', 'Fresh only'], ['retries', 'Retries only']] as const).map(([k, l]) =>
+          <button key={k} className={dials === k ? 'on' : ''} onClick={() => setDials(k)}>{l}</button>)}</div></div>
       <label><span>Mix: {mix == null ? 'team setting (changes through the day)' : `${Math.round(mix * 100)}% fresh contacts, ${100 - Math.round(mix * 100)}% retries`}</span>
         <input type="range" min={0.1} max={0.9} step={0.05} value={mix ?? 0.3} onChange={e => setMix(+e.target.value)} /></label>
       {mix != null && <button className="linkish" onClick={() => setMix(null)}>Use the team setting</button>}
       <div><span className="hint">Lists on Today</span>
         <div className="chips">{lists.map(l => <button key={l} className={`chip ${off.has(l) ? '' : 'on'}`} onClick={() => setOff(s => { const n = new Set(s); if (n.has(l)) n.delete(l); else n.add(l); return n; })}>
           {off.has(l) ? '○' : '✓'} {l} <small>{count(l)}</small></button>)}</div></div>
+      <div><span className="hint">Time zones on Today</span>
+        <div className="chips">{zones.map(z => <button key={z} className={`chip ${zoff.has(z) ? '' : 'on'}`} onClick={() => setZoff(s => { const n = new Set(s); if (n.has(z)) n.delete(z); else n.add(z); return n; })}>
+          {zoff.has(z) ? '○' : '✓'} {z}</button>)}</div></div>
+      <div><span className="hint">Companies first {focus.length ? '' : '(none: everyone mixed as usual)'}</span>
+        <div className="chips">{topCos.map(({ k, n }) => { const on = focus.some(f => f.toLowerCase() === k.toLowerCase());
+          return <button key={k} className={`chip ${on ? 'on' : ''}`} onClick={() => setFocus(f => (on ? f.filter(x => x.toLowerCase() !== k.toLowerCase()) : [...f, k]))}>{on ? '✓' : '+'} {k} <small>{n}</small></button>; })}
+          {focus.filter(f => !topCos.some(t => t.k.toLowerCase() === f.toLowerCase())).map(f => <button key={f} className="chip on" onClick={() => setFocus(x => x.filter(y => y !== f))}>✓ {f}</button>)}</div>
+        <div className="row" style={{ display: 'flex', gap: 8, marginTop: 6 }}><input placeholder="Another company or job, e.g. FedEx or driver" value={coText} onChange={e => setCoText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && coText.trim()) { setFocus(f => [...f, coText.trim()]); setCoText(''); } }} />
+          <button className="btn sm" disabled={!coText.trim()} onClick={() => { setFocus(f => [...f, coText.trim()]); setCoText(''); }}>Add</button></div></div>
       <p className="hint">Callbacks, appointments and follow-ups still come first. Right-click any contact to call them next, add them, pause them or rest them.</p>
       <div className="bar"><span className="muted" />
         <button className="btn" onClick={() => { d.setPrefs({}); d.reSort(); onClose(); }}>Reset to team rules</button>
