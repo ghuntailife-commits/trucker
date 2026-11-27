@@ -12,6 +12,10 @@ import type { GoogleCal } from '../../src/live/useGoogleCalendar';
 import { calendarItems, weekStart, eventFor, toIcs, type CalItem } from '../../src/calendar/events';
 import { TZ, ZONE_NAME, saveText, timeOnly, localTime, NoteText, Reach } from './shared';
 import { WeekGrid } from './weekGrid';
+import { NewEvent } from './newEvent';
+import { useMyEvents } from '../../src/app-store/useMyEvents';
+import type { MyEvent } from '../../src/calendar/myEvents';
+import { BLOCK_MS, isOpen } from '../../src/calendar/grid';
 import { addNote } from '../../src/rules/engine';
 import type { ResultKind, ResultInitial } from './forms';
 import type { AmendTarget } from '../../src/rules/amend';
@@ -42,9 +46,11 @@ const TONE: Record<CalItem['kind'], string> = { appt: 'blue', callback: 'amber',
 const pillTone = (it: CalItem) => it.kind === 'appt' ? (it.label === 'Confirmed' ? 'teal' : it.label === 'Booked' ? 'blue' : 'amber') : TONE[it.kind];
 
 /** onQuoText: when the agent has Quo, reminders open the Quo text box instead of the computer's own texting app. */
-export function AppointmentsPage({ d, cal, onDial, onResult, onQuoText, onText }: { d: D; cal?: GoogleCal; onDial: (id: string) => void; onResult: OnResult; onQuoText?: (id: string, at: number, tomorrow: boolean) => void; onText?: (id: string) => void }) {
+export function AppointmentsPage({ agent, d, cal, onDial, onResult, onQuoText, onText }: { agent: string; d: D; cal?: GoogleCal; onDial: (id: string) => void; onResult: OnResult; onQuoText?: (id: string, at: number, tomorrow: boolean) => void; onText?: (id: string) => void }) {
   const [offset, setOffset] = useState(0);
   const [sel, setSel] = useState<string | null>(null);
+  const mine = useMyEvents(agent);
+  const [creating, setCreating] = useState<{ at: number; edit?: MyEvent } | null>(null);
   const start = addDays(weekStart(d.now, TZ), offset * 7, TZ);
   const end = addDays(start, 7, TZ);
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i, TZ));
@@ -95,6 +101,19 @@ export function AppointmentsPage({ d, cal, onDial, onResult, onQuoText, onText }
       `${x.first} ${x.last}: callback moved to ${md.format(at)}.`);
   };
 
+  // New event button: the next open half hour from now (within working hours), else tomorrow 9 AM.
+  const nextOpen = () => {
+    const taken = d.contacts.filter(x => x.callAt != null && x.callAt > d.now && (tagKind(x.tag) === 'scheduled' || tagKind(x.tag) === 'callback')).map(x => x.callAt!);
+    const busy = mine.events.map(e => ({ start: e.start, len: e.mins * 60_000 }));
+    let t = Math.ceil((d.now + 15 * 60_000) / BLOCK_MS) * BLOCK_MS;
+    for (let i = 0; i < 48 * 14; i++, t += BLOCK_MS) {
+      const h = (t - startOfDay(t, TZ)) / 3_600_000;
+      if (h >= 9 && h < 20 && isOpen(taken, t, busy)) return t;
+    }
+    return startOfDay(d.now, TZ) + DAY_MS + 9 * 3_600_000;
+  };
+  const pickedMine = sel?.startsWith('m') ? mine.events.find(e => 'm' + e.id === sel) : undefined;
+
   const downloadWeek = () => {
     const evs = d.contacts.filter(x => x.callAt != null && x.callAt >= Math.max(start, d.now) && x.callAt < end
       && (tagKind(x.tag) === 'scheduled' || tagKind(x.tag) === 'callback'))
@@ -125,13 +144,15 @@ export function AppointmentsPage({ d, cal, onDial, onResult, onQuoText, onText }
           <button className={view === 'grid' ? 'on' : ''} onClick={() => pickView('grid')}>Calendar</button>
           <button className={view === 'list' ? 'on' : ''} onClick={() => pickView('list')}>List</button>
         </div>
+        <button className="btn primary" onClick={() => setCreating({ at: nextOpen() })}>+ New event</button>
         <span className="grow" />
         {LIVE && cal ? <GcalStatus cal={cal} /> : <span className="gcal" title="In the live app, appointments go on your Google Calendar automatically.">Google Calendar: live app only</span>}
         {(!LIVE || cal?.status !== 'connected') && <button className="btn" onClick={downloadWeek}>Add week to my calendar</button>}
       </div>
 
       <main className="apptwork">
-        {view === 'grid' ? <WeekGrid days={days} items={items} today={today} now={d.now} sel={sel} onPick={setSel} canMove={canMove} onMove={moveTo}
+        {view === 'grid' ? <WeekGrid days={days} items={items} mine={mine.events} onMoveMine={(id, at) => { mine.move(id, at); setSel('m' + id); d.say(`Moved to ${whenFull.format(at)}.`); }}
+          onSlot={at => at < d.now - BLOCK_MS ? d.say('That time has passed. Pick a time still ahead.', 'warn') : setCreating({ at })} today={today} now={d.now} sel={sel} onPick={setSel} canMove={canMove} onMove={moveTo}
           tone={pillTone} nameOf={it => { const x = contactFor(d, it); return { name: x ? `${x.first} ${x.last}` : 'Deleted contact', company: x?.company ?? '' }; }} /> :
         <section className="panel week">
           {days.map((t, i) => {
@@ -158,8 +179,10 @@ export function AppointmentsPage({ d, cal, onDial, onResult, onQuoText, onText }
 
         <aside className="apptside">
           <section className="panel adetail">
-            {picked && c ? <Detail it={picked} c={c} d={d} onDial={onDial} onResult={onResult} onQuoText={onQuoText} onText={onText} />
-              : <div className="pad16"><div className="eyebrow">Details</div><p className="hint">Pick anything on the week to see the contact, confirm it, or record how it went.{view === 'grid' ? ' Drag an appointment or callback to a new time; empty space is open time.' : ''}</p></div>}
+            {pickedMine ? <MineDetail e={pickedMine} onEdit={() => setCreating({ at: pickedMine.start, edit: pickedMine })}
+                onDelete={() => { mine.remove(pickedMine.id); setSel(null); d.say(`Deleted “${pickedMine.title}”.`); }} />
+              : picked && c ? <Detail it={picked} c={c} d={d} onDial={onDial} onResult={onResult} onQuoText={onQuoText} onText={onText} />
+              : <div className="pad16"><div className="eyebrow">Details</div><p className="hint">Pick anything on the week to see the contact, confirm it, or record how it went.{view === 'grid' ? ' Drag a block to a new time. Click open time to book a contact there or block it off for yourself.' : ''}</p></div>}
           </section>
           <section className="panel needs2">
             <div className="ph"><h2>Needs a result</h2><span>{needs.length}</span></div>
@@ -183,8 +206,24 @@ export function AppointmentsPage({ d, cal, onDial, onResult, onQuoText, onText }
           </section>
         </aside>
       </main>
+      {creating && <NewEvent at={creating.at} edit={creating.edit} contacts={d.contacts} onClose={() => setCreating(null)}
+        onBook={(id, kind, at, email) => { d.book(id, kind, at, email); setSel((kind === 'appt' ? 'a' : 'c') + id); }}
+        onSave={e => { if (creating.edit) { mine.update(creating.edit.id, e); d.say(`Saved “${e.title}”.`); } else { mine.add(e); d.say(`Added “${e.title}” on ${whenFull.format(e.start)}.`); } }} />}
     </div>
   );
+}
+
+function MineDetail({ e, onEdit, onDelete }: { e: MyEvent; onEdit: () => void; onDelete: () => void }) {
+  return <div className="pad16">
+    <div className="eyebrow">My event</div>
+    <h2 className="dn">{e.title}</h2>
+    <dl className="dl">
+      <dt>When</dt><dd>{whenFull.format(e.start)} – {timeOnly(e.start + e.mins * 60_000)} ET</dd>
+      {e.note && <><dt>Note</dt><dd>{e.note}</dd></>}
+    </dl>
+    <div className="dacts"><button className="btn" onClick={onEdit}>Edit</button><button className="btn" onClick={onDelete}>Delete</button></div>
+    <p className="hint">Drag it on the calendar to move it.</p>
+  </div>;
 }
 
 function Detail({ it, c, d, onDial, onResult, onQuoText, onText }: { it: CalItem; c: Contact; d: D; onDial: (id: string) => void; onResult: OnResult; onQuoText?: (id: string, at: number, tomorrow: boolean) => void; onText?: (id: string) => void }) {

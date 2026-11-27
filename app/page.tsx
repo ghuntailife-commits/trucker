@@ -475,7 +475,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       {!switching && page === 'settings' && <SettingsPage t={t} />}
       {!switching && page === 'integrations' && <IntegrationsPage t={t} />}
       {!switching && page === 'results' && <ResultsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} onText={textContact} />}
-      {!switching && page === 'appts' && <AppointmentsPage d={d} cal={cal} onText={textContact} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} 
+      {!switching && page === 'appts' && <AppointmentsPage agent={agent} d={d} cal={cal} onText={textContact} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} 
         onQuoText={quoOn ? (id, at, tomorrow) => setQuo({ id, apptAt: at, first: tomorrow ? 'confirmTomorrow' : 'confirmToday' }) : undefined} />}
       {!switching && page === 'today' && <>
       <section className="hero">

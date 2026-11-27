@@ -1219,3 +1219,20 @@ tr.draggable { cursor: grab; }
 .dacts.reachrow { margin: 4px 0 10px; }
 @media (max-width: 900px) { .wg-head, .wg-all, .wg-body { grid-template-columns: 40px repeat(7, minmax(64px, 1fr)); } .wgrid { overflow-x: auto; } }
 body.dragging, body.dragging * { user-select: none !important; cursor: grabbing !important; }
+/* New event dialog and my own events (2026-11-26) */
+.wgrid .wg-ev.mine { border-left-color: var(--faint); background: var(--panel2); border-style: dashed; border-left-style: solid; }
+.wgrid .wg-ev.tall { align-items: flex-start; padding-top: 4px; }
+.wgrid .wg-col { cursor: pointer; }
+.newev { display: grid; gap: 12px; min-width: 0; }
+.newev label { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.newev input, .newev select { font: inherit; font-size: 14px; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.nerow { display: flex; gap: 10px; flex-wrap: wrap; }
+.nerow label { flex: 1; min-width: 140px; }
+.nelist { display: grid; gap: 4px; max-height: 260px; overflow: auto; }
+.nelist button, .newho > div { display: grid; text-align: left; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.nelist button:hover { border-color: var(--link); }
+.nelist small, .newho small { color: var(--muted); font-size: 12px; }
+.newho { display: grid; grid-template-columns: 1fr auto; gap: 8px 10px; align-items: center; }
+.newho .nefull { grid-column: 1 / -1; }
+.newev .bar { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+.newev .bar .muted { margin-right: auto; font-size: 13px; }

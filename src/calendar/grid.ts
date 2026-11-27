@@ -11,7 +11,7 @@ export function hourRange(minutes: number[], from = 8, to = 21): [number, number
 }
 
 /** Side-by-side lanes for blocks that overlap (like a calendar app). Returns lane and lane count per key. */
-export function lanes<T extends { key: string; start: number }>(items: T[], len = BLOCK_MS): Map<string, { lane: number; of: number }> {
+export function lanes<T extends { key: string; start: number; len?: number }>(items: T[], len = BLOCK_MS): Map<string, { lane: number; of: number }> {
   const out = new Map<string, { lane: number; of: number }>();
   const sorted = [...items].sort((x, y) => x.start - y.start || x.key.localeCompare(y.key));
   let group: { key: string; lane: number }[] = [], ends: number[] = [], groupEnd = -Infinity;
@@ -20,9 +20,9 @@ export function lanes<T extends { key: string; start: number }>(items: T[], len 
     if (it.start >= groupEnd) close();
     let lane = ends.findIndex(e => e <= it.start);
     if (lane < 0) { lane = ends.length; ends.push(0); }
-    ends[lane] = it.start + len;
+    ends[lane] = it.start + (it.len ?? len);
     group.push({ key: it.key, lane });
-    groupEnd = Math.max(groupEnd, it.start + len);
+    groupEnd = Math.max(groupEnd, it.start + (it.len ?? len));
   }
   close();
   return out;
@@ -35,6 +35,6 @@ export function snapSlot(minutesFromTop: number, firstHour: number, lastHour: nu
 }
 
 /** Is a half hour on this day free of every timed block (other than the one being moved)? */
-export function isOpen(starts: number[], at: number): boolean {
-  return !starts.some(s => s < at + BLOCK_MS && s + BLOCK_MS > at);
+export function isOpen(starts: number[], at: number, busy: { start: number; len: number }[] = []): boolean {
+  return !starts.some(s => s < at + BLOCK_MS && s + BLOCK_MS > at) && !busy.some(b => b.start < at + BLOCK_MS && b.start + b.len > at);
 }

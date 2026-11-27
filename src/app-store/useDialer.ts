@@ -186,6 +186,15 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
   const confirm = useCallback((id: string) => commit(id, 'confirm', (c, t) => confirmAppt(c, t, CFG)), [commit]);
   const qual = useCallback((id: string, q: string) => commit(id, 'tag', c => toggleQual(c, q)), [commit]);
 
+  /** Books an appointment or a callback at a set time, from the calendar's New event (George, 2026-11-26). */
+  const book = useCallback((id: string, kind: 'appt' | 'callback', at: number, email?: string) => {
+    commit(id, kind, (c, t) => {
+      const r = disposition(c, kind === 'appt' ? TAGS.scheduled : TAGS.callback, t, CFG, { when: at });
+      const when = new Intl.DateTimeFormat('en-US', { timeZone: CFG.tz, weekday: 'short', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(at);
+      return { ...r, contact: email ? { ...r.contact, email } : r.contact, message: `${c.first} ${c.last}: ${kind === 'appt' ? 'appointment' : 'callback'} set for ${when}.` };
+    });
+  }, [commit]);
+
   type SaleIn = Omit<SaleRecord, 'at' | 'contactId' | 'calledInto'>;
   type NoSaleIn = Omit<NoSaleRecord, 'at' | 'contactId' | 'calledInto'>;
   /** Closes out an appointment or a called-into presentation. Sold and Presented come with their checked form. */
@@ -308,6 +317,6 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
     }).slice(0, 25);
   }, [s?.contacts]);
 
-  return { ready: !!s, now, today, appts, queue, stats, toast, byId, recent, log: s?.log ?? [], canUndo: !!s?.undo.length, batch, addOutsideSale, confirm, qual, scorer, cfg: CFG, say: say2, contacts: s?.contacts ?? [], pass: s?.pass ?? 1, noSales: s?.noSales ?? [],
+  return { ready: !!s, now, today, appts, queue, stats, toast, byId, recent, log: s?.log ?? [], canUndo: !!s?.undo.length, batch, book, addOutsideSale, confirm, qual, scorer, cfg: CFG, say: say2, contacts: s?.contacts ?? [], pass: s?.pass ?? 1, noSales: s?.noSales ?? [],
     undoLabel: s?.undo.at(-1)?.label, press, note, outcome, amend, skip, logCall, undo, reSort, resetDemo, find, sales: s?.sales ?? [], goal: s?.goal ?? 25000, agent, setGoal, calls: s?.calls ?? [] };
 }
