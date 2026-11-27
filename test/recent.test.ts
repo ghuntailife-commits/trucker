@@ -12,13 +12,13 @@ describe('recent feed', () => {
   it('groups a delivery into one line', () => {
     const cs = [...Array.from({ length: 11 }, (_, i) => c(`a${i}`, now - 3_600_000 + i * 1000)), c('old', null), c('b', now - 3 * 86_400_000, 'Texas')];
     const r = recentEvents(cs, [], [], now);
-    expect(r.map(x => x.text)).toEqual(['11 new contacts delivered!', '1 new contact delivered!']);
+    expect(r.map(x => x.text)).toEqual(['11 Leads Assigned to you!', '1 Lead Assigned to you!']);
     expect(r[0].sub).toBe('Ohio');
   });
   it('groups bookings by day and lists sales', () => {
     const log = [ev(now - 60_000, 'x', TAGS.scheduled), ev(now - 120_000, 'y', TAGS.scheduled), ev(now - 2 * 86_400_000, 'z', TAGS.scheduled)];
     const r = recentEvents([], log, [{ at: now - 30_000, contactId: 'q', alp: 1200 }], now);
-    expect(r.map(x => x.text)).toEqual(['Sale! a contact · $1,200', '2 appointments booked', 'Appointment booked with Sam T.']);
+    expect(r.map(x => x.text)).toEqual(['You made a sale! $1,200 ALP · a contact', 'You booked 2 appointments', 'You booked an appointment · Sam T.']);
   });
   it('says how long ago', () => {
     expect(ago(now - 30 * 60_000, now, 'America/New_York')).toBe('30m ago');

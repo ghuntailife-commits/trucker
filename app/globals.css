@@ -1369,3 +1369,18 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 .rfeed .dot.blue { background: var(--blue); } .rfeed .dot.green { background: var(--green); } .rfeed .dot.violet { background: var(--violet); } .rfeed .dot.amber { background: var(--amber); }
 .rfeed b { grid-area: b; font-weight: 600; font-size: 14px; } .rfeed small { grid-area: s; color: var(--muted); font-size: 12px; }
 .rfeed .t { grid-area: t; color: var(--muted); font-size: 12px; white-space: nowrap; }
+/* Team feed notes, bottom left (George, 2026-11-27: sage green) */
+.feedtoasts { position: fixed; left: 16px; bottom: 44px; z-index: 60; display: flex; flex-direction: column; gap: 8px; max-width: min(380px, calc(100vw - 32px)); }
+.feedtoast { display: flex; align-items: center; gap: 10px; background: #dfe8da; color: #24361f; border: 1px solid #b7c9ae; border-left: 5px solid #7f9c74;
+  border-radius: 10px; padding: 10px 12px; box-shadow: 0 6px 20px rgba(0,0,0,.12); animation: feedin .25s ease-out; }
+.feedtoast > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.feedtoast b { font-size: 14px; font-weight: 600; } .feedtoast small { font-size: 12.5px; color: #3f5637; }
+.feedtoast.mine { background: #cfdec7; border-left-color: #5d7f52; }
+.feedtoast .youtag { align-self: flex-start; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; background: #5d7f52; color: #fff; border-radius: 4px; padding: 1px 6px; }
+.feedtoast .x { background: none; border: 0; font-size: 18px; line-height: 1; color: #3f5637; cursor: pointer; padding: 2px 4px; }
+.feedtoast .btn { background: #5d7f52; color: #fff; border-color: #5d7f52; }
+:root[data-theme="dark"] .feedtoast { background: #2c3a28; color: #e3eedd; border-color: #44583d; } :root[data-theme="dark"] .feedtoast small, :root[data-theme="dark"] .feedtoast .x { color: #bcd0b2; }
+:root[data-theme="dark"] .feedtoast.mine { background: #34472f; }
+@keyframes feedin { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+.rfeed li.mine b { color: #4b6b40; } :root[data-theme="dark"] .rfeed li.mine b { color: #a9c79c; }
+.hcard.recent header .hint { margin-left: auto; font-size: 12px; }

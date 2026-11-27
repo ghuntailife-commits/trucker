@@ -11,7 +11,7 @@ import { parseTable, toCsv } from '../../src/contacts/csv';
 import type { NumberSheet } from '../../src/app-store/useNumberSheet';
 import { CHECK_EVERY_MIN } from '../../src/app-store/useNumberSheet';
 import { BANNER, LEFT_HEAD, LEFT_TITLE, LEFT_TYPE, RIGHT_HEAD, RIGHT_TITLE, RIGHT_TYPE, WIDTHS, FIRST_DATA_ROW, isDone, isOpen, leftValues, needsLook, planSend, rightValues, tone, type SendPlan, type SheetRow } from '../../src/numbers/sheet';
-import { mdTime } from '../../src/rules/time';
+import { md, mdTime } from '../../src/rules/time';
 import { Toggle } from './settings';
 import { priorityScorer, mixOrder, type Priority } from '../../src/contacts/priority';
 import { useSort } from './sort';
@@ -82,7 +82,7 @@ export function NeedsPage({ d, ns, states = [], agent = 'george' }: { d: D; ns: 
   const [q, setQ] = useState('');
   const found = useMemo(() => (tab === 'sheet' ? [] : q.trim() ? groups[tab].filter(c => needsSearch(c, q)) : groups[tab]), [tab, groups, q]);
   const { sorted: rows, th } = useSort<Contact>(found, {
-    best: c => score(c).score, name: c => `${c.last} ${c.first}`, company: c => c.company, loc: c => `${c.state} ${c.city}`, dials: c => c.dials,
+    best: c => score(c).score, name: c => `${c.last} ${c.first}`, company: c => c.company, loc: c => `${c.state} ${c.city}`, dials: c => c.dials, added: c => c.addedAt ?? null,
     note: c => notesNewestFirst(c.notes)[0] ?? '' });
   useEffect(() => setLimit(100), [tab, q]);
   const exportCsv = () => {
@@ -144,7 +144,7 @@ export function NeedsPage({ d, ns, states = [], agent = 'george' }: { d: D; ns: 
               <thead><tr>
                 {tab !== 'cannotFind' && <th className="pickc"><input type="checkbox" aria-label="Pick all for the number sheet" checked={!!pickable.length && pickable.every(c => picked.has(c.id))}
                   onChange={e => setPicked(x => { const n = new Set(x); for (const c of pickable) { if (e.target.checked) n.add(c.id); else n.delete(c.id); } return n; })} /></th>}
-                {th('best', 'Priority', 'num')}{th('name', 'Contact')}<th>Why</th>{th('company', 'Company — Role')}{th('loc', 'Location')}{th('dials', 'Dials', 'num')}{th('note', 'Notes (newest)')}
+                {th('best', 'Priority', 'num')}{th('name', 'Contact')}<th>Why</th>{th('company', 'Company — Role')}{th('loc', 'Location')}{th('dials', 'Dials', 'num')}{th('added', 'Assigned', 'num')}{th('note', 'Notes (newest)')}
                 {tab === 'cannotFind' ? <th /> : <><th>{tab === 'newNumber' ? 'New number' : 'Phone'}</th>{(tab === 'needs' || tab === 'today') && <th>Backup</th>}<th>Note</th><th>Cannot find</th></>}
               </tr></thead>
               <tbody>
@@ -160,6 +160,7 @@ export function NeedsPage({ d, ns, states = [], agent = 'george' }: { d: D; ns: 
                       <td>{c.company}{c.job ? ` — ${c.job}` : ''}</td>
                       <td>{c.city}{c.city ? ', ' : ''}{c.state}</td>
                       <td className="num">{c.dials}</td>
+                      <td className="num muted">{c.addedAt ? md(c.addedAt, TZ) : '—'}</td>
                       <td className="note muted" title={c.notes}>{(notesNewestFirst(c.notes)[0] ?? '').replace(/^(\d{1,2}\/\d{1,2}):\s*/, '$1 ') || (c.tag ? `Bad: ${c.phone}` : '')}</td>
                       {tab === 'cannotFind'
                         ? <td className="num"><button className="btn sm" onClick={() => setConfirmReturn([c])}>Return</button></td>
@@ -172,8 +173,8 @@ export function NeedsPage({ d, ns, states = [], agent = 'george' }: { d: D; ns: 
                     </tr>
                   );
                 })}
-                {rows.length > limit && <tr><td colSpan={11} className="emptyrow"><button className="btn sm" onClick={() => setLimit(l => l + 500)}>Show 500 more ({(rows.length - limit).toLocaleString('en-US')} not shown)</button> <button className="btn sm" onClick={() => setLimit(Number.MAX_SAFE_INTEGER)}>Show all</button></td></tr>}
-                {!rows.length && <tr><td colSpan={11} className="emptyrow">{tab === 'today' ? 'Nothing on Find today yet. Tick contacts on Needs a number or Needs a new number, then Add to Find today.' : tab === 'needs' ? 'Every contact has a number.' : tab === 'newNumber' ? 'No bad numbers waiting.' : 'Nobody is on the Cannot Find list.'}</td></tr>}
+                {rows.length > limit && <tr><td colSpan={12} className="emptyrow"><button className="btn sm" onClick={() => setLimit(l => l + 500)}>Show 500 more ({(rows.length - limit).toLocaleString('en-US')} not shown)</button> <button className="btn sm" onClick={() => setLimit(Number.MAX_SAFE_INTEGER)}>Show all</button></td></tr>}
+                {!rows.length && <tr><td colSpan={12} className="emptyrow">{tab === 'today' ? 'Nothing on Find today yet. Tick contacts on Needs a number or Needs a new number, then Add to Find today.' : tab === 'needs' ? 'Every contact has a number.' : tab === 'newNumber' ? 'No bad numbers waiting.' : 'Nobody is on the Cannot Find list.'}</td></tr>}
               </tbody>
             </table>
           </div>}

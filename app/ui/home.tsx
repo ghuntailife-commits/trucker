@@ -189,8 +189,8 @@ export function HomePage(h: HomeProps) {
       )}
 
       <section className="hcard recent">
-        <header><Icon p="contacts" /><h2>Recent</h2></header>
-        {h.recent.length ? <ul className="rfeed">{h.recent.slice(0, 7).map((r, i) => <li key={i}><button onClick={() => r.go && h.go(r.go)}>
+        <header><Icon p="team" /><h2>Recent</h2><span className="hint">The whole team</span></header>
+        {h.recent.length ? <ul className="rfeed">{h.recent.slice(0, 8).map((r, i) => <li key={i} className={r.mine ? 'mine' : ''}><button onClick={() => r.go && h.go(r.go)}>
           <i className={`dot ${r.tone}`} /><b>{r.text}</b>{r.sub && <small>{r.sub}</small>}<span className="t">{h.ago(r.at)}</span></button></li>)}</ul>
           : <p className="hint">Nothing new this week yet.</p>}
       </section>

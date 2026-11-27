@@ -32,7 +32,13 @@ import { TeamPage, HealthList } from './ui/team';
 import { SettingsPage } from './ui/settings';
 import { QuoText } from './ui/quo';
 import { pickFrom } from '../src/quo/localMatch';
-import { recentEvents, ago } from '../src/home/recent';
+import { recentEvents, ago, type Recent } from '../src/home/recent';
+import { useTeamFeed } from '../src/live/useTeamFeed';
+import { feedText, type Snap, type FeedKind } from '../src/team/feed';
+import { FeedToasts } from './ui/feedToasts';
+const NONE: never[] = [];
+const FEED_TONE: Record<FeedKind, Recent['tone']> = { leads: 'blue', sale: 'green', presented: 'amber', booked: 'violet' };
+const FEED_GO: Record<FeedKind, Recent['go']> = { leads: 'contacts', sale: 'results', presented: 'results', booked: 'appts' };
 
 /** Local match for calls (George, 2026-11-27): Quo's app can't be told which line to call from, so the Call button
  *  says which of the agent's numbers is closest to the contact. Only when they have more than one. */
@@ -160,6 +166,10 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const canViewAs = !LIVE || t.person?.role === 'admin';
   const isAdmin = canViewAs;   // search every agent: admin only
   const pages = pagesFor(t.role).filter(p => p !== 'coach' || t.role === 'admin' || me.quo);
+  // team feed (George, 2026-11-27): everyone's leads, sales, presentations and bookings
+  const feedSnap = useMemo(() => ({ contacts: d0.contacts ?? NONE, log: d0.log ?? NONE, sales: d0.sales ?? NONE, noSales: d0.noSales ?? NONE }) as Snap,
+    [d0.contacts, d0.log, d0.sales, d0.noSales]);
+  const feed = useTeamFeed({ id: agent, name: me.name }, feedSnap, !!d0.ready, isAdmin);
   const quoOn = me.quo;
   const [quo, setQuo] = useState<QuoModal>(null);
   const [rowMenu, setRowMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -428,7 +438,16 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   }, [d.sales, d.now]);
   const wins = useMemo(() => [...d.sales].sort((a, b) => b.at - a.at).slice(0, 4).map(x => { const c = d.byId.get(x.contactId);
     return { id: x.contactId, name: c ? `${c.first} ${c.last}` : x.who ? `${x.who.first} ${x.who.last}` : 'Sale', alp: saleAlp(x), at: x.at }; }), [d.sales, d.byId]);
-  const recent = useMemo(() => recentEvents(d.contacts, d.log, d.sales.map(x => ({ at: x.at, contactId: x.contactId, alp: saleAlp(x) })), d.now), [d.contacts, d.log, d.sales, d.now]);
+  const nameOf = useCallback((id?: string) => { const c = id ? d.byId.get(id) : undefined; return c ? `${c.first} ${c.last ? c.last[0] + '.' : ''}`.trim() : undefined; }, [d.byId]);
+  // Recent: the team feed, plus this agent's own history from before the feed started
+  const recent = useMemo(() => {
+    const team: Recent[] = feed.items.map(f => { const x = feedText(f, agent, nameOf(f.contactId));
+      return { at: f.at, text: x.text, sub: x.sub, tone: FEED_TONE[f.kind], go: FEED_GO[f.kind], mine: x.mine }; });
+    const firstMine = Math.min(...feed.items.filter(f => f.agent === agent).map(f => f.at));
+    const own = recentEvents(d.contacts, d.log, d.sales.map(x => ({ at: x.at, contactId: x.contactId, alp: saleAlp(x) })), d.now)
+      .filter(r => r.at < firstMine - 15 * 60_000).map(r => ({ ...r, mine: true }));
+    return [...team, ...own].sort((a, b) => b.at - a.at);
+  }, [feed.items, agent, nameOf, d.contacts, d.log, d.sales, d.now]);
   const bk = current ? briefKind(why) : null;
   const brief = current && bk ? buildBrief({ c: current, kind: bk, agent: me.name, now: d.now, tz: TZ, cfg: d.cfg, noShowRate,
     noSale: bk === 'followUp' ? [...d.noSales].reverse().find(n => n.contactId === current.id) : undefined }) : null;
@@ -882,6 +901,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
             {z.name} <small>{new Intl.DateTimeFormat('en-US', { timeZone: z.tz, hour: 'numeric', minute: '2-digit' }).format(d.now)}</small></button>)}</div>
         </div>
       </Dialog>}
+      <FeedToasts toasts={feed.toasts} me={agent} nameOf={nameOf} dismiss={feed.dismiss} onLeads={() => setPage('contacts')} />
       {licOpen && <LicensesDialog states={me.states} onClose={() => setLicOpen(false)} onSave={st => { t.setAgent(agent, { states: st }); d.say(`Licensed states saved: ${st.length}.`); }} />}
       {healthOpen && (
         <div className="drill-bg" onClick={e => { if (e.target === e.currentTarget) setHealthOpen(false); }} onKeyDown={e => { if (e.key === 'Escape') setHealthOpen(false); }}>
