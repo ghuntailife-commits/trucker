@@ -11,7 +11,7 @@ describe('Quo calls count as dials', () => {
     expect(a.contact.dials).toBe(3);
     expect(a.events).toHaveLength(1);
     expect(quoDial(a.contact, at + 3 * MIN, at + 4 * MIN).ignored).toBe(true);
-    expect(quoDial(a.contact, at + 60 * MIN, at + 61 * MIN).contact.dials).toBe(4);
+    expect(quoDial(a.contact, at + 70 * MIN, at + 71 * MIN).contact.dials).toBe(4);
   });
   it('No answer right after a counted Quo call does not count it again', () => {
     const c = quoDial(contact({ dials: 2, lastDialed: et(26, 10) }), at, at + MIN).contact;
@@ -23,5 +23,12 @@ describe('Quo calls count as dials', () => {
   it('a Quo call after the agent already tapped No answer is the same dial', () => {
     const c = dialerAction(contact({ dials: 2, lastDialed: et(26, 10) }), 'noanswer', at - MIN).contact;
     expect(quoDial(c, at, at + MIN).ignored).toBe(true);
+  });
+});
+describe('a result tapped during a long call', () => {
+  it('is the dial, and the Quo call that ends 40 minutes later adds nothing', () => {
+    const start = et(27, 15, 0);
+    const c = dialerAction(contact({ dials: 1, lastDialed: et(25, 10) }), 'noanswer', start + 2 * MIN).contact;
+    expect(quoDial(c, start + 40 * MIN, start + 41 * MIN).ignored).toBe(true);
   });
 });

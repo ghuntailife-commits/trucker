@@ -72,7 +72,8 @@ export const QUO_DIAL_WINDOW = 15 * 60_000;
 /** An outgoing Quo call counts one dial, even if the agent never taps a result. Calls within 15 minutes of the last
  *  dial (a second try right away, or the agent already tapped No answer) are one dial, not two. */
 export function quoDial(c: Contact, at: number, now: number): Result {
-  if (c.lastDialed != null && c.lastDialed >= at - QUO_DIAL_WINDOW) return { contact: c, events: [], ignored: true, message: '' };
+  // an hour back, so a result tapped early in a long call (the event time is when the call ended) still covers it
+  if (c.lastDialed != null && c.lastDialed >= at - 4 * QUO_DIAL_WINDOW) return { contact: c, events: [], ignored: true, message: '' };
   const x = clone(c);
   x.dials = c.dials + 1;
   x.lastDialed = at;
