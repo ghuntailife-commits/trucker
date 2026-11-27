@@ -1,6 +1,7 @@
 // Morning Wisdom (George, 2026-11-26): one short private lesson each morning on Home.
 // Every entry names its source. Translated works name the translator; scripture is the King James Version.
-// kind: 'exact' = the author's own English words; 'translation' = a named published translation, quoted as printed.
+// kind: 'exact' = the author's own English words; 'translation' = a named published translation, quoted as printed;
+// 'spoken' = said in a recorded talk (Simon Arias's GRINDcast), with the video, date and time so it can be checked.
 // Doubtful or unverifiable attributions are left out on purpose; see docs/morning-wisdom-sources.md.
 // Works offline: pure data plus the daily pick. Tested in test/wisdom.test.ts.
 
@@ -12,7 +13,8 @@ export const WISDOM_THEMES: [WisdomTheme, string][] = [
   ['action', 'Purposeful action'], ['humble', 'Humility and learning'], ['persist', 'Persistence and resilience'],
   ['focus', 'Focus and presence'], ['excel', 'Ambition and excellence'], ['time', 'Time and the value of life'],
 ];
-export type WisdomKind = 'exact' | 'translation';
+/** 'spoken' = said on a recorded talk; wording follows the video's captions (check against the audio before public use). */
+export type WisdomKind = 'exact' | 'translation' | 'spoken';
 export interface Wisdom {
   id: string; theme: WisdomTheme;
   text: string; by: string; source: string; kind: WisdomKind;
@@ -74,6 +76,11 @@ const W: Row[] = [
     'A stranger’s dismissal says little about your worth. Measure yourself by your own standard of honest effort, and other people’s approval becomes a pleasant extra rather than a master.',
     'Answer to your conscience, not to applause.'],
 
+  ['sa-outcome', 'mastery', 'What outcome do I want?', 'Simon Arias', '“How to Control Your Emotions as a Leader,” GRINDcast, September 4, 2026, at 3:34–4:59', 'spoken',
+    'Before correcting someone, Arias pauses to ask what result he is actually after. The question moves a leader from reacting to the frustration of the moment toward the response that will help.',
+    'Before the next hard conversation, with a rep, a client or someone at home, ask what you want to be true afterward. Then choose words that serve that, not your irritation.',
+    'Ask what outcome you want first.'],
+
   // ---------------- Discipline and consistency
   ['di-durant-habit', 'discipline', 'We are what we repeatedly do. Excellence, then, is not an act, but a habit.', 'Will Durant', 'The Story of Philosophy (1926), summarizing Aristotle', 'exact',
     'Often credited to Aristotle, these are Will Durant’s words summarizing him. Virtue is not a single heroic act but a settled disposition formed through repetition; we become what we practice.',
@@ -115,6 +122,11 @@ const W: Row[] = [
     'Wooden’s father handed him a creed card at his grade-school graduation, and this line was at its centre. It asks for excellence measured by the day, not by the season or the career.',
     'A masterpiece day is not a perfect one. It is a day lived with full attention and honest effort, at work and at home, that you would gladly live again.',
     'Make this one day your masterpiece.'],
+
+  ['sa-schedule', 'discipline', 'If it’s not on the schedule it don’t count.', 'Simon Arias', '“How To Master Self Discipline,” GRINDcast, August 4, 2023, at 5:33–6:12', 'spoken',
+    'Discussing a discipline framework he credits to Ed Mylett, Arias states his own calendar rule. Intentions that never receive a time slot tend to be crowded out by whatever is louder.',
+    'Look at what you say matters most, prayer, exercise, your family, your dial blocks, and check whether each has a place on this week’s calendar. If not, give it one today.',
+    'Put what matters on the calendar.'],
 
   // ---------------- Purposeful action and execution
   ['ac-eccl-9-10', 'action', 'Whatsoever thy hand findeth to do, do it with thy might.', 'Ecclesiastes 9:10', KJV, 'exact',
@@ -207,6 +219,11 @@ const W: Row[] = [
     'Paul writes from prison about contentment in plenty and in want. The strength he describes is endurance in every circumstance, not a guarantee of any particular outcome.',
     'This is not a promise that every venture succeeds. It is assurance that you can bear whatever comes, and bear it faithfully. Carry that strength into today.',
     'Draw strength for whatever comes.'],
+
+  ['sa-proof', 'courage', 'Stop waiting for proof that you’re capable before you start behaving like someone who is.', 'Simon Arias', '“Not Letting Your Circumstances Control Your Mind,” GRINDcast, October 2026, at 8:34', 'spoken',
+    'Arias separates events from the meaning we assign them. Waiting for evidence of ability before acting reverses the true order: the behaviour comes first, and the proof is produced by it.',
+    'There is a role you are growing into: leader, mentor, better husband. Do one thing today the way that man would, before you feel qualified. Confidence follows conduct.',
+    'Act like the man you are becoming.'],
 
   // ---------------- Persistence and resilience
   ['pe-gal-6-9', 'persist', 'And let us not be weary in well doing: for in due season we shall reap, if we faint not.', 'Galatians 6:9', KJV, 'exact',
@@ -388,6 +405,11 @@ const W: Row[] = [
     'No frenzy, no sloth, no pretence: a simple test for how you carry yourself through today. Check it at noon and again tonight, and adjust without judging yourself harshly.',
     'No frenzy, no sloth, no pretence.'],
 
+  ['sa-north-star', 'focus', 'Your why is always your north star.', 'Simon Arias', '“What to Do When You Feel Overwhelmed or Unfocused,” GRINDcast, June 26, 2026, at 0:27', 'spoken',
+    'Arias opens his talk on overwhelm with orientation rather than technique. When the day scatters, the reason behind the work gives direction, the way a fixed star guided travellers who had lost their bearings.',
+    'When the list feels endless and your attention splinters, stop and name your why again. It will not shorten the list, but it will tell you which item deserves the next hour.',
+    'Let your why set today’s direction.'],
+
   // ---------------- Leadership, service and integrity
   ['le-matt-20-26', 'lead', 'Whosoever will be great among you, let him be your minister.', 'Matthew 20:26', KJV, 'exact',
     'Jesus overturns the world’s idea of greatness. Among his followers, authority is measured by service rather than by rank, and the greatest is the one who serves the most.',
@@ -429,6 +451,11 @@ const W: Row[] = [
     'Marcus, an emperor with every excuse for grand theory, rebukes himself for discussing virtue instead of practising it. Goodness is demonstrated in conduct, not won in argument.',
     'Skip the debate about what a good man would do. Do one good thing today, quietly and without announcing it, and then move on to the next.',
     'Stop describing goodness; practise it.'],
+
+  ['sa-believe', 'lead', 'Can I believe what you say?', 'Simon Arias', '“The 5 Levels of Trust in Leadership,” GRINDcast, May 29, 2026, at 9:33', 'spoken',
+    'Among five levels of trust, Arias reduces truthfulness to one question that others are always silently asking. A leader’s words are only as useful as his record of keeping them.',
+    'Keep every small promise today: the callback time you gave a family, the review you promised a rep, the hour you told your wife you would be home. Each one answers his question.',
+    'Make your word believable today.'],
 
   // ---------------- Gratitude, contentment and abundance
   ['gr-ps-118-24', 'grat', 'This is the day which the LORD hath made; we will rejoice and be glad in it.', 'Psalm 118:24', KJV, 'exact',
@@ -547,6 +574,10 @@ const W: Row[] = [
     'Wooden taught players to work from their strengths and the things within their control rather than dwelling on their limitations.',
     'You have limitations, as everyone does. Do not let them become an excuse to neglect the strengths you do have.',
     'Do what you can do.'],
+  ['sa-humility', 'humble', 'It takes humility in order to grow.', 'Simon Arias', '“Leadership Level, Mentorship, & Teamwork,” The GRIND Life, May 16, 2020, at 1:15–2:18', 'spoken',
+    'Arias urges agents to call someone in the agency who has gone further and ask what steps they took. Growth, he says, begins with admitting that someone else knows the road better.',
+    'Think of one person ahead of you in business, faith or family life. Ask them this week what they did at your stage, and then listen without defending your own way.',
+    'Ask someone further ahead for directions.'],
 ];
 
 export const WISDOM: Wisdom[] = W.map(([id, theme, text, by, source, kind, meaning, reflect, intent]) => ({ id, theme, text, by, source, kind, meaning, reflect, intent }));

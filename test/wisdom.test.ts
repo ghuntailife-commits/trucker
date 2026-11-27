@@ -23,6 +23,7 @@ describe('Morning Wisdom library', () => {
   it('names a translator for every translation and uses the King James Version for scripture', () => {
     for (const w of WISDOM) {
       if (w.kind === 'translation') expect(w.source, w.id).toMatch(/trans\.|rendered/);
+      if (w.kind === 'spoken') expect(w.source, w.id).toMatch(/\d{4}, at \d/);
       if (/^\d? ?[A-Z][a-z]+ \d+:\d/.test(w.by)) expect(w.source, w.id).toBe('King James Version');
     }
   });
