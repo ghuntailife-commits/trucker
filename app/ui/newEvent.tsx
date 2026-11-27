@@ -17,8 +17,10 @@ const TIMES = Array.from({ length: 34 }, (_, i) => 6 * 60 + i * 30);   // 6:00 A
 const label = (m: number) => { const h = Math.floor(m / 60); return `${h % 12 || 12}:${pad(m % 60)} ${h < 12 ? 'AM' : 'PM'}`; };
 const lengthLabel = (m: number) => m < 60 ? `${m} minutes` : `${m / 60} hour${m === 60 ? '' : 's'}`;
 
-export function NewEvent({ at, contacts, edit, onClose, onBook, onSave }: {
+export function NewEvent({ at, contacts, edit, onClose, onBook, onSave, clash }: {
   at: number; contacts: Contact[]; edit?: MyEvent; onClose: () => void;
+  /** What's already at that time, if anything (double-booking warning). */
+  clash?: (at: number, mins: number, skipContact?: string) => string;
   onBook: (id: string, kind: 'appt' | 'callback', at: number, email?: string) => void;
   onSave: (e: Omit<MyEvent, 'id'>) => void;
 }) {
@@ -76,6 +78,8 @@ export function NewEvent({ at, contacts, edit, onClose, onBook, onSave }: {
           {q.trim().length >= 2 && !found.length && <p className="hint">No contact matches. Add them on Contacts first.</p>}
         </div>
       </>}
+      {(() => { const hit = !Number.isNaN(when) && clash ? clash(when, kind === 'mine' ? mins : 30, who?.id) : ''; return hit ? <p className="clash">Heads up: this overlaps {hit}. You can still save it.</p> : null; })()}
+      {!Number.isNaN(when) && when < Date.now() - 30 * 60_000 && <p className="clash">That time has already passed.</p>}
       <div className="bar">
         <span className="muted">{!Number.isNaN(when) && `${new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'long', month: 'short', day: 'numeric' }).format(when)} at ${timeOnly(when)} ET`}</span>
         <button className="btn" onClick={onClose}>Cancel</button>

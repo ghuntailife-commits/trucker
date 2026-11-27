@@ -178,7 +178,7 @@ export function AppointmentsPage({ agent, d, cal, onDial, onResult, onQuoText, o
       </div>
 
       <main className="apptwork">
-        {view === 'grid' ? <WeekGrid days={days} items={items} mine={mine.events} onMoveMine={(id, at) => { mine.move(id, at); setSel('m' + id); d.say(`Moved to ${whenFull.format(at)}.`); }}
+        {view === 'grid' ? <WeekGrid days={days} items={items} mine={mine.events} onResizeMine={(id, mins) => { mine.update(id, { mins }); setSel('m' + id); d.say(`Now ${mins < 60 ? `${mins} minutes` : `${mins / 60} hour${mins === 60 ? '' : 's'}`}.`); }} onMoveMine={(id, at) => { mine.move(id, at); setSel('m' + id); d.say(`Moved to ${whenFull.format(at)}.`); }}
           onMenu={(key, x, y) => setMenu({ key, x, y })}
           onSlot={at => at < d.now - BLOCK_MS ? d.say('That time has passed. Pick a time still ahead.', 'warn') : setCreating({ at })} today={today} now={d.now} sel={sel} onPick={setSel} canMove={canMove} onMove={moveTo}
           tone={pillTone} nameOf={it => { const x = contactFor(d, it); return { name: x ? `${x.first} ${x.last}` : 'Deleted contact', company: x?.company ?? '' }; }} /> :
@@ -248,7 +248,14 @@ export function AppointmentsPage({ agent, d, cal, onDial, onResult, onQuoText, o
           ...(open ? [[it.kind === 'appt' ? 'Cancel appointment' : 'Remove callback', () => cancelItem(it), 'danger']] : []),
         ] as [string, () => void, string?][];
       })()} />}
-      {creating && <NewEvent at={creating.at} edit={creating.edit} contacts={d.contacts} onClose={() => setCreating(null)}
+      {creating && <NewEvent at={creating.at} edit={creating.edit} contacts={d.contacts}
+        clash={(at, mins, skip) => {
+          const end = at + mins * 60_000;
+          const c2 = d.contacts.find(x => x.id !== skip && x.callAt != null && (tagKind(x.tag) === 'scheduled' || tagKind(x.tag) === 'callback') && x.callAt < end && x.callAt + BLOCK_MS > at);
+          if (c2) return `${c2.first} ${c2.last} (${tagKind(c2.tag) === 'scheduled' ? 'appointment' : 'callback'}) at ${timeOnly(c2.callAt!)}`;
+          const e2 = mine.events.find(e => e.id !== creating.edit?.id && e.start < end && e.start + e.mins * 60_000 > at);
+          return e2 ? `“${e2.title}” at ${timeOnly(e2.start)}` : '';
+        }} onClose={() => setCreating(null)}
         onBook={(id, kind, at, email) => { d.book(id, kind, at, email); setSel((kind === 'appt' ? 'a' : 'c') + id); }}
         onSave={e => { if (creating.edit) { mine.update(creating.edit.id, e); d.say(`Saved “${e.title}”.`); } else { mine.add(e); d.say(`Added “${e.title}” on ${whenFull.format(e.start)}.`); } }} />}
     </div>

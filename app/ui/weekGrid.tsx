@@ -14,14 +14,14 @@ const dayNum = new Intl.DateTimeFormat('en-US', { timeZone: TZ, day: 'numeric' }
 const hourLabel = (h: number) => `${h % 12 || 12} ${h < 12 || h === 24 ? 'AM' : 'PM'}`;
 const short = (t: number) => timeOnly(t).replace(/\s?[AP]M$/, '');
 
-type Drag = { key: string; x0: number; y0: number; grab: number; moved: boolean; day: number; slot: number };
+type Drag = { key: string; x0: number; y0: number; grab: number; moved: boolean; day: number; slot: number; resize?: boolean; len?: number };
 /** One block on the grid: a contact's appointment/callback/result, or one of the agent's own events. */
 type Block = { key: string; at: number; len: number; name: string; company: string; label: string; kind: string; tone: string; movable: boolean };
 
-export function WeekGrid({ days, items, mine, today, now, sel, onPick, canMove, onMove, onMoveMine, onSlot, onMenu, nameOf, tone }: {
+export function WeekGrid({ days, items, mine, today, now, sel, onPick, canMove, onMove, onMoveMine, onResizeMine, onSlot, onMenu, nameOf, tone }: {
   days: number[]; items: CalItem[]; mine: MyEvent[]; today: number; now: number; sel: string | null;
   onPick: (key: string) => void; canMove: (it: CalItem) => boolean; onMove: (it: CalItem, at: number) => void;
-  onMoveMine: (id: string, at: number) => void; onSlot: (at: number) => void; onMenu: (key: string, x: number, y: number) => void;
+  onMoveMine: (id: string, at: number) => void; onResizeMine: (id: string, mins: number) => void; onSlot: (at: number) => void; onMenu: (key: string, x: number, y: number) => void;
   nameOf: (it: CalItem) => { name: string; company: string }; tone: (it: CalItem) => string;
 }) {
   const dayOf = (at: number) => days.findIndex((t, i) => at >= t && at < (days[i + 1] ?? t + 86_400_000));
@@ -66,6 +66,11 @@ export function WeekGrid({ days, items, mine, today, now, sel, onPick, canMove, 
       const d = dragRef.current; if (!d) return;
       e.preventDefault();
       const moved = d.moved || Math.abs(e.clientX - d.x0) + Math.abs(e.clientY - d.y0) > 5;
+      if (d.resize) {   // stretch: bottom edge follows the pointer in half hours, at least 30 minutes
+        const b = blocks.find(x => x.key === d.key); if (!b) return;
+        const steps = Math.max(1, Math.round((b.len / 60_000 + ((e.clientY - d.y0) / SLOT_PX) * SLOT_MIN) / SLOT_MIN));
+        setDrag({ ...d, moved, len: steps * SLOT_MIN * 60_000 }); return;
+      }
       const w = moved ? where(e.clientX, e.clientY, d.grab) : null;
       setDrag({ ...d, moved, ...(w ?? {}) });
     };
@@ -74,6 +79,7 @@ export function WeekGrid({ days, items, mine, today, now, sel, onPick, canMove, 
       if (!d) return;
       const b = blocks.find(x => x.key === d.key);
       if (!d.moved || !b) { onPick(d.key); return; }
+      if (d.resize) { if (d.len && d.len !== b.len) onResizeMine(b.key.slice(1), d.len / 60_000); return; }
       const at = slotAt(d.day, d.slot);
       if (at === b.at) { onPick(d.key); return; }
       if (b.kind === 'mine') onMoveMine(b.key.slice(1), at);
@@ -135,7 +141,8 @@ export function WeekGrid({ days, items, mine, today, now, sel, onPick, canMove, 
               {here.map(b => {
                 const l = lay.get(b.key) ?? { lane: 0, of: 1 };
                 const top = ((minsOf(b.at) - first * 60) / SLOT_MIN) * SLOT_PX;
-                const h = Math.max(1, b.len / BLOCK_MS) * SLOT_PX;
+                const stretching = drag?.resize && drag.key === b.key && drag.len;
+                const h = Math.max(1, (stretching ? drag.len! : b.len) / BLOCK_MS) * SLOT_PX;
                 return (
                   <button key={b.key} type="button"
                     className={`wg-ev ${b.kind} ${sel === b.key ? 'on' : ''} ${b.movable ? 'movable' : ''} ${b.len > BLOCK_MS ? 'tall' : ''} ${drag?.key === b.key && drag.moved ? 'lifted' : ''}`}
@@ -147,6 +154,10 @@ export function WeekGrid({ days, items, mine, today, now, sel, onPick, canMove, 
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onPick(b.key); }}>
                     <b>{short(b.at)}</b> <span>{b.name}</span>
                     {l.of === 1 && b.kind !== 'mine' && <i className={`dot ${b.tone}`} />}
+                    {b.kind === 'mine' && <i className="wg-grip" title="Drag to make it longer or shorter"
+                      onPointerDown={e => { if (e.button !== 0) return; e.preventDefault(); e.stopPropagation();
+                        setDrag({ key: b.key, x0: e.clientX, y0: e.clientY, grab: 0, moved: false, day: dayOf(b.at), slot: 0, resize: true, len: b.len }); }} />}
+                    {stretching && <em className="wg-len">{timeOnly(b.at)}–{timeOnly(b.at + drag.len!)}</em>}
                   </button>
                 );
               })}
