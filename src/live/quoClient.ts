@@ -6,7 +6,7 @@ import { quoNote } from '../quo/events';
 export async function sendQuoText(to: string, content: string): Promise<string | null> {
   const { data } = await db().auth.getSession();
   const token = data.session?.access_token;
-  if (!token) return 'Please sign in again.';
+  if (!token) return 'Your sign-in ran out. Sign out and back in, then try again.';
   try {
     const r = await fetch('/api/quo/send', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ to, content }) });

@@ -7,7 +7,7 @@ export async function POST(req: Request) {
   try {
     const db = adminDb();
     const me = await whoIsCalling(db, req.headers.get('authorization'));
-    if (!me) return NextResponse.json({ error: 'Please sign in again.' }, { status: 401 });
+    if ('error' in me) return NextResponse.json({ error: me.error }, { status: 401 });
     const { to, content } = await req.json() as { to: string; content: string };
     const agent = (await teamSettings(db))?.agents.find(a => a.id === me.agentId);
     if (!agent?.quo) return NextResponse.json({ error: 'Quo is not turned on for you in Settings.' }, { status: 400 });

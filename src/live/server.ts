@@ -24,13 +24,16 @@ export function agentByNumber(t: TeamSettings | null, phone: string): AgentSetti
   return d.length === 10 ? t?.agents.find(a => a.quo && digits10(a.quoNumber ?? '') === d) : undefined;
 }
 
-/** The signed-in person behind a request (from the Supabase access token the screen sends). */
-export async function whoIsCalling(db: SupabaseClient, auth: string | null): Promise<{ agentId: string; role: string } | null> {
+/** The signed-in person behind a request (from the Supabase access token the screen sends). Says why when it can't tell. */
+export async function whoIsCalling(db: SupabaseClient, auth: string | null): Promise<{ agentId: string; role: string } | { error: string }> {
   const token = auth?.replace(/^Bearer\s+/i, '');
-  if (!token) return null;
-  const { data } = await db.auth.getUser(token);
+  if (!token) return { error: 'No sign-in was sent with the request.' };
+  const { data, error } = await db.auth.getUser(token);
+  if (error) return { error: `Sign-in check failed: ${error.message}` };
   const email = data.user?.email?.toLowerCase();
-  if (!email) return null;
-  const { data: p } = await db.from('people').select('agent_id,role').ilike('email', email).maybeSingle();
-  return p ? { agentId: p.agent_id, role: p.role } : null;
+  if (!email) return { error: 'Your sign-in has no email.' };
+  const { data: rows, error: e2 } = await db.from('people').select('agent_id,role,email');
+  if (e2) return { error: `Could not read the team list: ${e2.message}` };
+  const p = (rows ?? []).find((r: { email: string | null }) => r.email?.toLowerCase() === email);
+  return p ? { agentId: p.agent_id, role: p.role } : { error: `${email} is not on the team list.` };
 }
