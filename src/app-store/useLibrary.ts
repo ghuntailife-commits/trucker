@@ -6,22 +6,36 @@ import { LIVE } from '../live/supabase';
 import { useCallback, useEffect, useState } from 'react';
 import type { Contact } from '../rules/types';
 import type { AgentId } from '../team/agents';
-import { applyHandout, undoHandout, type HandoutLine, type LibraryState, type LibraryContact, type Recipient } from '../library/library';
+import { applyHandout, undoHandout, mergeReturns, type HandoutLine, type LibraryState, type LibraryContact, type Recipient } from '../library/library';
 import { demoLibrary } from '../library/demoLibrary';
 import { loadState, saveState } from './store';
 import { loadAgentData } from './useTeam';
+import { returnKey, type Returned } from './libraryReturns';
 
 const KEY = 'dispatch-library-v1';
 export interface Inbox { contacts: Contact[]; removed: string[] }
 export const inboxKey = (agent: AgentId) => `dispatch-inbox-${agent}`;
 
-export function useLibrary(me: AgentId, mine: { contacts: Contact[]; batch: (label: string, change: { added?: Contact[]; removed?: string[] }, message: string) => void }, tz: string) {
+export function useLibrary(me: AgentId, mine: { contacts: Contact[]; batch: (label: string, change: { added?: Contact[]; removed?: string[] }, message: string) => void }, tz: string, admin = false, agentIds: string[] = []) {
   const [st, setSt] = useState<LibraryState | null>(null);
   useEffect(() => {
     let live = true;
     loadState<LibraryState>(KEY).then(got => { if (live) setSt(got && got.v === 1 ? got : { v: 1, contacts: LIVE ? [] : demoLibrary(tz), handouts: [] }); });
     return () => { live = false; };
   }, [tz]);
+
+  /** Contacts agents sent back from their lists (admin only): taken into the library, then the boxes are emptied. */
+  const pullReturns = useCallback(async () => {
+    if (!admin || !agentIds.length) return 0;
+    const boxes = await Promise.all(agentIds.map(a => loadState<{ items: Returned[] }>(returnKey(a)).then(b => ({ a, items: b?.items ?? [] })).catch(() => ({ a, items: [] as Returned[] }))));
+    const items = boxes.flatMap(b => b.items);
+    if (!items.length) return 0;
+    const t = Date.now();
+    setSt(cur => (cur ? mergeReturns(cur, items, i => `lib-r${t.toString(36)}-${i}`).state : cur));
+    for (const b of boxes) if (b.items.length) await saveState(returnKey(b.a), { items: [] });
+    return items.length;
+  }, [admin, agentIds.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (st) void pullReturns(); }, [!!st]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (st) saveState(KEY, st); }, [st]);
 
   /** The agent's contacts as they stand, for the duplicate check. */
@@ -95,7 +109,7 @@ export function useLibrary(me: AgentId, mine: { contacts: Contact[]; batch: (lab
   /** Adds contacts to the library (after a previewed CSV import or the Lead Library move). */
   const addToLibrary = useCallback((cs: LibraryContact[]) => setSt(x => x ? { ...x, contacts: [...x.contacts, ...cs] } : x), []);
 
-  return { ready: !!st, lib: st?.contacts ?? [], handouts: st?.handouts ?? [], send, undo, contactsOf, addToLibrary, transfer,
+  return { ready: !!st, pullReturns, lib: st?.contacts ?? [], handouts: st?.handouts ?? [], send, undo, contactsOf, addToLibrary, transfer,
     resetLibrary: () => setSt({ v: 1, contacts: demoLibrary(tz), handouts: [] }) };
 }
 export type Library = ReturnType<typeof useLibrary>;

@@ -25,6 +25,8 @@ const md = (ms: number) => new Intl.DateTimeFormat('en-US', { timeZone: TZ, mont
 export function LibraryPage({ t, lib, now, say, onLicenses, mine = [] }: { t: Team; lib: Library; now: number; say: (s: string, k?: 'ok' | 'warn') => void; onLicenses: () => void; mine?: Contact[] }) {
   const agents = t.team.agents.filter(a => a.active);
   const [state, setState] = useState<string>('all');
+  // contacts agents sent back from their lists show up as soon as the library opens
+  useEffect(() => { void lib.pullReturns().then(n => { if (n) say(`${n} contact${n === 1 ? '' : 's'} came back from agents with their notes.`); }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [show, setShow] = useState<Show>('open');
   const [q, setQ] = useState('');
   const [to, setTo] = useState<AgentId | ''>('');

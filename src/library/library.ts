@@ -16,6 +16,8 @@ export interface LibraryContact {
   /** Who has it, as written on the sheet ("George", "Marshall"); empty while it is still in the library. */
   givenTo: string;
   givenAt: number | null;
+  /** Set when an agent sent it back from their list: where they got to with it. */
+  history?: { dials: number; tag: string; lastDialed: number | null; returnedBy: string; returnedAt: number; reason: string };
 }
 
 /** One send, so it can be undone. */
@@ -214,4 +216,28 @@ export function planLibraryAdd(incoming: LibraryContact[], lib: LibraryContact[]
     remember(c);
   }
   return { add, skipped };
+}
+
+/** Contacts an agent sent back from their own list (useDialer.removeToLibrary). The library takes them back as not
+ *  given out, with the agent's notes (all the call history lines) and a summary of where they got to. A contact the
+ *  library already has (it was handed out from here, or same phone or name and company) is updated, not doubled. */
+export function mergeReturns(state: LibraryState, items: { contact: Contact; byName: string; at: number; reason: string }[], nextId: (i: number) => string): { state: LibraryState; added: number; updated: number } {
+  const contacts = state.contacts.map(c => ({ ...c }));
+  const handed = new Map<string, string>();
+  for (const h of state.handouts) for (const it of h.items) handed.set(it.contactId, it.libId);
+  let added = 0, updated = 0;
+  items.forEach((r, i) => {
+    const c = r.contact, ph = digits10(c.phone || c.backup), nm = norm(`${c.first}|${c.last}|${c.company}`);
+    const hit = contacts.find(l => l.id === handed.get(c.id))
+      ?? contacts.find(l => ph.length === 10 && (digits10(l.phone) === ph || digits10(l.backup) === ph))
+      ?? contacts.find(l => norm(`${l.first}|${l.last}|${l.company}`) === nm);
+    const history = { dials: c.dials, tag: c.tag, lastDialed: c.lastDialed, returnedBy: r.byName, returnedAt: r.at, reason: r.reason };
+    if (hit) { Object.assign(hit, { givenTo: '', givenAt: null, notes: c.notes || hit.notes, phone: c.phone || hit.phone, backup: c.backup || hit.backup, history }); updated++; }
+    else {
+      contacts.push({ id: nextId(i), first: c.first, last: c.last, phone: c.phone, job: c.job, company: c.company, city: c.city, state: c.state,
+        linkedin: c.linkedin, backup: c.backup, notes: c.notes, givenTo: '', givenAt: null, history });
+      added++;
+    }
+  });
+  return { state: { ...state, contacts }, added, updated };
 }

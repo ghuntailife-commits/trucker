@@ -11,15 +11,18 @@ import { IMPORT_COLUMNS, planImport, type ImportLine } from '../../src/contacts/
 import { needsGroup } from '../../src/contacts/needs';
 import { EDIT_LABELS, planEdit, type EditFields } from '../../src/contacts/edit';
 import { TZ, ZONE_NAME, Dialog, saveText, NoteText, ShowCount, Reach } from './shared';
+import { CtxMenu, contactEntries, RemoveDialog, HoldNote } from './contactActions';
+import { isHeld, holdLabel } from '../../src/rules/hold';
 import { useSort } from './sort';
 
 type D = ReturnType<typeof useDialer>;
-type Group = 'all' | 'working' | 'callback' | 'appt' | 'notint' | 'bad' | 'needs' | 'dnc' | 'sold';
+type Group = 'all' | 'working' | 'callback' | 'appt' | 'notint' | 'bad' | 'needs' | 'dnc' | 'sold' | 'held';
 const GROUPS: [Group, string][] = [['all', 'All'], ['working', 'Working'], ['callback', 'Callbacks'], ['appt', 'Appointments'],
-  ['notint', 'Not interested'], ['bad', 'Bad number'], ['needs', 'Needs number'], ['dnc', 'Do not call'], ['sold', 'Sold']];
+  ['notint', 'Not interested'], ['bad', 'Bad number'], ['needs', 'Needs number'], ['dnc', 'Do not call'], ['sold', 'Sold'], ['held', 'Paused · resting']];
 const PAGE = 100;
 
 function groupOf(c: Contact): Group {
+  if (isHeld(c, Date.now())) return 'held';
   if (needsGroup(c) === 'needs' || needsGroup(c) === 'cannotFind') return 'needs';
   const k = tagKind(c.tag);
   if (k === 'callback') return 'callback';
@@ -32,6 +35,7 @@ function groupOf(c: Contact): Group {
 }
 const pillFor = (c: Contact) => {
   const g = groupOf(c);
+  if (g === 'held') return [holdLabel(c, Date.now(), TZ), 'Done'];
   if (c.status === 'Cannot Find') return ['Cannot find', 'Done'];
   if (g === 'needs') return ['Needs number', 'NewNumber'];
   if (!c.tag) return [c.dials ? 'Retry' : 'Fresh', c.dials ? 'Retry' : 'Fresh'];
@@ -44,7 +48,8 @@ const fieldsOf = (c: Contact): EditFields => ({ first: c.first, last: c.last, ph
 let idSeq = 0;
 const newId = () => `c-${Date.now().toString(36)}-${(idSeq++).toString(36)}`;
 
-export function ContactsPage({ d, onDial, onText }: { d: D; onDial: (id: string) => void; onText?: (id: string) => void }) {
+export function ContactsPage({ d, onDial, onText, agentName = 'agent' }: { d: D; onDial: (id: string) => void; onText?: (id: string) => void; agentName?: string }) {
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [group, setGroup] = useState<Group>('all');
   const [list, setList] = useState('');
   const [q, setQ] = useState('');
@@ -128,6 +133,7 @@ export function ContactsPage({ d, onDial, onText }: { d: D; onDial: (id: string)
                     const [label, cls] = pillFor(x);
                     return (
                       <tr key={x.id} className={x.id === sel ? 'cur' : ''} tabIndex={0} onClick={() => setSel(x.id)}
+                          onContextMenu={e => { e.preventDefault(); setSel(x.id); setMenu({ id: x.id, x: e.clientX, y: e.clientY }); }}
                           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSel(x.id); } }}>
                         <td className="strong">{x.first} {x.last}</td>
                         <td className="tnum">{x.phone || '—'}</td>
@@ -175,14 +181,9 @@ export function ContactsPage({ d, onDial, onText }: { d: D; onDial: (id: string)
 
       {dialog === 'add' && <AddDialog d={d} onClose={() => setDialog(null)} onAdded={id => { setSel(id); setDialog(null); }} />}
       {dialog === 'import' && <ImportDialog d={d} onClose={() => setDialog(null)} />}
-      {dialog === 'delete' && c && (
-        <Dialog title={`Delete ${c.first} ${c.last}?`} onClose={() => setDialog(null)}>
-          <p>They come off every list: Today, Contacts and Needs Number. Dials already logged stay in the results.</p>
-          <p className="hint">You can undo this right after with Undo.</p>
-          <div className="bar"><button className="btn" onClick={() => setDialog(null)}>Cancel</button>
-            <button className="btn danger" onClick={() => { d.batch('delete', { removed: [c.id] }, `${c.first} ${c.last} deleted.`); setSel(null); setDialog(null); }}>Delete contact</button></div>
-        </Dialog>
-      )}
+      {dialog === 'delete' && c && <RemoveDialog d={d} ids={[c.id]} agentName={agentName} onClose={() => { if (!d.byId.has(c.id)) setSel(null); setDialog(null); }} />}
+      {menu && d.byId.get(menu.id) && <CtxMenu at={menu} onClose={() => setMenu(null)}
+        entries={[['Open in dialer', () => onDial(menu.id)] as [string, () => void], ...contactEntries(d, d.byId.get(menu.id)!, { onToday: d.today.some(r => r.contact.id === menu.id && !r.done), askRemove: () => setDialog('delete') })]} />}
     </>
   );
 }
@@ -206,9 +207,13 @@ function Detail({ c, d, onDial, onDelete, onText }: { c: Contact; d: D; onDial: 
       <h2 className="serif name">{c.first} {c.last}</h2>
       <div className="sub">{c.company}{c.job ? ` — ${c.job}` : ''}</div>
       <div className="sub muted">{c.city}{c.city ? ', ' : ''}{c.state} · {ZONE_NAME[c.zone] ?? c.zone} · {c.dials} dials · last {c.lastDialed ? md(c.lastDialed, TZ) : 'never'}</div>
+      <HoldNote d={d} c={c} />
       {!!c.quals?.length && <div className="quals static">{c.quals.map(q => <span key={q} className="on">{q}</span>)}</div>}
       <div className="dact">
         <button className="callbtn sm" disabled={!c.phone} onClick={() => onDial(c.id)}>Open in dialer</button>
+        <button className="btn" onClick={() => d.pin(c.id, true)} title="Put them at the top of Today">Call next</button>
+        {!isHeld(c, Date.now()) && <><button className="btn" onClick={() => d.hold(c.id, 'pause')} title="Off Today until you resume">Pause</button>
+          <button className="btn" onClick={() => d.hold(c.id, 'rest')} title="Off Today for 75 days">Rest 75 days</button></>}
         {(c.phone || c.backup) && <Reach id={c.id} phone={c.phone || c.backup} first={c.first} onText={onText} />}
         {c.linkedin && /^https:\/\//.test(c.linkedin) && <a className="btn" href={c.linkedin} target="_blank" rel="noopener noreferrer">LinkedIn</a>}
       </div>
@@ -249,7 +254,7 @@ function Detail({ c, d, onDial, onDelete, onText }: { c: Contact; d: D; onDial: 
           <div className="eyebrow" style={{ marginTop: 16 }}>Activity</div>
           {events.map((e, i) => <div className="hl" key={i}><span>{md(e.at, TZ)}</span><p>{e.kind === 'Tag' ? tagShort(e.tag) : e.kind === 'Dial' ? `Dial (${e.dials} total)` : e.kind}</p></div>)}
         </>}
-        <button className="linkish danger del" onClick={onDelete}>Delete contact</button>
+        <button className="linkish danger del" onClick={onDelete}>Remove from my contacts</button>
       </div>
     </section>
   );

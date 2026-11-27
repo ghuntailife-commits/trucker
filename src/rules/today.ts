@@ -69,6 +69,7 @@ export function buildToday(contacts: Contact[], ctx: TodayContext, cfg: Config =
   // 1. Who is on the list
   const picked: W[] = [];
   contacts.forEach((c, idx) => {
+    if (c.holdUntil != null && c.holdUntil > now) return;   // paused or resting by the agent
     const untagged = tagKind(c.tag) === 'none';
     const lstd = c.lastDialed ?? 0;
     const auto = isAutoPm(c, untagged);

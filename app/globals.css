@@ -1272,3 +1272,13 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 .teachitem { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; border-top: 1px solid var(--line2); padding-top: 8px; font-size: 13.5px; }
 .teachitem .muted { font-size: 12px; margin-right: auto; }
 .teachtext { width: 100%; white-space: pre-wrap; font: 13px/1.5 inherit; font-family: inherit; background: var(--panel2); padding: 10px; border-radius: 8px; margin: 4px 0 0; max-height: 260px; overflow: auto; }
+/* Today control: row menu button, hold note, chips (2026-11-26) */
+.qt td.rowact { width: 30px; padding: 0 4px; text-align: center; }
+.qt td.rowact button { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; padding: 4px 6px; border-radius: 6px; opacity: .55; }
+.qt tr:hover td.rowact button, .qt td.rowact button:focus-visible { opacity: 1; background: var(--panel2); }
+.holdnote { margin: 8px 0 0; font-size: 13px; padding: 6px 10px; border-radius: 8px; background: var(--amber-bg); color: var(--amber); }
+.newev .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.newev .chip { border: 1px solid var(--line); background: var(--panel2); border-radius: 999px; padding: 4px 11px; font-size: 13px; color: var(--text); }
+.newev .chip.on { background: var(--blue-bg); color: var(--blue); border-color: transparent; font-weight: 600; }
+.newev .chip small { color: var(--muted); font-weight: 400; margin-left: 3px; }
+.newev input[type=range] { padding: 0; border: 0; }

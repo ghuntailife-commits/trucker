@@ -26,6 +26,7 @@ import { pagesFor, viewers, type AgentId, type Page, type ViewerId } from '../sr
 import { TeamPage, HealthList } from './ui/team';
 import { SettingsPage } from './ui/settings';
 import { QuoText } from './ui/quo';
+import { CtxMenu, contactEntries, RemoveDialog, TodaySettings } from './ui/contactActions';
 import { useSort } from './ui/sort';
 import { CoachPage } from './ui/coach';
 import { LibraryPage, LicensesDialog } from './ui/library';
@@ -116,7 +117,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   // the monthly goal lives in Settings, so George can set everyone's
   const d = { ...d0, goal: me.goal, setGoal: (g: number) => { t.setAgent(agent, { goal: g }); d0.say(`Monthly goal set to $${g.toLocaleString('en-US')}.`); } };
   const ns = useNumberSheet(agent, d0.contacts ?? [], d0.now, TZ, d0.batch, d0.say, !!d0.ready);
-  const lib = useLibrary(agent, { contacts: d0.contacts ?? [], batch: d0.batch }, TZ);
+  const lib = useLibrary(agent, { contacts: d0.contacts ?? [], batch: d0.batch }, TZ, !LIVE || t.person?.role === 'admin', t.team.agents.map(a => a.id));
   const [licOpen, setLicOpen] = useState(false);
   const calApply = useCallback((changed: Contact[], msg: string) => d0.batch('Moved in Google Calendar', { changed }, msg), [d0.batch]);
   const cal = useGoogleCalendar(agent, d0.contacts ?? [], TZ, !!d0.ready, calApply);
@@ -126,6 +127,9 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const pages = pagesFor(t.role).filter(p => p !== 'coach' || t.role === 'admin' || me.quo);
   const quoOn = me.quo;
   const [quo, setQuo] = useState<QuoModal>(null);
+  const [rowMenu, setRowMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [removeIds, setRemoveIds] = useState<string[] | null>(null);
+  const [todaySet, setTodaySet] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
   const saveSt = useSaveStatus();
@@ -466,7 +470,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       {!switching && page === 'home' && <HomePage note={note} stats={s} appts={homeAppts} nextAppts={nextAppts} nextLabel={nextLabel} waiting={{ ...waiting, newNumbers: newNums }} coach={coach}
         health={hc} sheet={{ waiting: sheetWaitN, look: sheetLookN, needs: needsN }} wins={wins} monthDays={monthDays} daysInMonth={daysInMonth}
         go={setPage} openHealth={() => setHealthOpen(true)} onDial={id => { setPicked(id); setPage('today'); }} timeOnly={timeOnly} md={x => md(x, TZ)} />}
-      {!switching && page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onText={textContact} />}
+      {!switching && page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onText={textContact} agentName={me.name} />}
       {!switching && page === 'coach' && <CoachPage me={me} admin={t.role === 'admin'} agents={t.team.agents} contacts={d.contacts} now={d.now} />}
       {!switching && page === 'needs' && <NeedsPage d={d} ns={ns} states={me.states} />}
       {!switching && page === 'team' && <TeamPage t={t} now={d.now} live={{ id: agent, data: { contacts: d.contacts, log: d.log, sales: d.sales, noSales: d.noSales } }}
@@ -511,6 +515,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
                   else { setAuto(true); if (current && !call) startCall(current); }
                 }}><span className="led" />{auto ? (countdown != null ? `Next in ${countdown}…` : 'Auto-dial on') : 'Auto-dial'}</button>
                 <button className="btn" onClick={d.reSort}>Re-sort</button>
+                <button className="btn" onClick={() => setTodaySet(true)} title="How many contacts, the fresh/retry mix and which lists">My Today</button>
                 <button className="btn" onClick={exportCsv}>Export CSV</button>
               </div>
             </div>
@@ -518,7 +523,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
               <table className="qt">
                 <thead><tr>
                   {qth('n', '#', 'num', 1)}{qth('why', 'Why')}{qth('name', 'Contact')}{qth('phone', 'Phone')}{qth('loc', 'Location · Zone')}{qth('company', 'Company — Role')}
-                  {qth('dials', 'Dials', 'num')}{qth('last', 'Last', 'num')}{qth('next', 'Next', 'num')}{qth('note', 'Notes (newest)')}
+                  {qth('dials', 'Dials', 'num')}{qth('last', 'Last', 'num')}{qth('next', 'Next', 'num')}{qth('note', 'Notes (newest)')}<th aria-label="Actions" />
                 </tr></thead>
                 <tbody>
                   {rows.map(r => {
@@ -526,7 +531,8 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
                     const label = r.done ? `Done · ${baseWhy(r.why)}` : r.why;
                     return (
                       <tr key={c.id} data-row={c.id} className={`${r.done ? 'done' : ''} ${isCur ? 'cur' : ''} ${sold ? 'sold' : ''}`}
-                          onClick={() => setPicked(c.id)} tabIndex={0} onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setPicked(c.id); } }}>
+                          onClick={() => setPicked(c.id)} tabIndex={0} onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setPicked(c.id); } }}
+                          onContextMenu={e => { e.preventDefault(); setRowMenu({ id: c.id, x: e.clientX, y: e.clientY }); }}>
                         <td className="num muted">{r.n}</td>
                         <td><span className={`pill ${sold ? 'Sold' : r.done ? 'Done' : chipClass(r.why) || 'Retry'}`}>{sold ? 'Sold' : label}</span></td>
                         <td className="strong">{c.first} {c.last}</td>
@@ -537,10 +543,11 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
                         <td className="num muted">{c.lastDialed ? md(c.lastDialed, TZ) : '—'}</td>
                         <td className="num muted">{c.callAt ? md(c.callAt, TZ) : r.nextAction ? md(r.nextAction, TZ) : '—'}</td>
                         <td className="note muted">{(notesNewestFirst(c.notes)[0] ?? '').replace(/^(\d{1,2}\/\d{1,2}):\s*/, '$1 ')}</td>
+                        <td className="rowact"><button aria-label={`More for ${c.first} ${c.last}`} onClick={e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setRowMenu({ id: c.id, x: r.left - 160, y: r.bottom }); }}>⋯</button></td>
                       </tr>
                     );
                   })}
-                  {!rows.length && <tr><td colSpan={10} className="emptyrow">Nothing in this group right now.</td></tr>}
+                  {!rows.length && <tr><td colSpan={11} className="emptyrow">Nothing in this group right now.</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -713,6 +720,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
                   <span className="hint">Saved with the result, or press Enter to add it now.</span>
                   <span className="minibtns">
                     <button className="linkish" onClick={() => { d.skip(current.id); setPicked(null); }}>Skip</button>
+                    <button className="linkish" onClick={e => { const r = e.currentTarget.getBoundingClientRect(); setRowMenu({ id: current.id, x: r.left, y: r.bottom + 4 }); }}>More</button>
                     <button className="linkish" disabled={!d.canUndo} onClick={d.undo}>Undo</button>
                   </span>
                 </div>
@@ -758,6 +766,11 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
           else d.outcome(modal.id, modal.kind, form);
           setModal(null);
         }} />}
+      {rowMenu && d.byId.get(rowMenu.id) && <CtxMenu at={rowMenu} onClose={() => setRowMenu(null)}
+        entries={contactEntries(d, d.byId.get(rowMenu.id)!, { onToday: d.today.some(r => r.contact.id === rowMenu.id && !r.done), askRemove: ids => setRemoveIds(ids) })
+          .map(([l, run, tone]) => [l, () => { run(); if (picked === rowMenu.id && /Replace|Pause|Rest|Take off/.test(l)) setPicked(null); }, tone] as [string, () => void, string?])} />}
+      {removeIds && <RemoveDialog d={d} ids={removeIds} agentName={me.name} onClose={() => { if (removeIds.includes(picked ?? '')) setPicked(null); setRemoveIds(null); }} />}
+      {todaySet && <TodaySettings d={d} onClose={() => setTodaySet(false)} />}
       {quo && d.byId.get(quo.id) && <QuoText c={d.byId.get(quo.id)!} agent={me} apptAt={quo.apptAt} first={quo.first} onClose={() => setQuo(null)}
         onSent={body => { d.note(quo.id, `Texted (Quo): "${body}"`); setQuo(null); }} />}
       {keysOpen && <ShortcutsDialog onClose={() => setKeysOpen(false)} />}

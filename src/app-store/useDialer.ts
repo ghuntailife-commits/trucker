@@ -18,6 +18,9 @@ import { amendResult, type AmendTarget, type AmendTo, type AmendForm } from '../
 import { REAL_SEED } from './realSeed';
 import { loadState, saveState } from './store';
 import { withZone } from '../contacts/zones';
+import { hold as holdContact, resume as resumeContact, isHeld } from '../rules/hold';
+import { startOfDay } from '../rules/time';
+import { returnToLibrary } from './libraryReturns';
 
 export type Sale = SaleRecord;
 export type NoSale = NoSaleRecord;
@@ -55,7 +58,18 @@ interface Saved {
   pass?: number;
   /** Monthly ALP goal (the old goal cell on the Sales tab). */
   goal?: number;
+  /** Contacts the agent added to Today by hand, for that day, in order (first = call next). */
+  pins?: { id: string; day: number; at: number }[];
+  /** The agent's own Today settings, on top of the team rules. */
+  prefs?: TodayPrefs;
 }
+/** An agent's own Today settings (George, 2026-11-26): how many, the fresh/retry mix, lists left out. */
+export interface TodayPrefs { listSize?: number; freshShare?: number; offLists?: string[] }
+export function withPrefs(CFG: Config, p?: TodayPrefs): Config {
+  if (!p) return CFG;
+  return { ...CFG, ...(p.listSize ? { listSize: p.listSize } : {}), ...(p.freshShare != null ? { freshShare: p.freshShare, freshShareByBlock: null } : {}) };
+}
+const feeds = (s: Saved) => { const off = new Set(s.prefs?.offLists ?? []); return s.contacts.filter(c => c.list !== 'Hardcards' && !off.has(c.list)); };
 
 function fresh(now: number, agent: AgentId, tz: string): Saved {
   const r = agentSeed(agent, now, tz);
@@ -63,10 +77,11 @@ function fresh(now: number, agent: AgentId, tz: string): Saved {
     skips: [], undo: [], lastBackupTry: {}, goal: r.goal };
 }
 
-function resort(s: Saved, now: number, CFG: Config): Saved {
+function resort(s: Saved, now: number, CFG0: Config): Saved {
+  const CFG = withPrefs(CFG0, s.prefs);
   const sc = learnFreshScores(s.contacts, CFG.freshScoreMinResults);
   const base = { now, snap: now, savedOrder: [], savedAppts: [], dialTimes: dialTimes(s.log), freshScore: sc.ready ? sc.score : undefined, followUps: followUps(s.noSales, CFG.tz) };
-  const today = buildToday(s.contacts.filter(c => c.list !== 'Hardcards'), base, CFG);
+  const today = buildToday(feeds(s), base, CFG);
   const appts = buildAppointments(s.contacts, base, CFG);
   return { ...s, pass: sameDay(s.snap, now, CFG.tz) ? (s.pass ?? 1) + 1 : 1, snap: now, savedOrder: today.map(r => r.contact.id), savedAppts: appts.map(r => r.contact.id), skips: [] };
 }
@@ -135,9 +150,26 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
   const scorer = useMemo(() => learnFreshScores(s?.contacts ?? [], CFG.freshScoreMinResults), [s?.contacts]);
   const ctx = useMemo(() => s && { now, snap: s.snap, savedOrder: s.savedOrder, savedAppts: s.savedAppts, dialTimes: dialTimes(s.log), followUps: followUps(s.noSales, CFG.tz),
     freshScore: scorer.ready ? scorer.score : undefined }, [s, now, scorer]);
-  const today: TodayRow[] = useMemo(() => (s && ctx ? buildToday(s.contacts.filter(c => c.list !== 'Hardcards'), ctx, CFG) : []), [s, ctx]);
+  // Today: the rules' list (without the ones skipped or replaced today, so the next contact fills in), with the
+  // contacts the agent added by hand on top in their order (George, 2026-11-26)
+  const today: TodayRow[] = useMemo(() => {
+    if (!s || !ctx) return [];
+    const skips = new Set(s.skips);
+    const rows = buildToday(feeds(s).filter(c => !skips.has(c.id)), ctx, withPrefs(CFG, s.prefs));
+    const day = startOfDay(now, CFG.tz);
+    const pins = (s.pins ?? []).filter(p => p.day === day);
+    if (!pins.length) return rows;
+    const pinned: TodayRow[] = [];
+    for (const p of pins) {
+      const c = byId.get(p.id); if (!c || isHeld(c, now) || skips.has(c.id)) continue;
+      const done = c.lastDialed != null && c.lastDialed >= p.at;
+      if (!done) pinned.push({ contact: c, why: 'Added by you', done: false, nextAction: c.callAt, category: 1 });
+    }
+    const ids = new Set(pinned.map(r => r.contact.id));
+    return [...pinned, ...rows.filter(r => !ids.has(r.contact.id))];
+  }, [s, ctx, byId, now]);
   const appts: ApptRow[] = useMemo(() => (s && ctx ? buildAppointments(s.contacts, ctx, CFG) : []), [s, ctx]);
-  const queue = useMemo(() => today.filter(r => !r.done && !(s?.skips ?? []).includes(r.contact.id)), [today, s?.skips]);
+  const queue = useMemo(() => today.filter(r => !r.done), [today]);
 
   const stats: Stats = useMemo(() => {
     const ev = (s?.log ?? []).filter(e => sameDay(e.at, now, CFG.tz));
@@ -243,6 +275,36 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
   }, []);
 
   const skip = useCallback((id: string) => { setS(p => (p ? { ...p, skips: [...p.skips, id] } : p)); say('Skipped for today.'); }, [say]);
+  /** Off Today for today, and the next contact in line takes the spot. */
+  const replace = useCallback((id: string) => {
+    const c = byId.get(id);
+    setS(p => (p ? { ...p, skips: [...p.skips, id], pins: (p.pins ?? []).filter(x => x.id !== id) } : p));
+    say(`${c ? `${c.first} ${c.last}` : 'Contact'} is off Today for today. The next contact took the spot.`);
+  }, [say, byId]);
+  /** Puts a contact on Today by hand: at the very top ("Call next") or after the others added by hand. */
+  const pin = useCallback((id: string, first = false) => {
+    const c = byId.get(id); if (!c) return;
+    const t = Date.now(), day = startOfDay(t, CFG.tz);
+    if (isHeld(c, t)) commit(id, 'Resume', (x, tt) => ({ contact: resumeContact(x, tt, CFG.tz), events: [], message: '' }));
+    setS(p => {
+      if (!p) return p;
+      const rest = (p.pins ?? []).filter(x => x.day === day && x.id !== id);
+      const mine = { id, day, at: t };
+      return { ...p, skips: p.skips.filter(x => x !== id), pins: first ? [mine, ...rest] : [...rest, mine] };
+    });
+    say(first ? `${c.first} ${c.last} is next up.` : `${c.first} ${c.last} added to Today.`);
+  }, [byId, commit, say]);
+  const unpin = useCallback((id: string) => { setS(p => (p ? { ...p, pins: (p.pins ?? []).filter(x => x.id !== id) } : p)); }, []);
+  /** Pause (until resumed) or rest for 75 days: off Today and out of the automatic list. */
+  const hold = useCallback((id: string, kind: 'pause' | 'rest') => {
+    commit(id, kind === 'pause' ? 'Pause' : 'Rest', (c, t) => ({ contact: holdContact(c, kind, t, CFG.tz), events: [],
+      message: kind === 'pause' ? `${c.first} ${c.last} paused. Resume any time from Contacts.` : `${c.first} ${c.last} resting for 75 days. Resume any time from Contacts.` }));
+    setS(p => (p ? { ...p, pins: (p.pins ?? []).filter(x => x.id !== id) } : p));
+  }, [commit]);
+  const resume = useCallback((id: string) => {
+    commit(id, 'Resume', (c, t) => ({ contact: resumeContact(c, t, CFG.tz), events: [], message: `${c.first} ${c.last} is back on the calling list.` }));
+  }, [commit]);
+  const setPrefs = useCallback((p: TodayPrefs) => { setS(x => (x ? { ...x, prefs: p } : x)); }, []);
 
   const undo = useCallback(() => {
     setS(prev => {
@@ -293,6 +355,15 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
   }, [say]);
 
   const reSort = useCallback(() => { setS(p => (p ? resort(p, Date.now(), CFG) : p)); setNow(Date.now()); say('Today re-sorted: a fresh pass.'); }, [say]);
+  /** Takes contacts off this agent's list and sends them back to the contact library with notes and history. */
+  const removeToLibrary = useCallback(async (ids: string[], reason: string, agentName: string) => {
+    const cs = ids.map(id => byId.get(id)).filter((c): c is Contact => !!c);
+    if (!cs.length) return;
+    const t = Date.now();
+    const noted = cs.map(c => ({ ...c, notes: addNote(c.notes, `${new Intl.DateTimeFormat('en-US', { timeZone: CFG.tz, month: 'numeric', day: 'numeric' }).format(t)}: Returned to the library by ${agentName}${reason ? ` (${reason})` : ''}`) }));
+    await returnToLibrary(agent, agentName, noted, reason, t);
+    batch('Back to library', { removed: cs.map(c => c.id) }, cs.length === 1 ? `${cs[0].first} ${cs[0].last} went back to the contact library with their notes.` : `${cs.length} contacts went back to the contact library with their notes.`);
+  }, [byId, agent, batch]);
   const say2 = say;
   const resetDemo = useCallback(() => { const t = Date.now(); setS(resort(fresh(t, agent, CFG.tz), t, CFG)); say('Demo data reset.'); }, [say]);
 
@@ -318,5 +389,5 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
   }, [s?.contacts]);
 
   return { ready: !!s, now, today, appts, queue, stats, toast, byId, recent, log: s?.log ?? [], canUndo: !!s?.undo.length, batch, book, addOutsideSale, confirm, qual, scorer, cfg: CFG, say: say2, contacts: s?.contacts ?? [], pass: s?.pass ?? 1, noSales: s?.noSales ?? [],
-    undoLabel: s?.undo.at(-1)?.label, press, note, outcome, amend, skip, logCall, undo, reSort, resetDemo, find, sales: s?.sales ?? [], goal: s?.goal ?? 25000, agent, setGoal, calls: s?.calls ?? [] };
+    undoLabel: s?.undo.at(-1)?.label, press, note, outcome, amend, skip, replace, pin, unpin, hold, resume, prefs: s?.prefs ?? {}, setPrefs, removeToLibrary, pins: s?.pins ?? [], logCall, undo, reSort, resetDemo, find, sales: s?.sales ?? [], goal: s?.goal ?? 25000, agent, setGoal, calls: s?.calls ?? [] };
 }

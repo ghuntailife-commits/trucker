@@ -44,6 +44,9 @@ export interface Contact {
   quals?: string[];
   /** Email given when booking or selling (calendar invite, policy email). */
   email?: string;
+  /** Kept off Today until this time: paused by the agent (until they resume) or resting (George, 2026-11-26). */
+  holdUntil?: number | null;
+  holdKind?: 'pause' | 'rest';
 }
 
 export type EventKind = 'Dial' | 'Tag' | 'Swap' | 'Note' | 'Import';
