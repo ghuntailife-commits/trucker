@@ -1050,3 +1050,23 @@ kbd { font: 600 12px var(--mono); background: var(--panel2); border: 1px solid v
 .grpsel { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin-right: 10px; }
 .grpsel select { padding: 5px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--text); font: inherit; }
 .rtools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+
+/* live: sign-in, save status, switch-over */
+.signin { min-height: 100vh; display: grid; place-items: center; padding: 16px; background: var(--bg); }
+.signcard { width: min(400px, 100%); background: var(--panel, #fff); border: 1px solid var(--line); border-radius: 14px; padding: 28px; display: grid; gap: 14px; }
+.signbrand { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.signcard h2 { margin: 0; }
+.signcard .wide { width: 100%; justify-content: center; }
+.signcard .field { display: grid; gap: 6px; font-size: 13px; }
+.signcard .field input { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; background: transparent; color: inherit; }
+.signcard .or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
+.signcard .or::before, .signcard .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.warnline { color: #b3261e; font-size: 13px; }
+.dotbad { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #b3261e; margin-right: 8px; }
+.switch { margin: 16px; padding: 20px; display: grid; gap: 12px; }
+.switch .bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.switch .tablewrap { overflow-x: auto; }
+.switcht td, .switcht th { white-space: nowrap; }
+.switcht td.hint { white-space: normal; max-width: 240px; font-size: 12px; }
+.switcht .emailin { width: 230px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; background: transparent; color: inherit; }
+.switcht tr.done td:last-child { color: #2f8a55; font-weight: 600; }

@@ -1,6 +1,9 @@
 // Where the demo keeps its data in this browser. A real sheet's worth of contacts is too big for localStorage
 // (about 5 MB), so it goes in IndexedDB, with localStorage as the fallback. Every call fails quietly: a private
 // window or blocked storage just means the demo starts fresh next time.
+import { LIVE } from '../live/supabase';
+import { liveLoad, liveSave } from '../live/kvStore';
+
 const DB = 'trucker-demo', STORE = 'state';
 
 function open(): Promise<IDBDatabase> {
@@ -13,6 +16,7 @@ function open(): Promise<IDBDatabase> {
 }
 
 export async function loadState<T>(key: string): Promise<T | null> {
+  if (LIVE) return liveLoad<T>(key);
   try {
     const db = await open();
     const v = await new Promise<T | undefined>((res, rej) => {
@@ -27,6 +31,7 @@ export async function loadState<T>(key: string): Promise<T | null> {
 const pending = new Map<string, unknown>(), timers = new Map<string, ReturnType<typeof setTimeout>>();
 /** Saves each key at most twice a second; the latest state wins. */
 export function saveState(key: string, value: unknown) {
+  if (LIVE) return liveSave(key, value);
   pending.set(key, value);
   if (timers.has(key)) return;
   timers.set(key, setTimeout(async () => {

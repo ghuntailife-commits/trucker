@@ -38,6 +38,8 @@ import { needsGroup } from '../src/contacts/needs';
 import { isOpen as sheetOpen, needsLook as sheetLook } from '../src/numbers/sheet';
 import { healthCheck, healthCount } from '../src/team/health';
 import type { TextKey } from '../src/quo/quo';
+import { LIVE, signOut, type Person } from '../src/live/supabase';
+import { LiveGate, SwitchPage, useSaveStatus } from './ui/live';
 
 const PAGE_LABEL: Record<Page, string> = { home: 'Home', today: 'Today', appts: 'Appointments', contacts: 'Contacts', needs: 'Needs Number', results: 'Results', team: 'Team', library: 'Contact library', settings: 'Settings', integrations: 'Integrations' };
 const ROLE_LABEL = { admin: 'admin', lead: 'team lead', agent: 'agent', boss: 'results only' } as const;
@@ -59,7 +61,11 @@ function useTheme() {
 }
 
 export default function App() {
-  const t = useTeam();
+  return LIVE ? <LiveGate>{p => <Main person={p} />}</LiveGate> : <Main />;
+}
+
+function Main({ person }: { person?: Person }) {
+  const t = useTeam(person);
   const [theme, setTheme] = useTheme();
   const [now] = useState(() => Date.now());
   if (!t.ready) return <div className="empty">Loading…</div>;
@@ -111,6 +117,8 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const quoOn = me.quo;
   const [quo, setQuo] = useState<QuoModal>(null);
   const [healthOpen, setHealthOpen] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const saveSt = useSaveStatus();
   const [keysOpen, setKeysOpen] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
   const [pending, setPending] = useState<null | 'callback' | 'appt'>(null);
@@ -365,10 +373,11 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   return (
     <div className="shell">
       <div className={`frame ${sb.wide ? 'swide' : 'snarrow'}`}>
-      <Sidebar sb={sb} page={page} go={setPage} who={`${me.name} · ${me.team}`} items={pages.filter(p => !MENU_PAGES.includes(p)).map(p => ({ page: p, label: PAGE_LABEL[p],
+      <Sidebar sb={sb} page={page} go={p => { setSwitching(false); setPage(p); }} who={`${me.name} · ${me.team}`} items={pages.filter(p => !MENU_PAGES.includes(p)).map(p => ({ page: p, label: PAGE_LABEL[p],
         ...(p === 'today' ? { badge: s.left } : p === 'needs' && sheetLookN ? { badge: sheetLookN, tone: 'red' as const } : p === 'appts' && showQ ? { badge: showQ, tone: 'amber' as const } : {}) }))} />
       <div className="mainc">
-      <div className="demo-banner">{REAL_SEED && agent === 'george' ? `Demo with your real contacts, copied from your sheet on ${md(REAL_SEED.builtAt, TZ)}. Changes stay in this browser and never touch your sheet.` : agent !== 'george' ? `Demo: ${me.name}\u2019s screen with made-up contacts on ${me.name}\u2019s states. Changes stay in this browser only.` : 'Demo with made-up contacts. Changes stay in this browser only.'}</div>
+      {!LIVE && <div className="demo-banner">{REAL_SEED && agent === 'george' ? `Demo with your real contacts, copied from your sheet on ${md(REAL_SEED.builtAt, TZ)}. Changes stay in this browser and never touch your sheet.` : agent !== 'george' ? `Demo: ${me.name}\u2019s screen with made-up contacts on ${me.name}\u2019s states. Changes stay in this browser only.` : 'Demo with made-up contacts. Changes stay in this browser only.'}</div>}
+      {LIVE && t.person && agent !== t.person.agent_id && <div className="demo-banner">You are looking at {me.name}&rsquo;s Dispatch. Changes you make here are saved to {me.name}&rsquo;s data.</div>}
       <header className="top">
         <button className="menubtn" aria-label="Open the menu" onClick={() => sb.setMobileOpen(true)}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg></button>
@@ -401,24 +410,27 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
             { key: 'goal', label: 'My monthly goal', sub: `${money(monthAlp)} of ${money(me.goal)}`, onClick: () => setPage('results') },
             { key: 'keys', label: 'Keyboard shortcuts', onClick: () => setKeysOpen(true) },
             { key: 'export', label: 'Export my contacts', sub: `${d.contacts.length.toLocaleString('en-US')} as CSV`, onClick: exportAll },
-            { key: 'reset', label: 'Reset demo data', sub: 'Back to the copy from your sheet', onClick: d.resetDemo },
+            { key: 'reset', label: 'Reset demo data', sub: 'Back to the copy from your sheet', onClick: d.resetDemo, hidden: LIVE },
+            { key: 'switch', label: 'Switch over from sheets', sub: 'Copy every agent\u2019s sheet in, read only', onClick: () => setSwitching(true), hidden: !LIVE || t.person?.role !== 'admin' },
+            { key: 'out', label: 'Sign out', onClick: () => { signOut(); }, hidden: !LIVE },
           ]} />
         </div>
       </header>
 
-      {page === 'home' && <HomePage note={note} stats={s} appts={homeAppts} nextAppts={nextAppts} nextLabel={nextLabel} waiting={{ ...waiting, newNumbers: newNums }} coach={coach}
+      {switching && <SwitchPage onDone={() => location.reload()} />}
+      {!switching && page === 'home' && <HomePage note={note} stats={s} appts={homeAppts} nextAppts={nextAppts} nextLabel={nextLabel} waiting={{ ...waiting, newNumbers: newNums }} coach={coach}
         health={hc} sheet={{ waiting: sheetWaitN, look: sheetLookN, needs: needsN }} wins={wins} monthDays={monthDays} daysInMonth={daysInMonth}
         go={setPage} openHealth={() => setHealthOpen(true)} onDial={id => { setPicked(id); setPage('today'); }} timeOnly={timeOnly} md={x => md(x, TZ)} />}
-      {page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} />}
-      {page === 'needs' && <NeedsPage d={d} ns={ns} />}
-      {page === 'team' && <TeamPage t={t} now={d.now} live={{ id: agent, data: { contacts: d.contacts, log: d.log, sales: d.sales, noSales: d.noSales } }}
+      {!switching && page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} />}
+      {!switching && page === 'needs' && <NeedsPage d={d} ns={ns} />}
+      {!switching && page === 'team' && <TeamPage t={t} now={d.now} live={{ id: agent, data: { contacts: d.contacts, log: d.log, sales: d.sales, noSales: d.noSales } }}
         onViewAs={id => t.setViewer(id)} onDial={id => { setPicked(id); setPage('today'); }} />}
-      {page === 'library' && <LibraryPage t={t} lib={lib} now={d.now} say={d.say} onLicenses={() => setLicOpen(true)} />}
-      {page === 'settings' && <SettingsPage t={t} />}
-      {page === 'integrations' && <IntegrationsPage t={t} />}
-      {page === 'results' && <ResultsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} />}
-      {page === 'appts' && <AppointmentsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} />}
-      {page === 'today' && <>
+      {!switching && page === 'library' && <LibraryPage t={t} lib={lib} now={d.now} say={d.say} onLicenses={() => setLicOpen(true)} />}
+      {!switching && page === 'settings' && <SettingsPage t={t} />}
+      {!switching && page === 'integrations' && <IntegrationsPage t={t} />}
+      {!switching && page === 'results' && <ResultsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} />}
+      {!switching && page === 'appts' && <AppointmentsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} />}
+      {!switching && page === 'today' && <>
       <section className="hero">
         <div className="title">
           <div className="eyebrow">{dateLine} · {states.size > 1 ? 'All states' : [...states][0] ?? 'All states'} · Pass {d.pass}</div>
@@ -678,14 +690,15 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
               </button>
             ))}
             {d.queue.length <= 1 && <p className="hint">Nobody else is due right now.</p>}
-            <button className="linkish reset" onClick={d.resetDemo}>Reset demo data</button>
+            {!LIVE && <button className="linkish reset" onClick={d.resetDemo}>Reset demo data</button>}
           </section>
         </aside>
       </main>
       </>}
 
       <footer className="foot">
-        <span><i className="dotok" />All changes saved in this browser{lastSave ? ` · last save ${timeOnly(lastSave)}` : ''}</span>
+        {LIVE ? <span><i className={saveSt?.state === 'failed' ? 'dotbad' : 'dotok'} />{saveSt?.state === 'failed' ? `Not saved yet, trying again (${saveSt.error})` : saveSt?.state === 'saving' ? 'Saving…' : `All changes saved${saveSt ? ` · ${timeOnly(saveSt.at)}` : ''}`}</span>
+          : <span><i className="dotok" />All changes saved in this browser{lastSave ? ` · last save ${timeOnly(lastSave)}` : ''}</span>}
         {d.canUndo && <button className="linkish undo" onClick={d.undo}>Undo {UNDO_LABEL[d.undoLabel ?? ''] ?? d.undoLabel}</button>}
         {page === 'today' && <span className="keyshelp">1–6 result · C call · N note · / search · U undo · R re-sort · S skip</span>}
       </footer>

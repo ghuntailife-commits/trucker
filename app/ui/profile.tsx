@@ -1,6 +1,7 @@
 // The profile menu (top right): who you are, Settings, Integrations, goal, day/night, shortcuts, export, sign out.
 // And the Integrations page it opens: what each connected service does and whether it is connected yet.
 'use client';
+import { LIVE } from '../../src/live/supabase';
 import { useEffect, useRef, useState } from 'react';
 import type { Team } from '../../src/app-store/useTeam';
 import type { AgentSetting, ViewerId } from '../../src/team/agents';
@@ -35,12 +36,12 @@ export function ProfileMenu({ t, me, theme, setTheme, items }: {
             <span className="avatar big">{name[0]}</span>
             <div><b>{name}</b><small>{ROLE[t.role]}{me ? ` · ${me.team}` : ''}</small></div>
           </div>
-          <label className="pmrow viewas2">
-            <span>Viewing as <small>demo only</small></span>
+          {(!LIVE || t.person?.role === 'admin') && <label className="pmrow viewas2">
+            <span>Viewing as <small>{LIVE ? 'admin' : 'demo only'}</small></span>
             <select value={t.viewer} onChange={e => { t.setViewer(e.target.value as ViewerId); setOpen(false); }}>
-              {viewers(t.team).map(v => <option key={v.id} value={v.id}>{v.name} · {ROLE[v.role]}</option>)}
+              {viewers(t.team).filter(v => !LIVE || v.id !== 'boss').map(v => <option key={v.id} value={v.id}>{v.name} · {ROLE[v.role]}</option>)}
             </select>
-          </label>
+          </label>}
           <div className="pmsep" />
           {items.filter(i => !i.hidden).map(i => (
             <button key={i.key} role="menuitem" className="pmitem" disabled={i.disabled} onClick={run(i.onClick)}>
@@ -50,8 +51,8 @@ export function ProfileMenu({ t, me, theme, setTheme, items }: {
           <button role="menuitemcheckbox" aria-checked={theme === 'dark'} className="pmitem" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
             <span>Night mode</span><i className={`tog ${theme === 'dark' ? 'on' : ''}`}><i /></i>
           </button>
-          <div className="pmsep" />
-          <button className="pmitem" disabled title="Sign-in comes with go-live"><span>Sign out</span><small>after go-live</small></button>
+          {!LIVE && <><div className="pmsep" />
+          <button className="pmitem" disabled title="Sign-in comes with go-live"><span>Sign out</span><small>after go-live</small></button></>}
         </div>
       )}
     </div>

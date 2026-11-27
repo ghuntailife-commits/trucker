@@ -2,6 +2,7 @@
 // The contact library in the demo: kept in this browser. Sending to the signed-in agent goes straight into their lists
 // (one Undo step); sending to anyone else lands in their inbox and joins their lists the next time their screen opens.
 // With the database connected this is the library_contacts table (migration 0006) and the send is one transaction.
+import { LIVE } from '../live/supabase';
 import { useCallback, useEffect, useState } from 'react';
 import type { Contact } from '../rules/types';
 import type { AgentId } from '../team/agents';
@@ -18,7 +19,7 @@ export function useLibrary(me: AgentId, mine: { contacts: Contact[]; batch: (lab
   const [st, setSt] = useState<LibraryState | null>(null);
   useEffect(() => {
     let live = true;
-    loadState<LibraryState>(KEY).then(got => { if (live) setSt(got && got.v === 1 ? got : { v: 1, contacts: demoLibrary(tz), handouts: [] }); });
+    loadState<LibraryState>(KEY).then(got => { if (live) setSt(got && got.v === 1 ? got : { v: 1, contacts: LIVE ? [] : demoLibrary(tz), handouts: [] }); });
     return () => { live = false; };
   }, [tz]);
   useEffect(() => { if (st) saveState(KEY, st); }, [st]);

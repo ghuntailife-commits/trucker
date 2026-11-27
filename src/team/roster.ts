@@ -13,7 +13,7 @@ export const ROSTER: RosterRow[] = [
   { id: 'marshall', name: 'Marshall', team: 'Direct', role: 'agent', lead: 'george', states: 'FL', sheetId: '1fsLX0rBnv9L0m0HP63ncNip8dDXX1f30uASrxtUNloo' },
   { id: 'dan', name: 'Dan', team: 'Direct', role: 'agent', lead: 'george', states: 'TX, MN', sheetId: '1B-Dtwlhrmy_ZxGCgkIBYZBST5I2ZwYFp6tBQfCBiySQ', note: 'Dials with Calilio' },
   { id: 'sophia', name: 'Sophia', team: 'Direct', role: 'agent', lead: 'george', states: 'TN, NC, TX', sheetId: '1NlN0XVGcAo1Ozyi7TRwAA10wDHuUssq7y28tPlDDmW8' },
-  // the registry lists Aaron on the Greater team; George put him on his direct team (2026-11-26, asked to confirm)
+  // the registry lists Aaron on the Greater team; George confirmed he is on his direct team (2026-11-26)
   { id: 'aaron', name: 'Aaron', team: 'Direct', role: 'agent', lead: 'george', states: 'TN, TX, PA, WV', sheetId: '1V6XZ_4IyFDYRwjpK9_edcRXc85mh_jSRnqcDHRuV6Yk' },
   { id: 'braga', name: 'Braga', team: 'Greater', role: 'lead', lead: null, states: 'AL, CO, FL, GA, IA, IL, IN, LA, MD, ME, NC, NH, NJ, OH, OR, PA, RI, SC, TN, TX, VA, WV, MI', sheetId: '1ng0hQE8fcf1ZfaD4nwvJlpB7s6TxCPNxcvBaSO7kDMc' },
   { id: 'ayden', name: 'Ayden', team: 'Greater', role: 'agent', lead: 'braga', states: 'FL, ME, NC, OH, PA, RI, TN, WV', sheetId: '1lg4A2NU3rvvmYmP5KS8xpUuzMyja95wJxTcq3c-fcqE' },

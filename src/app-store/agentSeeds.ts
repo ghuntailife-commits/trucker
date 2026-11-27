@@ -1,5 +1,6 @@
 // Whose contacts the demo loads for each agent. George gets the read-only copy of his sheet when the build has it;
 // Austin and Gracie get made-up contacts on their own states (only George's real data was approved for the demo).
+import { LIVE } from '../live/supabase';
 import type { Contact, LogEvent } from '../rules/types';
 import type { SaleRecord, NoSaleRecord } from '../rules/results';
 import type { AgentId } from '../team/agents';
@@ -53,11 +54,14 @@ function otherFor(agent: string): Other {
 
 /** George's key stays what it was, so his saved demo changes carry over. */
 export function storageKey(agent: AgentId): string {
+  if (LIVE) return `dispatch-agent-${agent}`;
   if (agent === 'george') return REAL_SEED ? `trucker-real-${REAL_SEED.builtAt}` : 'trucker-demo-v2';
   return `trucker-${agent}-v1`;
 }
 
 export function agentSeed(agent: AgentId, now: number, tz: string): Seed {
+  // live: no made-up contacts, ever. Someone with nothing saved yet starts empty.
+  if (LIVE) return { contacts: [], log: [], sales: [], noSales: [] };
   if (agent === 'george' && REAL_SEED) {
     const r = structuredClone(REAL_SEED);
     return { contacts: r.contacts, log: r.log, sales: r.sales, noSales: r.noSales, goal: r.goal };

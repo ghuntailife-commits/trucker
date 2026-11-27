@@ -4,27 +4,30 @@
 import { useCallback, useEffect, useState } from 'react';
 import { defaultTeam, withRoster, type TeamSettings, type ViewerId, type AgentId, type AgentSetting, type RuleSettings, configFor } from '../team/agents';
 import { loadState, saveState } from './store';
+import type { Person } from '../live/supabase';
 import { agentSeed, storageKey } from './agentSeeds';
 import type { Seed } from './agentSeeds';
 
 const KEY = 'trucker-team-v1', VIEW = 'trucker-viewer';
 
-export function useTeam() {
+/** `person`: who is signed in (live). The demo has no sign-in and remembers the "Viewing as" choice instead. */
+export function useTeam(person?: Person) {
   const [team, setTeam] = useState<TeamSettings | null>(null);
-  const [viewer, setViewerState] = useState<ViewerId>('george');
+  const [viewer, setViewerState] = useState<ViewerId>(person?.agent_id ?? 'george');
   useEffect(() => {
     let live = true;
     loadState<TeamSettings>(KEY).then(t => {
       if (!live) return;
       const team = t && t.v === 1 ? withRoster({ ...defaultTeam(), ...t }) : defaultTeam();
       setTeam(team);
-      try { const v = localStorage.getItem(VIEW); if (v && (v === 'boss' || team.agents.some(a => a.id === v))) setViewerState(v); } catch { /* */ }
+      if (!person) try { const v = localStorage.getItem(VIEW); if (v && (v === 'boss' || team.agents.some(a => a.id === v))) setViewerState(v); } catch { /* */ }
     });
     return () => { live = false; };
   }, []);
   useEffect(() => { if (team) saveState(KEY, team); }, [team]);
 
-  const setViewer = useCallback((v: ViewerId) => { setViewerState(v); try { localStorage.setItem(VIEW, v); } catch { /* */ } }, []);
+  // live: only the admin can look at someone else's screen
+  const setViewer = useCallback((v: ViewerId) => { if (person && person.role !== 'admin') return; setViewerState(v); if (!person) try { localStorage.setItem(VIEW, v); } catch { /* */ } }, [person]);
   const setAgent = useCallback((id: AgentId, change: Partial<AgentSetting>) =>
     setTeam(t => (t ? { ...t, agents: t.agents.map(a => (a.id === id ? { ...a, ...change } : a)) } : t)), []);
   const setRules = useCallback((rules: RuleSettings) => setTeam(t => (t ? { ...t, rules } : t)), []);
@@ -33,7 +36,7 @@ export function useTeam() {
 
   const me = team?.agents.find(a => a.id === viewer);
   const role = viewer === 'boss' ? 'boss' : me?.role ?? 'agent';
-  return { ready: !!team, team: team ?? defaultTeam(), viewer, role, me, setViewer, setAgent, setRules, setTeamField, reset,
+  return { ready: !!team, team: team ?? defaultTeam(), viewer, role, me, person, setViewer, setAgent, setRules, setTeamField, reset,
     cfg: configFor(team?.rules) } as const;
 }
 export type Team = ReturnType<typeof useTeam>;

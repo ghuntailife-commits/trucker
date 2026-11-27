@@ -122,7 +122,8 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
     const id = setInterval(() => setNow(Date.now()), 30_000);   // the list clock (was Order!H2)
     return () => { live = false; clearInterval(id); };
   }, []);
-  useEffect(() => { if (s) saveState(KEY, s); }, [s]);
+  // nothing is saved for someone who has no contacts and no history yet (live: their data arrives at switch-over)
+  useEffect(() => { if (s && (s.contacts.length || s.log.length || s.sales.length)) saveState(KEY, s); }, [s]);
 
   const say = useCallback((text: string, kind: 'ok' | 'warn' = 'ok') => {
     setToast({ text, kind });

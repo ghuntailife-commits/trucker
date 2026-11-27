@@ -16,7 +16,7 @@ const realSeed = {
 
 const out = await build({
   entryPoints: ['demo/entry.tsx'], bundle: true, minify: true, write: false, format: 'iife', jsx: 'automatic',
-  define: { 'process.env.NODE_ENV': '"production"' }, target: 'es2020', plugins: [realSeed],
+  define: { 'process.env.NODE_ENV': '"production"', 'process.env.NEXT_PUBLIC_SUPABASE_URL': '""', 'process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY': '""' }, target: 'es2020', plugins: [realSeed],
 });
 const js = out.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
 const css = readFileSync('app/globals.css', 'utf8');
