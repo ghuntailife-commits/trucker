@@ -29,6 +29,8 @@ export interface AgentSetting {
   /** Monday coaching note, for everybody (George, 2026-11-26). */
   coaching: boolean;
   active: boolean;
+  /** Calls through Dispatch itself (Twilio), instead of the Quo app (George, 2026-11-27). Off until turned on. */
+  twilio?: boolean;
 }
 
 /** The rules an admin can change from Settings. Everything else stays as approved in config.ts. */
@@ -44,6 +46,11 @@ export interface TeamSettings {
   coachingHour: number;
   /** Who gets a copy of every coaching note (the admin). */
   coachingCopyTo: AgentId | null;
+  /** The team's Twilio numbers, shared: each call goes out from the one local to the contact. */
+  twilioNumbers?: string;
+  /** Record Dispatch calls (default on), and play "This call may be recorded" to the contact first (default on). */
+  twilioRecord?: boolean;
+  twilioNotice?: boolean;
 }
 
 export const RULE_KEYS: RuleKey[] = ['retryDays', 'restDays', 'backupDials', 'callbackTries', 'noShowTries', 'listSize',
