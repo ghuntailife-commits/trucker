@@ -4,7 +4,7 @@
 import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { adminDb, teamSettings, agentByNumber } from '../../../../src/live/server';
-import { verifySignature } from '../../../../src/quo/quo';
+import { verifySignature, verifyStandard } from '../../../../src/quo/quo';
 import { quoParts, transcriptText, NOTE_PROMPT } from '../../../../src/quo/events';
 
 export async function POST(req: Request) {
@@ -13,7 +13,10 @@ export async function POST(req: Request) {
   const signing = process.env.QUO_SIGNING_KEY;
   if (!signing) return NextResponse.json({ error: 'QUO_SIGNING_KEY is not set on Vercel' }, { status: 500 });
   const sig = req.headers.get('openphone-signature') ?? req.headers.get('quo-signature');
-  if (!(await verifySignature(sig, raw, signing).catch(() => false))) {
+  const ok = req.headers.get('webhook-signature')
+    ? await verifyStandard(req.headers.get('webhook-id'), req.headers.get('webhook-timestamp'), req.headers.get('webhook-signature'), raw, signing.trim()).catch(() => false)
+    : await verifySignature(sig, raw, signing.trim()).catch(() => false);
+  if (!ok) {
     console.error('quo webhook: signature did not match', [...req.headers.keys()].join(','));
     return NextResponse.json({ error: 'bad signature' }, { status: 401 });
   }

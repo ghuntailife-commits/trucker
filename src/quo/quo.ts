@@ -96,6 +96,22 @@ export function matchContact(contacts: Contact[], phone: string): Contact | unde
     .sort((a, b) => (b.lastDialed ?? 0) - (a.lastDialed ?? 0))[0];
 }
 
+/**
+ * Checks a webhook came from Quo. Quo's current webhooks follow the Standard Webhooks format: a "whsec_..." secret and
+ * headers webhook-id, webhook-timestamp and webhook-signature ("v1,<base64>"), signing "<id>.<timestamp>.<body>".
+ * Older OpenPhone webhooks use "openphone-signature" (see verifySignature).
+ */
+export async function verifyStandard(id: string | null, ts: string | null, sigs: string | null, rawBody: string, secret: string): Promise<boolean> {
+  if (!id || !ts || !sigs) return false;
+  if (Math.abs(Date.now() / 1000 - Number(ts)) > 600) return false;   // older than 10 minutes: refuse replays
+  const keyB64 = secret.replace(/^whsec_/, '');
+  const key = await crypto.subtle.importKey('raw', Uint8Array.from(atob(keyB64), ch => ch.charCodeAt(0)), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${id}.${ts}.${rawBody}`)));
+  const want = btoa(String.fromCharCode(...mac));
+  return sigs.split(' ').some(p => { const sig = p.split(',')[1] ?? ''; if (sig.length !== want.length) return false;
+    let diff = 0; for (let i = 0; i < want.length; i++) diff |= want.charCodeAt(i) ^ sig.charCodeAt(i); return diff === 0; });
+}
+
 /** Checks a webhook really came from Quo: header "hmac;1;<timestamp>;<signature>", HMAC-SHA256 of "<timestamp>.<body>". */
 export async function verifySignature(header: string | null, rawBody: string, signingKeyB64: string): Promise<boolean> {
   const parts = String(header ?? '').split(';');

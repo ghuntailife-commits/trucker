@@ -25,3 +25,16 @@ describe('quo events', () => {
     expect(quoNote({ type: tr.type, payload: tr })).toBe('');
   });
 });
+
+describe('Quo webhook signatures (Standard Webhooks)', () => {
+  it('accepts a correctly signed body and refuses a changed one', async () => {
+    const { verifyStandard } = await import('../src/quo/quo');
+    const secretBytes = new Uint8Array(24).map((_, i) => i + 1);
+    const secret = 'whsec_' + btoa(String.fromCharCode(...secretBytes));
+    const id = 'msg_1', ts = String(Math.floor(Date.now() / 1000)), body = '{"type":"message.received"}';
+    const key = await crypto.subtle.importKey('raw', secretBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const sig = btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${id}.${ts}.${body}`)))));
+    expect(await verifyStandard(id, ts, `v1,${sig}`, body, secret)).toBe(true);
+    expect(await verifyStandard(id, ts, `v1,${sig}`, body + ' ', secret)).toBe(false);
+  });
+});
