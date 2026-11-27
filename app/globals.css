@@ -609,8 +609,8 @@ select { appearance: auto; }
 .rt .r { text-align: right; }
 .rt td.num, .rt td:first-child, .rt td:nth-child(2) { white-space: nowrap; }
 .rt td:first-child, .rt th:first-child { padding-left: 0; }
-.rt.hist td { white-space: nowrap; }
-.rt.hist tr.quiet td { color: var(--faint); }
+.rt.dayhist td { white-space: nowrap; }
+.rt.dayhist tr.quiet td { color: var(--faint); }
 
 /* production funnel */
 .pfun { display: grid; gap: 9px; }
@@ -1042,3 +1042,7 @@ kbd { font: 600 12px var(--mono); background: var(--panel2); border: 1px solid v
 .keys .fuhint { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); text-align: center; }
 .sendto, .firstn { white-space: nowrap; } .qt.lib td { white-space: nowrap; }
 .hero { align-items: center; }
+/* Daily history: fits all columns (Imported included); the day stays in view when the table scrolls sideways. */
+.rt.dayhist th, .rt.dayhist td { padding-left: 7px; padding-right: 7px; }
+.rt.dayhist th { letter-spacing: .03em; }
+.rt.dayhist th:first-child, .rt.dayhist td:first-child { position: sticky; left: 0; background: var(--panel); z-index: 1; padding-left: 0; padding-right: 12px; }

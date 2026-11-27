@@ -484,10 +484,10 @@ function History({ d }: { d: D }) {
   return (
     <Panel span={4} title="Daily history" meta={<span className="seg mini">{[7, 14, 30].map(k => <button key={k} className={n === k ? 'on' : ''} onClick={() => setN(k)}>Last {k} days</button>)}</span>}
       foot={<button className="linkish" onClick={csv}>Export CSV</button>}>
-      <div className="tscroll"><table className="rt hist">
+      <div className="tscroll"><table className="rt dayhist">
         <thead><tr><th>Day</th>{cols.map(c => <th key={c[0]} className="r">{c[0]}</th>)}</tr></thead>
         <tbody>{rows.map(x => (
-          <tr key={x.day} className={x.dials ? '' : 'quiet'}><td>{wdMd.format(x.day)}</td>{cols.map(c => { const v = c[1](x); return <td key={c[0]} className={`r num ${v && v !== '–' ? c[2] ?? '' : 'muted'}`}>{v === 0 ? '–' : v}</td>; })}</tr>
+          <tr key={x.day} className={x.dials || x.sold || x.presented || x.imported ? '' : 'quiet'}><td>{wdMd.format(x.day)}</td>{cols.map(c => { const v = c[1](x); return <td key={c[0]} className={`r num ${v && v !== '–' ? c[2] ?? '' : 'muted'}`}>{v === 0 ? '–' : v}</td>; })}</tr>
         ))}</tbody>
       </table></div>
     </Panel>
