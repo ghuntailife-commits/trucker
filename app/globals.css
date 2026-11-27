@@ -1124,9 +1124,22 @@ tr.draggable { cursor: grab; }
 .ntile.green { border-left-color: #22a05a; } .ntile.green b { color: #22a05a; }
 .ntile.red { border-left-color: #d9534f; } .ntile.red b { color: #d9534f; }
 .ntile.amber { border-left-color: #de961e; } .ntile.blue { border-left-color: #2f6fde; }
-@media (max-width: 760px) { .ntiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .nhead b { font-size: 28px; } }
+@media (max-width: 760px) { .ntiles { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } .nhead b { font-size: 28px; } }
 .nquote { margin: 6px 0 14px; padding: 10px 14px; border-left: 3px solid var(--tfg, #8f6ae0); background: color-mix(in srgb, var(--panel) 90%, var(--text) 4%); border-radius: 0 10px 10px 0; }
 .nquote blockquote { margin: 0; font: italic 500 17px/1.45 var(--serif); }
 .nquote figcaption { margin-top: 4px; font-size: 12.5px; color: var(--muted); }
 .nquote figcaption::before { content: '— '; }
+.mw { padding: 14px 18px; }
+.mwhead { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.mwlabel { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--tfg, #8f6ae0); }
+.mw .mwhead .qtheme { margin-left: 0; }
+.mw figcaption b { color: var(--text); font-weight: 600; }
+.mwsrc { margin-left: 8px; font-style: italic; }
+.mwsrc::before { content: '· '; font-style: normal; }
+.mwintent { margin: 10px 0 0; font-weight: 600; font-size: 14.5px; }
+.mwintent span { display: inline-block; margin-right: 8px; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.mwmore { margin-top: 8px; font-size: 13.5px; line-height: 1.55; color: var(--text); max-width: 72ch; }
+.mwmore p { margin: 6px 0; }
+.mwmore b { font-weight: 600; }
+.mwbtn { margin-top: 6px; font-size: 12.5px; }
 .nquote .qtheme { margin-left: 10px; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--muted) 18%, transparent); }

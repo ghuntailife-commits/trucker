@@ -4,7 +4,7 @@
 import { saleAlp, type SaleRecord } from '../rules/results';
 import { addDays, parts, sameDay, startOfDay, zoned } from '../rules/time';
 import { dayTheme, type DayTheme } from './dayTheme';
-import { quoteOfDay, type Quote } from './quotes';
+import { wisdomOfDay, type Wisdom } from './wisdom';
 
 export interface NoteInput {
   name: string; now: number; tz: string; goal: number;
@@ -22,7 +22,8 @@ export interface NoteTile { key: string; label: string; big: string; sub: string
 export interface DailyNote {
   hello: string;
   theme: DayTheme;
-  quote: Quote & { theme: string };
+  /** Morning Wisdom: today's entry (src/home/wisdom.ts). */
+  quote: Wisdom & { themeName: string };
   tiles: NoteTile[];
   lines: string[];
   month: { label: string; alp: number; std: number; trial: number; goal: number; pct: number; toGo: number; daysLeft: number; perDay: number;
@@ -109,7 +110,7 @@ export function dailyNote(x: NoteInput): DailyNote {
   const ahead = !x.goal ? null : lastMonth != null ? alp >= lastMonth : alp >= x.goal * (p.d / Math.max(1, Math.round((nextMonth - monthStart) / 86_400_000)));
   const theme = dayTheme(p, ahead);
 
-  const quote = quoteOfDay(p.y, p.m, p.d, x.name);
+  const quote = wisdomOfDay(p.y, p.m, p.d, x.name);
   return { hello, theme, quote, tiles, lines, month: { label, alp, std, trial, goal: x.goal, pct, toGo, daysLeft, perDay, lastMonth, avgSale, salesToGo }, week, todayAlp };
 }
 

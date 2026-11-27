@@ -130,7 +130,7 @@ export function HomePage(h: HomeProps) {
       <section className="hcard note">
         <div className={`ntheme ${note.theme.tone}`}><span className="tchip">{note.theme.name}</span><p>{note.theme.message}</p></div>
         <h1>{note.hello}</h1>
-        <figure className="nquote"><blockquote>&ldquo;{note.quote.text}&rdquo;</blockquote><figcaption>{note.quote.by}<span className="qtheme">{note.quote.theme}</span></figcaption></figure>
+        <MorningWisdom w={note.quote} />
         <div className="nhead"><b className={m.alp >= m.goal && m.goal ? 'green' : ''}>{money(m.alp)}</b>
           <span>{m.label} so far · <em>{m.pct}%</em> of your {money(m.goal)} goal · {m.daysLeft} {m.daysLeft === 1 ? 'day' : 'days'} left</span></div>
         <div className="goalbar" role="img" aria-label={`${m.pct}% of the monthly goal: ${money(m.std)} standard and ${money(m.trial)} trial`}>
@@ -203,4 +203,23 @@ export function HomePage(h: HomeProps) {
       </section>
     </div>
   );
+}
+
+/** Morning Wisdom (George, 2026-11-26): the quote with its source, what it means, a reflection and today's intention. */
+function MorningWisdom({ w }: { w: DailyNote['quote'] }) {
+  // open by default; someone who folds it keeps it folded (this browser only)
+  const [open, setOpen] = useState(true);
+  useEffect(() => { try { if (localStorage.getItem('dispatch-mw-folded') === '1') setOpen(false); } catch {} }, []);
+  const fold = (v: boolean) => { setOpen(v); try { localStorage.setItem('dispatch-mw-folded', v ? '0' : '1'); } catch {} };
+  return <figure className="nquote mw">
+    <div className="mwhead"><span className="mwlabel">Morning Wisdom</span><span className="qtheme">{w.themeName}</span></div>
+    <blockquote>&ldquo;{w.text}&rdquo;</blockquote>
+    <figcaption><b>{w.by}</b>{w.source !== w.by && <span className="mwsrc">{w.source}</span>}</figcaption>
+    <p className="mwintent"><span>Today</span>{w.intent}</p>
+    {open ? <div className="mwmore">
+      <p><b>What it means.</b> {w.meaning}</p>
+      <p><b>For you today.</b> {w.reflect}</p>
+      <button className="linkish" onClick={() => fold(false)}>Hide the reflection</button>
+    </div> : <button className="linkish mwbtn" onClick={() => fold(true)}>Read the reflection</button>}
+  </figure>;
 }
