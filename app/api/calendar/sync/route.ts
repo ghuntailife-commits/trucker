@@ -6,7 +6,7 @@ import { adminDb, whoIsCalling } from '../../../../src/live/server';
 import { accessToken, adoptOriginals, deleteEvent, strayCopies, hashOf, listOthers, listOurs, planSync, putEvent, type Row, type WantedEvent } from '../../../../src/calendar/google';
 
 export const maxDuration = 60;
-const MAX = 40;
+const MAX = 20;
 
 export async function POST(req: Request) {
   try {

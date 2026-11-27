@@ -53,7 +53,7 @@ describe('taking over events the old sheet made (no doubles)', () => {
   });
   it('finds leftover Dispatch copies for a contact whose row points elsewhere', () => {
     const g = new Map([['sheet-1', { start: w.start, cancelled: false, uid: 'a:appt' }], ['g-a:appt', { start: w.start, cancelled: false, uid: 'a:appt' }],
-      ['old', { start: now - 1000, cancelled: false, uid: 'a:appt' }]]);
+      ['old', { start: now - 2 * 86_400_000, cancelled: false, uid: 'a:appt' }]]);
     expect(strayCopies([{ ...row(w), google_id: 'sheet-1' }], g, now)).toEqual(['g-a:appt']);
   });
 });

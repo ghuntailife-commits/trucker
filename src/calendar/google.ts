@@ -65,7 +65,7 @@ export function strayCopies(rows: Row[], google: Map<string, { start: number; ca
   const out: string[] = [];
   for (const [id, e] of google) {
     const mine = e.uid ? byUid.get(e.uid) : undefined;
-    if (!e.cancelled && e.start > now && mine && mine !== id) out.push(id);
+    if (!e.cancelled && e.start > now - 86_400_000 && mine && mine !== id) out.push(id);
   }
   return out;
 }
