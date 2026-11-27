@@ -10,6 +10,8 @@ import { eventNote } from '../brief/text';
 import { eventFor } from '../calendar/events';
 import { addNote } from '../rules/engine';
 import { mdTime } from '../rules/time';
+import { useMyEvents } from '../app-store/useMyEvents';
+import { occurrencesBetween, type MyEvent } from '../calendar/myEvents';
 import type { WantedEvent, Move, OtherEvent } from '../calendar/google';
 
 export type CalState = { status: 'off' | 'checking' | 'connected' | 'reconnect' | 'error'; email?: string | null; error?: string; lastSync?: number; others?: OtherEvent[] };
@@ -21,8 +23,9 @@ async function call(path: string, init: RequestInit = {}) {
   return r.json();
 }
 
-/** Every appointment and callback Dispatch wants on the calendar (from two hours ago on). */
-export function wantedEvents(contacts: Contact[], now: number): WantedEvent[] {
+/** Every appointment and callback Dispatch wants on the calendar (from two hours ago on), plus the agent's own events
+ * (George, 2026-11-27), repeats spread over the next five weeks. */
+export function wantedEvents(contacts: Contact[], now: number, mine: MyEvent[] = [], tz = 'America/New_York'): WantedEvent[] {
   const out: WantedEvent[] = [];
   for (const c of contacts) {
     const k = tagKind(c.tag);
@@ -31,11 +34,17 @@ export function wantedEvents(contacts: Contact[], now: number): WantedEvent[] {
     const email = kind === 'appt' ? c.email?.trim() : undefined;   // prep notes on the event (George, 2026-11-27), never on a client's invite
     out.push({ ...eventFor(c, kind, c.callAt, { email, note: eventNote(c, now, !!email) }), uid: `${c.id}:${kind}`, contactId: c.id });
   }
+  for (const o of occurrencesBetween(mine, now - 2 * 3_600_000, now + 35 * 86_400_000, tz))
+    out.push({ kind: 'callback' as const, title: o.title, start: o.start, end: o.start + o.mins * 60_000, description: o.note ?? '', location: '', guests: [],
+      uid: `mine:${o.id}`, contactId: '' });
   return out;
 }
 
 export function useGoogleCalendar(agent: string, contacts: Contact[], tz: string, ready: boolean,
   apply: (changed: Contact[], message: string) => void) {
+  const mine = useMyEvents(agent);
+  const mineRef = useRef(mine.events); mineRef.current = mine.events;
+  const mineReady = useRef(mine.ready); mineReady.current = mine.ready;
   const readyRef = useRef(ready); readyRef.current = ready;
   const [st, setSt] = useState<CalState>({ status: LIVE ? 'checking' : 'off' });
   const latest = useRef(contacts); latest.current = contacts;
@@ -43,11 +52,11 @@ export function useGoogleCalendar(agent: string, contacts: Contact[], tz: string
 
   const sync = useCallback(async () => {
     // never before the contacts have loaded: an empty list would take every appointment off the calendar
-    if (!LIVE || busy.current || !readyRef.current) return;
+    if (!LIVE || busy.current || !readyRef.current || !mineReady.current) return;
     busy.current = true;
     try {
       for (let round = 0; round < 10; round++) {
-        const j = await call('/api/calendar/sync', { method: 'POST', body: JSON.stringify({ agent, events: wantedEvents(latest.current, Date.now()) }) });
+        const j = await call('/api/calendar/sync', { method: 'POST', body: JSON.stringify({ agent, events: wantedEvents(latest.current, Date.now(), mineRef.current, tz) }) });
         if (j.error) { setSt(s => ({ ...s, status: 'error', error: j.error })); break; }
         if (!j.connected) { setSt({ status: j.reconnect ? 'reconnect' : 'off' }); break; }
         const moves = (j.moves ?? []) as Move[];
@@ -86,13 +95,13 @@ export function useGoogleCalendar(agent: string, contacts: Contact[], tz: string
   }, [agent]);
 
   // a few seconds after appointments change, and every 5 minutes
-  const sig = wantedEvents(contacts, 0).map(e => `${e.uid}@${e.start}`).join('|');
+  const sig = wantedEvents(contacts, 0).map(e => `${e.uid}@${e.start}`).join('|') + JSON.stringify(mine.events);
   useEffect(() => {
     if (st.status !== 'connected') return;
     const t = setTimeout(() => void sync(), 4000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sig, ready, st.status === 'connected']);
+  }, [sig, ready, mine.ready, st.status === 'connected']);
   useEffect(() => {
     if (st.status !== 'connected') return;
     const t = setInterval(() => void sync(), 5 * 60_000);
