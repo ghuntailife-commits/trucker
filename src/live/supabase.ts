@@ -1,7 +1,8 @@
 // The live database connection. In the demo build these settings are empty, so LIVE is false and nothing here runs.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+// tolerate a pasted address with a path or trailing slash (e.g. .../rest/v1/)
+const URL = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim().replace(/\/(rest\/v1\/?)?$/, '').replace(/\/+$/, '');
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 export const LIVE = !!(URL && ANON);
 
