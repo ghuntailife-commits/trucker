@@ -137,7 +137,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       await markQuoApplied(evs.map(e => e.id));
     };
     pull();
-    const id = setInterval(pull, 30_000);
+    const id = setInterval(pull, 10_000);
     return () => { stop = true; clearInterval(id); };
   }, [agent, quoOn, d0.ready]);
   const [keysOpen, setKeysOpen] = useState(false);
