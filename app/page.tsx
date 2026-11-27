@@ -449,9 +449,9 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       {!switching && page === 'library' && <LibraryPage t={t} lib={lib} now={d.now} say={d.say} onLicenses={() => setLicOpen(true)} />}
       {!switching && page === 'settings' && <SettingsPage t={t} />}
       {!switching && page === 'integrations' && <IntegrationsPage t={t} />}
-      {!switching && page === 'results' && <ResultsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })}
+      {!switching && page === 'results' && <ResultsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} />}
+      {!switching && page === 'appts' && <AppointmentsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} 
         onQuoText={quoOn ? (id, at, tomorrow) => setQuo({ id, apptAt: at, first: tomorrow ? 'confirmTomorrow' : 'confirmToday' }) : undefined} />}
-      {!switching && page === 'appts' && <AppointmentsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} />}
       {!switching && page === 'today' && <>
       <section className="hero">
         <div className="title">
