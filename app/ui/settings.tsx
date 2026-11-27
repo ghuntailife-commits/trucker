@@ -2,7 +2,8 @@
 // Nothing saves until the preview of the changes is confirmed.
 'use client';
 import { parseState } from '../../src/contacts/states';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { LIVE, db, people, type Person } from '../../src/live/supabase';
 import type { Team } from '../../src/app-store/useTeam';
 import { agentChanges, checkRules, defaultRules, ruleChanges, RULE_LABEL, type AgentSetting, type RuleSettings, type Role } from '../../src/team/agents';
 import { Panel } from './charts';
@@ -115,6 +116,8 @@ export function SettingsPage({ t }: { t: Team }) {
           </div>
         </Panel>
 
+        {LIVE && <SignInEmails />}
+
         <Panel span={4} title="Quo connection" meta="Built in for George and Gracie">
           <div className="quoset">
             <div><b>Calls</b><p className="hint">The Call button dials through the Quo app. When a call ends, Quo tells the dialer, and the talk time is saved on the contact.</p></div>
@@ -150,4 +153,38 @@ function Field({ label, unit, v, on }: { label: string; unit: string; v: number;
 
 export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
   return <button type="button" role="switch" aria-checked={on} aria-label={label} className={`tog ${on ? 'on' : ''}`} onClick={() => onChange(!on)}><i /></button>;
+}
+
+/** Each agent's sign-in email (George, 2026-11-27: Ayden signs in with iCloud). Only an email listed here can sign in. */
+function SignInEmails() {
+  const [rows, setRows] = useState<Person[] | null>(null);
+  const [edit, setEdit] = useState<Record<string, string>>({});
+  const [ask, setAsk] = useState<string | null>(null);
+  const [msg, setMsg] = useState('');
+  useEffect(() => { people().then(setRows).catch(() => setRows([])); }, []);
+  if (!rows) return null;
+  const val = (p: Person) => edit[p.agent_id] ?? p.email ?? '';
+  const ok = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+  const save = async (p: Person) => {
+    const email = val(p).trim().toLowerCase();
+    const { error } = await db().from('people').update({ email }).eq('agent_id', p.agent_id);
+    setAsk(null);
+    if (error) return setMsg(`Not saved: ${error.message}`);
+    setRows(r => r!.map(x => x.agent_id === p.agent_id ? { ...x, email } : x));
+    setEdit(e => { const n = { ...e }; delete n[p.agent_id]; return n; });
+    setMsg(`${p.name} can now sign in with ${email}.`);
+  };
+  return <Panel span={4} title="Sign-in emails" meta="Only these emails can open Dispatch. Gmail, iCloud, Outlook all work.">
+    <div className="tscroll"><table className="rt settable"><thead><tr><th>Agent</th><th>Email they sign in with</th><th /></tr></thead><tbody>
+      {[...rows].sort((a, b) => a.name.localeCompare(b.name)).map(p => { const v = val(p).trim(), changed = v.toLowerCase() !== (p.email ?? '').toLowerCase();
+        return <tr key={p.agent_id}>
+          <td><b>{p.name}</b></td>
+          <td><input type="email" value={val(p)} placeholder="name@icloud.com" aria-label={`${p.name} sign-in email`} onChange={e => setEdit(x => ({ ...x, [p.agent_id]: e.target.value }))} /></td>
+          <td>{changed && (ask === p.agent_id
+            ? <span>Change {p.name} from {p.email || '(none)'} to <b>{v.toLowerCase()}</b>? <button className="btn sm primary" onClick={() => save(p)}>Yes, save</button> <button className="linkish" onClick={() => setAsk(null)}>Cancel</button></span>
+            : <button className="btn sm" disabled={!ok(v)} onClick={() => setAsk(p.agent_id)}>Save</button>)}</td>
+        </tr>; })}
+    </tbody></table></div>
+    {msg && <p className="hint">{msg}</p>}
+  </Panel>;
 }
