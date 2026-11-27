@@ -7,6 +7,8 @@ import type { Contact } from '../../src/rules/types';
 import { tagKind } from '../../src/rules/tags';
 import { addDays, parts, startOfDay, DAY_MS } from '../../src/rules/time';
 import { notesNewestFirst } from '../../src/rules/notes';
+import { LIVE, connectGoogleCalendar } from '../../src/live/supabase';
+import type { GoogleCal } from '../../src/live/useGoogleCalendar';
 import { calendarItems, weekStart, eventFor, toIcs, type CalItem } from '../../src/calendar/events';
 import { TZ, ZONE_NAME, saveText, timeOnly, localTime, NoteText } from './shared';
 import type { ResultKind, ResultInitial } from './forms';
@@ -38,7 +40,7 @@ const TONE: Record<CalItem['kind'], string> = { appt: 'blue', callback: 'amber',
 const pillTone = (it: CalItem) => it.kind === 'appt' ? (it.label === 'Confirmed' ? 'teal' : it.label === 'Booked' ? 'blue' : 'amber') : TONE[it.kind];
 
 /** onQuoText: when the agent has Quo, reminders open the Quo text box instead of the computer's own texting app. */
-export function AppointmentsPage({ d, onDial, onResult, onQuoText }: { d: D; onDial: (id: string) => void; onResult: OnResult; onQuoText?: (id: string, at: number, tomorrow: boolean) => void }) {
+export function AppointmentsPage({ d, cal, onDial, onResult, onQuoText }: { d: D; cal?: GoogleCal; onDial: (id: string) => void; onResult: OnResult; onQuoText?: (id: string, at: number, tomorrow: boolean) => void }) {
   const [offset, setOffset] = useState(0);
   const [sel, setSel] = useState<string | null>(null);
   const start = addDays(weekStart(d.now, TZ), offset * 7, TZ);
@@ -98,8 +100,8 @@ export function AppointmentsPage({ d, onDial, onResult, onQuoText }: { d: D; onD
         </div>
         <b className="wk">{dayNum.format(start)} – {dayNum.format(addDays(start, 6, TZ))}</b>
         <span className="grow" />
-        <span className="gcal" title="Appointments are added to your Google Calendar automatically once it is connected at go-live.">Google Calendar connects at go-live</span>
-        <button className="btn" onClick={downloadWeek}>Add week to my calendar</button>
+        {LIVE && cal ? <GcalStatus cal={cal} /> : <span className="gcal" title="In the live app, appointments go on your Google Calendar automatically.">Google Calendar: live app only</span>}
+        {(!LIVE || cal?.status !== 'connected') && <button className="btn" onClick={downloadWeek}>Add week to my calendar</button>}
       </div>
 
       <main className="apptwork">
@@ -235,4 +237,15 @@ export function ChangeResult({ at, target, c, d, onResult, onDone }: { at: numbe
       <p className="hint">Fixes it everywhere: Sales, Results and the contact&rsquo;s history. Undo puts it back.</p>
     </div>
   );
+}
+
+/** Google Calendar on the Appointments page: connect, or what it's doing (George, 2026-11-26). */
+function GcalStatus({ cal }: { cal: GoogleCal }) {
+  if (cal.status === 'checking') return <span className="gcal">Google Calendar…</span>;
+  if (cal.status === 'connected') return <span className="gcal on" title={`Booked appointments and callbacks are kept on ${cal.email ?? 'your'} Google Calendar. Moves in Google Calendar come back here.`}>
+    <i />Google Calendar on{cal.lastSync ? ` · synced ${new Date(cal.lastSync).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}
+    <button className="linkish" onClick={() => void cal.sync()}>Sync now</button></span>;
+  return <span className="gcal">
+    {cal.status === 'reconnect' ? 'Google Calendar needs reconnecting' : cal.status === 'error' ? <span className="warnline" title={cal.error}>Calendar: {cal.error}</span> : 'Google Calendar is off'}
+    <button className="btn primary sm" onClick={() => void connectGoogleCalendar()}>{cal.status === 'reconnect' ? 'Reconnect' : 'Connect Google Calendar'}</button></span>;
 }

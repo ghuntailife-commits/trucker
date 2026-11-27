@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDialer } from '../src/app-store/useDialer';
 import type { Contact } from '../src/rules/types';
 import type { DialerKey } from '../src/rules/engine';
@@ -11,6 +11,7 @@ import { reachByDial } from '../src/rules/stats';
 import { QUALIFIERS } from '../src/rules/engine';
 
 import { ContactsPage } from './ui/contacts';
+import { useGoogleCalendar } from '../src/live/useGoogleCalendar';
 import { NeedsPage } from './ui/needs';
 import { useNumberSheet } from '../src/app-store/useNumberSheet';
 import { AppointmentsPage } from './ui/appointments';
@@ -117,6 +118,8 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const ns = useNumberSheet(agent, d0.contacts ?? [], d0.now, TZ, d0.batch, d0.say, !!d0.ready);
   const lib = useLibrary(agent, { contacts: d0.contacts ?? [], batch: d0.batch }, TZ);
   const [licOpen, setLicOpen] = useState(false);
+  const calApply = useCallback((changed: Contact[], msg: string) => d0.batch('Moved in Google Calendar', { changed }, msg), [d0.batch]);
+  const cal = useGoogleCalendar(agent, d0.contacts ?? [], TZ, !!d0.ready, calApply);
   // admin "View as" (George, 2026-11-26): any agent's Dispatch, from the top bar
   const selfId = (t.person?.agent_id ?? 'george') as AgentId;
   const canViewAs = !LIVE || t.person?.role === 'admin';
@@ -469,7 +472,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       {!switching && page === 'settings' && <SettingsPage t={t} />}
       {!switching && page === 'integrations' && <IntegrationsPage t={t} />}
       {!switching && page === 'results' && <ResultsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} />}
-      {!switching && page === 'appts' && <AppointmentsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} 
+      {!switching && page === 'appts' && <AppointmentsPage d={d} cal={cal} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} 
         onQuoText={quoOn ? (id, at, tomorrow) => setQuo({ id, apptAt: at, first: tomorrow ? 'confirmTomorrow' : 'confirmToday' }) : undefined} />}
       {!switching && page === 'today' && <>
       <section className="hero">

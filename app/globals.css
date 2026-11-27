@@ -1159,3 +1159,7 @@ tr.draggable { cursor: grab; }
 .viewas select { padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); font: inherit; font-size: 13px; }
 .viewasbar { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 16px; background: color-mix(in srgb, #de961e 18%, var(--panel)); border-bottom: 1px solid color-mix(in srgb, #de961e 45%, transparent); font-size: 13.5px; }
 @media (max-width: 760px) { .viewas span { display: none; } .viewasbar { flex-wrap: wrap; text-align: center; } }
+
+.gcal { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.gcal.on i { width: 8px; height: 8px; border-radius: 50%; background: #22a05a; display: inline-block; }
+.gcal .warnline { max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

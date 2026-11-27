@@ -24,6 +24,17 @@ export async function signInGoogle(sheets = false) {
   } });
 }
 
+/** Connects Google Calendar: asks Google for calendar access with a long-term sign-in the server keeps
+ *  (useGoogleCalendar saves it when Google sends the agent back). */
+export async function connectGoogleCalendar() {
+  try { sessionStorage.setItem('dispatch-cal-connect', '1'); } catch { /* */ }
+  return db().auth.signInWithOAuth({ provider: 'google', options: {
+    redirectTo: location.origin + location.pathname,
+    scopes: 'https://www.googleapis.com/auth/calendar.events',
+    queryParams: { access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true' },
+  } });
+}
+
 /** A sign-in link by email (works with any email: Gmail, iCloud, Outlook...). */
 export async function signInEmail(email: string) {
   return db().auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } });
