@@ -76,6 +76,7 @@ export function useGoogleCalendar(agent: string, contacts: Contact[], tz: string
       const j = await call(`/api/calendar/connect?agent=${encodeURIComponent(agent)}`);
       if (!live) return;
       if (j.connected) { setSt({ status: 'connected', email: j.email }); void sync(); }
+      else if (!j.setup && !j.error && j.keys === false) setSt({ status: 'error', error: 'Google keys are missing in Vercel (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET).' });
       else setSt({ status: j.setup || j.error ? 'error' : 'off', error: j.setup ?? j.error });
     })();
     return () => { live = false; };
