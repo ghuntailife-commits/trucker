@@ -80,8 +80,16 @@ export async function accessToken(refresh: string): Promise<string> {
   return j.access_token;
 }
 
-async function g<T>(token: string, url: string, init: RequestInit = {}): Promise<T | null> {
+async function g<T>(token: string, url: string, init: RequestInit = {}, tries = 0): Promise<T | null> {
   const r = await fetch(url, { ...init, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(init.headers ?? {}) } });
+  // Google slows down quick bursts of writes with 403 rateLimitExceeded or 429: wait and try again
+  if ((r.status === 403 || r.status === 429) && tries < 4) {
+    const t = await r.clone().text();
+    if (r.status === 429 || /rateLimitExceeded|userRateLimitExceeded|quotaExceeded|Rate Limit/i.test(t)) {
+      await new Promise(res => setTimeout(res, 1000 * 2 ** tries + Math.random() * 500));
+      return g<T>(token, url, init, tries + 1);
+    }
+  }
   if (r.status === 404 || r.status === 410) return null;
   if (r.status === 204) return {} as T;
   if (!r.ok) {

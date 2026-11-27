@@ -48,7 +48,7 @@ export async function POST(req: Request) {
     const copies = [...new Set([...adopted.filter(id => done.has(copyOf.get(id) ?? '')), ...stray])];
     for (const id of copies) {
       if (writes >= MAX) break;
-      if (google.has(id)) await deleteEvent(token, id, false);
+      if (google.has(id)) await deleteEvent(token, id, false).catch(() => undefined); // tried again next sync
       writes++;
     }
     for (const r of plan.remove) {
