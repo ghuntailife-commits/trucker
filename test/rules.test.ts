@@ -359,3 +359,14 @@ describe('Connects', () => {
     expect([TAGS.bad, TAGS.noshow, TAGS.presented, TAGS.sold, TAGS.given].some(isReach)).toBe(false);
   });
 });
+
+describe('Hung up, Called into and Do not call buttons (George, 2026-11-26)', () => {
+  it('tag the contact and say what happened in the notes', () => {
+    const h = dialerAction(contact(), 'hungup', et(5, 10));
+    expect(h.contact.tag).toBe(TAGS.notInterested); expect(h.contact.notes).toContain('Hung up');
+    const ci = dialerAction(contact(), 'calledinto', et(5, 10));
+    expect(ci.contact.tag).toBe(TAGS.calledInto); expect(ci.contact.notes).toContain('Called into');
+    const d = dialerAction(contact(), 'dnc', et(5, 10));
+    expect(d.contact.tag).toBe(TAGS.dnc); expect(d.contact.notes).toContain('Do Not Call');
+  });
+});

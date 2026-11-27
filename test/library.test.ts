@@ -1,7 +1,7 @@
 // The contact library and sending contacts to agents. Made-up contacts only.
 import { describe, expect, it } from 'vitest';
 import { contact, et, TZ } from './helpers';
-import { applyHandout, fromSheet, givenCounts, licensed, parseDay, planHandout, stateCounts, undoHandout, type LibraryContact, type LibraryState } from '../src/library/library';
+import { applyHandout, checkOtherAgents, fromSheet, givenCounts, licensed, parseDay, planHandout, stateCounts, undoHandout, type LibraryContact, type LibraryState } from '../src/library/library';
 
 const lib = (over: Partial<LibraryContact>): LibraryContact => ({ id: 'L' + Math.random().toString(36).slice(2, 8), first: 'Avery', last: 'Test', phone: '(214) 555-0150',
   job: 'Driver', company: 'Acme Freight', city: 'Dallas', state: 'TX', linkedin: '', backup: '', notes: '', givenTo: '', givenAt: null, ...over });
@@ -58,5 +58,18 @@ describe('contact library', () => {
     expect(u.state.contacts.map(c => c.givenTo)).toEqual(['', 'Sam']);
     expect(u.state.handouts[0].undoneAt).toBe(et(26, 13));
     expect(undoHandout(u.state, 'h1', [], et(26, 14)).remove).toEqual([]);
+  });
+});
+
+describe('one agent per contact (George, 2026-11-26)', () => {
+  it('takes an uncalled copy off the other agent, and skips one the other agent is already working', () => {
+    const a = lib({ first: 'Avery', phone: '(214) 555-0150' }), b = lib({ first: 'Blake', last: 'Sample', phone: '(214) 555-0151', company: 'Beta Haul' }), c = lib({ first: 'Casey', last: 'Demo', phone: '(214) 555-0152', company: 'Gamma' });
+    const plan = planHandout([a.id, b.id, c.id], [a, b, c], sam, [], { now: et(26, 12), nextId: i => 'n' + i });
+    const lee = [contact({ id: 'x1', first: 'Avery', last: 'Other', phone: '2145550150', dials: 0, tag: '', lastDialed: null }),
+      contact({ id: 'x2', first: 'Blake', last: 'Sample', company: 'Beta Haul', phone: '', dials: 3, lastDialed: et(20, 10) })];
+    const out = checkOtherAgents(plan, [{ id: 'lee', name: 'Lee', contacts: lee }]);
+    expect(out[0].ok).toBe(true); expect(out[0].moveFrom).toEqual([{ agent: 'lee', agentName: 'Lee', contactId: 'x1' }]); expect(out[0].result).toContain("off Lee's list");
+    expect(out[1].ok).toBe(false); expect(out[1].result).toContain('Lee is already working this contact (3 dials)');
+    expect(out[2].ok).toBe(true); expect(out[2].moveFrom).toBeUndefined();
   });
 });

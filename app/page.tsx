@@ -97,7 +97,7 @@ function whoContact(m: { initial?: ResultInitial }): Contact | undefined {
 type Modal = null | { kind: ResultKind; id: string; amend?: AmendTarget; initial?: ResultInitial };
 type QuoModal = null | { id: string; apptAt?: number | null; first?: TextKey };
 const UNDO_LABEL: Record<string, string> = { noanswer: 'No answer', voicemail: 'Voicemail', callback: 'Callback', notint: 'Not interested',
-  bad: 'Bad number', appt: 'Appointment', note: 'note', sold: 'Sold', presented: 'Presented', noshow: 'No-show', reschedule: 'Move', confirm: 'Confirmed', tag: 'Qualifier' };
+  bad: 'Bad number', appt: 'Appointment', hungup: 'Hung up', calledinto: 'Called into', dnc: 'Do not call', note: 'note', sold: 'Sold', presented: 'Presented', noshow: 'No-show', reschedule: 'Move', confirm: 'Confirmed', tag: 'Qualifier' };
 type Filter = 'All' | 'Callback' | 'FollowUp' | 'NoShow' | 'NewNumber' | 'Retry' | 'Fresh';
 const FILTERS: [Filter, string][] = [['All', 'All'], ['Callback', 'Callbacks'], ['FollowUp', 'Follow-ups'], ['NoShow', 'No-shows'], ['NewNumber', 'New numbers'], ['Retry', 'Retry'], ['Fresh', 'Fresh']];
 const baseWhy = (why: string) => why.replace(/^DONE TODAY - /, '');
@@ -219,7 +219,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
     }
   }, [countdown]);
 
-  // keys: 1-6 results, C call, N note, / search, U undo, R re-sort, S skip, B backup, Esc
+  // keys: 1-9 results, C call, N note, / search, U undo, R re-sort, S skip, B backup, Esc
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
@@ -229,7 +229,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       if (e.key === '/') { e.preventDefault(); searchRef.current?.focus(); return; }
       if (page !== 'today' || document.querySelector('.modal-bg')) return;
       const k = e.key.toLowerCase();
-      const map: Record<string, DialerKey> = { '1': 'noanswer', '2': 'voicemail', '3': 'callback', '4': 'notint', '5': 'bad', '6': 'appt' };
+      const map: Record<string, DialerKey> = { '1': 'noanswer', '2': 'voicemail', '3': 'callback', '4': 'notint', '5': 'bad', '6': 'appt', '7': 'hungup', '8': 'calledinto', '9': 'dnc' };
       if (isFollowUp && current && ['1', '2', '3'].includes(e.key)) { e.preventDefault();
         if (e.key === '1') setModal({ kind: 'sold', id: current.id }); else if (e.key === '2') setModal({ kind: 'presented', id: current.id }); else act('noanswer'); }
       else if (isFollowUp) { /* only Sale, Still no sale and No answer on a follow-up */ }
@@ -656,6 +656,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
                 {([
                   ['noanswer', '1', 'No answer'], ['voicemail', '2', 'Voicemail'], ['callback', '3', 'Callback'],
                   ['notint', '4', 'Not interested'], ['bad', '5', 'Bad number'], ['appt', '6', 'Appointment'],
+                  ['hungup', '7', 'Hung up'], ['calledinto', '8', 'Called into'], ['dnc', '9', 'Do not call'],
                 ] as [DialerKey, string, string][]).map(([k, n, label]) => (
                   <button key={k} className={`k ${k === 'appt' ? 'prime' : ''} ${pending === k ? 'armed' : ''}`} onClick={() => act(k)}>
                     {label}<small>{n}</small>

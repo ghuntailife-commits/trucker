@@ -310,9 +310,11 @@ export function quickNote(c: Contact, text: string, now: number, cfg: Config = D
 }
 
 // ---------- Dialer buttons 1-6 ----------
-export type DialerKey = 'noanswer' | 'voicemail' | 'callback' | 'notint' | 'bad' | 'appt';
+export type DialerKey = 'noanswer' | 'voicemail' | 'callback' | 'notint' | 'bad' | 'appt' | 'hungup' | 'calledinto' | 'dnc';
 export const DIALER_TAG: Partial<Record<DialerKey, string>> = {
   callback: TAGS.callback, notint: TAGS.notInterested, bad: TAGS.bad, appt: TAGS.scheduled,
+  // George 2026-11-26: Hung up (same tag as the sheet's "HUNG UP/ NOT INTERESTED", noted as a hang-up), Called into, Do not call
+  hungup: TAGS.notInterested, calledinto: TAGS.calledInto, dnc: TAGS.dnc,
 };
 
 export interface DialerOpts { when?: string; note?: string; email?: string; backupMode?: boolean; lastBackupTryAt?: number | null }
@@ -351,6 +353,9 @@ export function dialerAction(c: Contact, key: DialerKey, now: number, cfg: Confi
     r = disposition(start, DIALER_TAG[key]!, now, cfg, { when: when?.date ?? null });
     if (key === 'callback') parts.push('Callback ' + when!.label);
     if (key === 'appt') parts.push('Scheduled ' + when!.label);
+    if (key === 'hungup') parts.push('Hung up');
+    if (key === 'calledinto') parts.push('Called into a presentation');
+    if (key === 'dnc') parts.push('Asked to be put on the Do Not Call list');
     if (opts.backupMode) r.message += ' Backup number is now the main number.';
   }
   if (note) parts.push(note);

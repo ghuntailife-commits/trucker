@@ -60,7 +60,7 @@ export function ProfileMenu({ t, me, theme, setTheme, items }: {
 }
 
 export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
-  const keys: [string, string][] = [['1–6', 'No answer, Voicemail, Callback, Not interested, Bad number, Appointment'], ['C or Enter', 'Call'],
+  const keys: [string, string][] = [['1–9', 'No answer, Voicemail, Callback, Not interested, Bad number, Appointment, Hung up, Called into, Do not call'], ['C or Enter', 'Call'],
     ['N', 'Write a note'], ['/', 'Search'], ['U or Ctrl+Z', 'Undo'], ['R', 'Re-sort Today'], ['S', 'Skip for today'], ['B', 'Switch to the backup number'], ['Esc', 'Close or stop auto-dial']];
   return (
     <Dialog title="Keyboard shortcuts" onClose={onClose}>

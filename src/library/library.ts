@@ -5,6 +5,7 @@ import type { Contact } from '../rules/types';
 import { dropHeader, IMPORT_COLUMNS, planImport } from '../contacts/importer';
 import { parseState } from '../contacts/states';
 import { zoned } from '../rules/time';
+import { digits10, norm } from '../contacts/phones';
 
 export interface LibraryContact {
   id: string;
@@ -76,7 +77,39 @@ export function givenCounts(lib: LibraryContact[]): { name: string; n: number }[
   return [...m.values()].sort((a, b) => b.n - a.n);
 }
 
-export interface HandoutLine { libId: string; name: string; state: string; ok: boolean; result: string; contact?: Contact }
+export interface HandoutLine { libId: string; name: string; state: string; ok: boolean; result: string; contact?: Contact;
+  /** The same person sitting untouched in another agent's contacts: taken off their list when this is sent. */
+  moveFrom?: { agent: string; agentName: string; contactId: string }[] }
+
+/**
+ * No contact is worked by two agents (George, 2026-11-26). Checks each send against every other agent's contacts by
+ * phone (main or backup) and by name + company. If another agent has the person but has not called them yet, the send
+ * goes ahead and takes them off that agent's list; if the other agent has already called or tagged them, it is skipped.
+ */
+export function checkOtherAgents(plan: HandoutLine[], others: { id: string; name: string; contacts: Contact[] }[]): HandoutLine[] {
+  const idx = others.map(o => {
+    const phones = new Map<string, Contact>(), names = new Map<string, Contact>();
+    for (const c of o.contacts) {
+      for (const p of [c.phone, c.backup]) { const d = digits10(p); if (d.length === 10) phones.set(d, c); }
+      names.set(`${norm(c.first)}|${norm(c.last)}|${norm(c.company)}`, c);
+    }
+    return { o, phones, names };
+  });
+  return plan.map(l => {
+    if (!l.ok || !l.contact) return l;
+    const c = l.contact, moveFrom: NonNullable<HandoutLine['moveFrom']> = [];
+    for (const { o, phones, names } of idx) {
+      let hit: Contact | undefined;
+      for (const p of [c.phone, c.backup]) { const d = digits10(p); if (d.length === 10) { hit = phones.get(d); if (hit) break; } }
+      hit ??= names.get(`${norm(c.first)}|${norm(c.last)}|${norm(c.company)}`);
+      if (!hit) continue;
+      if (hit.dials > 0 || hit.tag || hit.lastDialed) return { ...l, ok: false, contact: undefined,
+        result: `Skipped - ${o.name} is already working this contact${hit.dials ? ` (${hit.dials} dial${hit.dials === 1 ? '' : 's'})` : ''}` };
+      moveFrom.push({ agent: o.id, agentName: o.name, contactId: hit.id });
+    }
+    return moveFrom.length ? { ...l, moveFrom, result: `${l.result}, and take it off ${moveFrom.map(m => m.agentName).join(' and ')}'s list (not called yet)` } : l;
+  });
+}
 
 /** What sending these library contacts to this agent would do, before anything is saved. Same duplicate check as Import. */
 export function planHandout(ids: string[], lib: LibraryContact[], to: Recipient, theirs: Contact[], opts: { now: number; nextId: (i: number) => string }): HandoutLine[] {

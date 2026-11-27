@@ -36,6 +36,17 @@ export function useLibrary(me: AgentId, mine: { contacts: Contact[]; batch: (lab
     if (!st) return 0;
     const r = applyHandout(st, plan, to, now, `h-${now.toString(36)}`);
     if (!r.added.length) return 0;
+    // take them off any other agent who had them but had not called them yet (checkOtherAgents)
+    const moves = new Map<AgentId, string[]>();
+    for (const l of plan) if (l.ok && l.contact) for (const m of l.moveFrom ?? []) moves.set(m.agent as AgentId, [...(moves.get(m.agent as AgentId) ?? []), m.contactId]);
+    for (const [who, ids] of moves) {
+      if (who === me) mine.batch('Given to another agent', { removed: ids }, `${ids.length} contacts moved to ${to.name}.`);
+      else {
+        const inbox = (await loadState<Inbox>(inboxKey(who))) ?? { contacts: [], removed: [] };
+        const rm = new Set(ids);
+        await saveState(inboxKey(who), { contacts: inbox.contacts.filter(c => !rm.has(c.id)), removed: [...inbox.removed, ...ids] });
+      }
+    }
     if (to.id === me) mine.batch('Contacts from the library', { added: r.added }, `${r.added.length} contacts added from the library.`);
     else {
       const inbox = (await loadState<Inbox>(inboxKey(to.id))) ?? { contacts: [], removed: [] };

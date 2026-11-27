@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { AgentId } from '../../src/team/agents';
 import type { Team } from '../../src/app-store/useTeam';
 import type { Library } from '../../src/app-store/useLibrary';
-import { givenCounts, licensed, planHandout, stateCounts, fromSheet, libraryFromTable, planLibraryAdd, type HandoutLine, type LibraryAddPlan } from '../../src/library/library';
+import { givenCounts, licensed, planHandout, stateCounts, fromSheet, libraryFromTable, planLibraryAdd, checkOtherAgents, type HandoutLine, type LibraryAddPlan } from '../../src/library/library';
 import type { Contact } from '../../src/rules/types';
 import { parseTable } from '../../src/contacts/csv';
 import { LIVE, db, signInGoogle } from '../../src/live/supabase';
@@ -58,7 +58,10 @@ export function LibraryPage({ t, lib, now, say, onLicenses, mine = [] }: { t: Te
   const review = async (who = agent, ids = [...picked]) => {
     if (!who || !ids.length) return;
     const theirs = await lib.contactsOf(who.id, now);
-    setPlan(planHandout(ids, lib.lib, { id: who.id, name: who.name, states: who.states }, theirs, { now, nextId: newId }));
+    const base = planHandout(ids, lib.lib, { id: who.id, name: who.name, states: who.states }, theirs, { now, nextId: newId });
+    // nobody else may already have them (George, 2026-11-26)
+    const others = await Promise.all(t.team.agents.filter(a => a.id !== who.id).map(async a => ({ id: a.id, name: a.name, contacts: await lib.contactsOf(a.id, now) })));
+    setPlan(checkOtherAgents(base, others));
   };
   // drag a contact (or every picked contact, when the one you drag is picked) onto an agent's card
   const dragIds = (id: string) => (picked.has(id) ? [...picked] : [id]);
@@ -70,9 +73,11 @@ export function LibraryPage({ t, lib, now, say, onLicenses, mine = [] }: { t: Te
     setTo(id); setPicked(new Set(ids)); review(a, ids);
   };
   // adding to the library: preview first, then add
+  // every agent's contacts, so nothing already on someone's list comes into the library again
+  const everyone = async () => (await Promise.all(t.team.agents.map(a => lib.contactsOf(a.id, now)))).flat();
   const importCsv = async (f: File) => {
     const rows = parseTable(await f.text());
-    setAdding({ ...planLibraryAdd(libraryFromTable(rows, i => `${newId()}-${i}`), lib.lib, mine), from: f.name });
+    setAdding({ ...planLibraryAdd(libraryFromTable(rows, i => `${newId()}-${i}`), lib.lib, await everyone().catch(() => mine)), from: f.name });
   };
   const readSheet = async (resume = false) => {
     if (!resume) try { sessionStorage.removeItem('dispatch-read-library-tried'); } catch {}
@@ -90,7 +95,7 @@ export function LibraryPage({ t, lib, now, say, onLicenses, mine = [] }: { t: Te
       try { sessionStorage.removeItem('dispatch-read-library-tried'); } catch {}
       const all = tabs.flatMap(x => fromSheet(x.tab, x.rows, i => `${newId()}-${i}`));
       setReading('');
-      setAdding({ ...planLibraryAdd(all, lib.lib, mine), from: `Lead Library sheet (${tabs.length} tabs)` });
+      setAdding({ ...planLibraryAdd(all, lib.lib, await everyone().catch(() => mine)), from: `Lead Library sheet (${tabs.length} tabs)` });
     } catch (e) { setReading(''); say((e as Error).message, 'warn'); }
   };
   // back from Google's permission screen: carry on reading the sheet
