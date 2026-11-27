@@ -1,7 +1,7 @@
 'use client';
 // Coaching > Presentations (George, 2026-11-27): Google Meet presentations Claude has read, with the outcome, objections
 // and answers, the close, and why it didn't close. Agents see their own; George sees everyone.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Contact } from '../../src/rules/types';
 import type { AgentSetting } from '../../src/team/agents';
 import { presSums, type PresRow } from '../../src/meet/present';
@@ -26,10 +26,13 @@ export function PresentationsView({ me, who, admin, agents, contacts, now, days,
   const [open, setOpen] = useState<string | null>(null);
   const [fixing, setFixing] = useState<string | null>(null);   // a Google event id being matched by hand
   const since = now - days * DAY;
+  const shownFor = useRef('');
   useEffect(() => {
     let alive = true; setErr('');
     if (!LIVE) { setRows(demoPresentations(me.id, now).filter(r => r.at >= since)); return; }
-    setRows(null);
+    // a new person or range shows "Loading"; a refresh after reading more transcripts keeps the list on screen (no flashing)
+    const k = `${who}|${days}`;
+    if (shownFor.current !== k) { setRows(null); shownFor.current = k; }
     loadPresentations(who === 'all' ? null : who, since).then(r => { if (alive) setRows(r); }).catch(e => { if (alive) { setErr(e.message); setRows([]); } });
     return () => { alive = false; };
   }, [who, days, cal?.meet.saved, cal?.meet.at]); // eslint-disable-line react-hooks/exhaustive-deps
