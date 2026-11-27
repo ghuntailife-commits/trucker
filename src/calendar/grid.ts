@@ -38,3 +38,20 @@ export function snapSlot(minutesFromTop: number, firstHour: number, lastHour: nu
 export function isOpen(starts: number[], at: number, busy: { start: number; len: number }[] = []): boolean {
   return !starts.some(s => s < at + BLOCK_MS && s + BLOCK_MS > at) && !busy.some(b => b.start < at + BLOCK_MS && b.start + b.len > at);
 }
+
+/** The agent's working hours: minutes from midnight (Eastern) and the weekdays (0 = Sunday). */
+export interface WorkHours { start: number; end: number; days: number[] }
+export const DEFAULT_HOURS: WorkHours = { start: 9 * 60, end: 20 * 60, days: [1, 2, 3, 4, 5, 6] };
+
+/** The next `n` open half hours inside working hours, at least 15 minutes from now, within two weeks. */
+export function nextOpenings(n: number, now: number, hours: WorkHours, taken: number[], busy: { start: number; len: number }[],
+  dayStart: (t: number) => number, weekday: (t: number) => number): number[] {
+  const out: number[] = [];
+  let t = Math.ceil((now + 15 * 60_000) / BLOCK_MS) * BLOCK_MS;
+  for (let i = 0; i < 48 * 14 && out.length < n; i++, t += BLOCK_MS) {
+    const m = (t - dayStart(t)) / 60_000;
+    if (!hours.days.includes(weekday(t)) || m < hours.start || m + SLOT_MIN > hours.end) continue;
+    if (isOpen(taken, t, busy)) out.push(t);
+  }
+  return out;
+}

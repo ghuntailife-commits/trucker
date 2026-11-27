@@ -14,8 +14,9 @@ import { TZ, ZONE_NAME, saveText, timeOnly, localTime, NoteText, Reach } from '.
 import { WeekGrid } from './weekGrid';
 import { NewEvent } from './newEvent';
 import { useMyEvents } from '../../src/app-store/useMyEvents';
-import type { MyEvent } from '../../src/calendar/myEvents';
-import { BLOCK_MS, isOpen } from '../../src/calendar/grid';
+import { occurrencesBetween, REPEAT_LABEL, type MyEvent, type Occurrence } from '../../src/calendar/myEvents';
+import { BLOCK_MS, nextOpenings, type WorkHours } from '../../src/calendar/grid';
+import { Dialog } from './shared';
 import { addNote } from '../../src/rules/engine';
 import type { ResultKind, ResultInitial } from './forms';
 import type { AmendTarget } from '../../src/rules/amend';
@@ -50,7 +51,7 @@ export function AppointmentsPage({ agent, d, cal, onDial, onResult, onQuoText, o
   const [offset, setOffset] = useState(0);
   const [sel, setSel] = useState<string | null>(null);
   const mine = useMyEvents(agent);
-  const [creating, setCreating] = useState<{ at: number; edit?: MyEvent } | null>(null);
+  const [creating, setCreating] = useState<{ at: number; edit?: Occurrence } | null>(null);
   const start = addDays(weekStart(d.now, TZ), offset * 7, TZ);
   const end = addDays(start, 7, TZ);
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i, TZ));
@@ -101,24 +102,53 @@ export function AppointmentsPage({ agent, d, cal, onDial, onResult, onQuoText, o
       `${x.first} ${x.last}: callback moved to ${md.format(at)}.`);
   };
 
-  // New event button: the next open half hour from now (within working hours), else tomorrow 9 AM.
-  const nextOpen = () => {
+  // Own events, with repeats spread out: this week for the calendar, the next two weeks for openings and clashes.
+  const occ = useMemo(() => occurrencesBetween(mine.events, start, end, TZ), [mine.events, start, end]);
+  const soon = useMemo(() => occurrencesBetween(mine.events, d.now - DAY_MS, d.now + 15 * DAY_MS, TZ), [mine.events, d.now]);
+  // Open times inside the agent's working hours (George, 2026-11-26): New event starts at the first one, and
+  // "Next 3 openings" lists three to offer a contact on the call.
+  const openings = (n: number) => {
     const taken = d.contacts.filter(x => x.callAt != null && x.callAt > d.now && (tagKind(x.tag) === 'scheduled' || tagKind(x.tag) === 'callback')).map(x => x.callAt!);
-    const busy = mine.events.map(e => ({ start: e.start, len: e.mins * 60_000 }));
-    let t = Math.ceil((d.now + 15 * 60_000) / BLOCK_MS) * BLOCK_MS;
-    for (let i = 0; i < 48 * 14; i++, t += BLOCK_MS) {
-      const h = (t - startOfDay(t, TZ)) / 3_600_000;
-      if (h >= 9 && h < 20 && isOpen(taken, t, busy)) return t;
-    }
-    return startOfDay(d.now, TZ) + DAY_MS + 9 * 3_600_000;
+    return nextOpenings(n, d.now, mine.hours, taken, soon.map(e => ({ start: e.start, len: e.mins * 60_000 })), t => startOfDay(t, TZ), t => parts(t, TZ).wd);
   };
-  const pickedMine = sel?.startsWith('m') ? mine.events.find(e => 'm' + e.id === sel) : undefined;
+  const nextOpen = () => openings(1)[0] ?? startOfDay(d.now, TZ) + DAY_MS + mine.hours.start * 60_000;
+  const [showOpen, setShowOpen] = useState(false);
+  const [editHours, setEditHours] = useState(false);
+  const pickedMine = sel?.startsWith('m') ? occ.find(e => 'm' + e.id === sel) : undefined;
+  const seriesOf = (o: Occurrence) => mine.events.find(e => e.id === o.seriesId);
+  const moveMine = (id: string, at: number) => {
+    const o = occ.find(e => e.id === id); if (!o) return;
+    if (o.repeat) { mine.moveOne(o, at); setSel(null); d.say(`Moved this one to ${whenFull.format(at)}. The other repeats stay put.`); }
+    else { mine.move(id, at); setSel('m' + id); d.say(`Moved to ${whenFull.format(at)}.`); }
+  };
+  const resizeMine = (id: string, mins: number) => {
+    const o = occ.find(e => e.id === id); if (!o) return;
+    if (o.repeat) { mine.resizeOne(o, mins); setSel(null); } else { mine.update(id, { mins }); setSel('m' + id); }
+    d.say(`Now ${mins < 60 ? `${mins} minutes` : `${mins / 60} hour${mins === 60 ? '' : 's'}`}${o.repeat ? ' (just this one)' : ''}.`);
+  };
 
   // Delete (George, 2026-11-26): your own events go away (with Undo); a contact's appointment or callback is
   // cancelled, which puts them back in the calling list with a note. Undo for those is the usual Undo at the bottom.
-  const [undoMine, setUndoMine] = useState<MyEvent | null>(null);
+  const [undoMine, setUndoMine] = useState<{ text: string; undo: () => void } | null>(null);
   const [menu, setMenu] = useState<{ key: string; x: number; y: number } | null>(null);
-  const deleteMine = (e: MyEvent) => { mine.remove(e.id); setSel(null); setUndoMine(e); d.say(`Deleted “${e.title}”.`); };
+  /** A repeating event: `all` deletes every repeat, otherwise just this one. */
+  const deleteMine = (o: Occurrence, all = false) => {
+    setSel(null);
+    if (o.repeat && !all) { mine.skipOne(o); setUndoMine({ text: `Deleted “${o.title}” on ${whenFull.format(o.start)}.`, undo: () => mine.unskip(o) }); d.say(`Deleted this “${o.title}”. The other repeats stay.`); return; }
+    const s = seriesOf(o); if (!s) return;
+    mine.remove(s.id); setUndoMine({ text: `Deleted “${s.title}”${s.repeat ? ' and all its repeats' : ''}.`, undo: () => { const { id: _id, ...rest } = s; mine.add(rest); } });
+    d.say(`Deleted “${s.title}”${s.repeat ? ' and all its repeats' : ''}.`);
+  };
+  const saveMine = (e: Omit<MyEvent, 'id'>) => {
+    const o = creating?.edit;
+    if (!o) { mine.add(e); d.say(`Added “${e.title}” on ${whenFull.format(e.start)}${e.repeat ? `, ${REPEAT_LABEL[e.repeat].toLowerCase()}` : ''}.`); return; }
+    const s = seriesOf(o);
+    if (s?.repeat && e.repeat) {   // a series: keep its first date, shift its time (or day) by however much this one moved
+      const delta = e.start - o.start;
+      mine.update(s.id, { ...e, start: s.start + delta, skip: delta ? [] : s.skip });
+    } else mine.update(o.seriesId, { ...e, skip: undefined });
+    d.say(`Saved “${e.title}”.`);
+  };
   const cancelItem = (it: CalItem) => {
     const x = d.byId.get(it.contactId); if (!x || !canMove(it)) return;
     const what = it.kind === 'appt' ? 'Appointment' : 'Callback';
@@ -172,13 +202,18 @@ export function AppointmentsPage({ agent, d, cal, onDial, onResult, onQuoText, o
           <button className={view === 'list' ? 'on' : ''} onClick={() => pickView('list')}>List</button>
         </div>
         <button className="btn primary" onClick={() => setCreating({ at: nextOpen() })}>+ New event</button>
+        <span className="openwrap">
+          <button className="btn" onClick={() => setShowOpen(o => !o)} aria-expanded={showOpen}>Next 3 openings</button>
+          {showOpen && <OpeningsPop times={openings(3)} hours={mine.hours} onClose={() => setShowOpen(false)} onPick={t => { setShowOpen(false); setCreating({ at: t }); }}
+            onHours={() => { setShowOpen(false); setEditHours(true); }} onCopied={() => d.say('Copied. Paste it into a text, or read it out.')} />}
+        </span>
         <span className="grow" />
         {LIVE && cal ? <GcalStatus cal={cal} /> : <span className="gcal" title="In the live app, appointments go on your Google Calendar automatically.">Google Calendar: live app only</span>}
         {(!LIVE || cal?.status !== 'connected') && <button className="btn" onClick={downloadWeek}>Add week to my calendar</button>}
       </div>
 
       <main className="apptwork">
-        {view === 'grid' ? <WeekGrid days={days} items={items} mine={mine.events} onResizeMine={(id, mins) => { mine.update(id, { mins }); setSel('m' + id); d.say(`Now ${mins < 60 ? `${mins} minutes` : `${mins / 60} hour${mins === 60 ? '' : 's'}`}.`); }} onMoveMine={(id, at) => { mine.move(id, at); setSel('m' + id); d.say(`Moved to ${whenFull.format(at)}.`); }}
+        {view === 'grid' ? <WeekGrid days={days} items={items} mine={occ} hours={mine.hours} onResizeMine={resizeMine} onMoveMine={moveMine}
           onMenu={(key, x, y) => setMenu({ key, x, y })}
           onSlot={at => at < d.now - BLOCK_MS ? d.say('That time has passed. Pick a time still ahead.', 'warn') : setCreating({ at })} today={today} now={d.now} sel={sel} onPick={setSel} canMove={canMove} onMove={moveTo}
           tone={pillTone} nameOf={it => { const x = contactFor(d, it); return { name: x ? `${x.first} ${x.last}` : 'Deleted contact', company: x?.company ?? '' }; }} /> :
@@ -208,9 +243,9 @@ export function AppointmentsPage({ agent, d, cal, onDial, onResult, onQuoText, o
         <aside className="apptside">
           <section className="panel adetail">
             {pickedMine ? <MineDetail e={pickedMine} onEdit={() => setCreating({ at: pickedMine.start, edit: pickedMine })}
-                onDelete={() => deleteMine(pickedMine)} />
+                onDelete={all => deleteMine(pickedMine, all)} />
               : picked && c ? <Detail it={picked} c={c} d={d} onDial={onDial} onResult={onResult} onQuoText={onQuoText} onText={onText} onCancel={canMove(picked) ? () => cancelItem(picked) : undefined} />
-              : <div className="pad16">{undoMine && <p className="undoline">Deleted “{undoMine.title}”. <button className="linkish" onClick={() => { mine.add(undoMine); setUndoMine(null); }}>Undo</button></p>}<div className="eyebrow">Details</div><p className="hint">Pick anything on the week to see the contact, confirm it, or record how it went.{view === 'grid' ? ' Drag a block to a new time. Click open time to book a contact there or block it off for yourself.' : ''}</p></div>}
+              : <div className="pad16">{undoMine && <p className="undoline">{undoMine.text} <button className="linkish" onClick={() => { undoMine.undo(); setUndoMine(null); }}>Undo</button></p>}<div className="eyebrow">Details</div><p className="hint">Pick anything on the week to see the contact, confirm it, or record how it went.{view === 'grid' ? ' Drag a block to a new time. Click open time to book a contact there or block it off for yourself.' : ''}</p></div>}
           </section>
           <section className="panel needs2">
             <div className="ph"><h2>Needs a result</h2><span>{needs.length}</span></div>
@@ -235,9 +270,10 @@ export function AppointmentsPage({ agent, d, cal, onDial, onResult, onQuoText, o
         </aside>
       </main>
       {menu && <BlockMenu at={menu} onClose={() => setMenu(null)} entries={(() => {
-        const ev = mine.events.find(e => 'm' + e.id === menu.key), it = items.find(x => x.key === menu.key), x = it ? d.byId.get(it.contactId) : undefined;
+        const ev = occ.find(e => 'm' + e.id === menu.key), it = items.find(x => x.key === menu.key), x = it ? d.byId.get(it.contactId) : undefined;
         const phone = x ? (x.phone || x.backup).replace(/[^\d+]/g, '') : '';
-        if (ev) return [['Edit', () => setCreating({ at: ev.start, edit: ev })], ['Delete', () => deleteMine(ev), 'danger']];
+        if (ev) return ev.repeat ? [['Edit every repeat', () => setCreating({ at: ev.start, edit: ev })], ['Delete this one', () => deleteMine(ev), 'danger'], ['Delete all repeats', () => deleteMine(ev, true), 'danger']]
+          : [['Edit', () => setCreating({ at: ev.start, edit: ev })], ['Delete', () => deleteMine(ev), 'danger']];
         if (!it || !x) return [];
         const open = canMove(it);
         return [
@@ -253,11 +289,12 @@ export function AppointmentsPage({ agent, d, cal, onDial, onResult, onQuoText, o
           const end = at + mins * 60_000;
           const c2 = d.contacts.find(x => x.id !== skip && x.callAt != null && (tagKind(x.tag) === 'scheduled' || tagKind(x.tag) === 'callback') && x.callAt < end && x.callAt + BLOCK_MS > at);
           if (c2) return `${c2.first} ${c2.last} (${tagKind(c2.tag) === 'scheduled' ? 'appointment' : 'callback'}) at ${timeOnly(c2.callAt!)}`;
-          const e2 = mine.events.find(e => e.id !== creating.edit?.id && e.start < end && e.start + e.mins * 60_000 > at);
+          const e2 = soon.find(e => e.seriesId !== creating.edit?.seriesId && e.start < end && e.start + e.mins * 60_000 > at);
           return e2 ? `“${e2.title}” at ${timeOnly(e2.start)}` : '';
         }} onClose={() => setCreating(null)}
         onBook={(id, kind, at, email) => { d.book(id, kind, at, email); setSel((kind === 'appt' ? 'a' : 'c') + id); }}
-        onSave={e => { if (creating.edit) { mine.update(creating.edit.id, e); d.say(`Saved “${e.title}”.`); } else { mine.add(e); d.say(`Added “${e.title}” on ${whenFull.format(e.start)}.`); } }} />}
+        onSave={saveMine} />}
+      {editHours && <HoursDialog hours={mine.hours} onClose={() => setEditHours(false)} onSave={h => { mine.setHours(h); d.say('Working hours saved.'); }} />}
     </div>
   );
 }
@@ -284,15 +321,18 @@ function ConfirmDelete({ label, onYes }: { label: string; onYes: () => void }) {
     : <button className="linkish danger" onClick={() => setAsk(true)}>{label}</button>;
 }
 
-function MineDetail({ e, onEdit, onDelete }: { e: MyEvent; onEdit: () => void; onDelete: () => void }) {
+function MineDetail({ e, onEdit, onDelete }: { e: Occurrence; onEdit: () => void; onDelete: (all?: boolean) => void }) {
   return <div className="pad16">
     <div className="eyebrow">My event</div>
     <h2 className="dn">{e.title}</h2>
     <dl className="dl">
       <dt>When</dt><dd>{whenFull.format(e.start)} – {timeOnly(e.start + e.mins * 60_000)} ET</dd>
+      {e.repeat && <><dt>Repeats</dt><dd>{REPEAT_LABEL[e.repeat]}</dd></>}
       {e.note && <><dt>Note</dt><dd>{e.note}</dd></>}
     </dl>
-    <div className="dacts"><button className="btn" onClick={onEdit}>Edit</button><button className="btn danger" onClick={onDelete}>Delete</button></div>
+    <div className="dacts"><button className="btn" onClick={onEdit}>{e.repeat ? 'Edit every repeat' : 'Edit'}</button>
+      <button className="btn danger" onClick={() => onDelete()}>{e.repeat ? 'Delete this one' : 'Delete'}</button>
+      {e.repeat && <button className="btn danger" onClick={() => onDelete(true)}>Delete all repeats</button>}</div>
     <p className="hint">Drag it on the calendar to move it. Delete key works too.</p>
   </div>;
 }
@@ -388,4 +428,52 @@ function GcalStatus({ cal }: { cal: GoogleCal }) {
   return <span className="gcal">
     {cal.status === 'reconnect' ? 'Google Calendar needs reconnecting' : cal.status === 'error' ? <span className="warnline" title={cal.error}>Calendar: {cal.error}</span> : 'Google Calendar is off'}
     <button className="btn primary sm" onClick={() => void connectGoogleCalendar()}>{cal.status === 'reconnect' ? 'Reconnect' : 'Connect Google Calendar'}</button></span>;
+}
+
+const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const hm = (m: number) => { const h = Math.floor(m / 60); return `${h % 12 || 12}:${String(m % 60).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`; };
+const spoken = fmt({ weekday: 'short', hour: 'numeric', minute: '2-digit' });
+const hoursLine = (h: WorkHours) => `${h.days.length === 7 ? 'Every day' : h.days.map(x => WD[x]).join(', ')} · ${hm(h.start)}–${hm(h.end)}`;
+
+/** The next three open half hours inside working hours, with a line to read out or text. */
+function OpeningsPop({ times, hours, onPick, onClose, onHours, onCopied }: { times: number[]; hours: WorkHours; onPick: (t: number) => void; onClose: () => void; onHours: () => void; onCopied: () => void }) {
+  useEffect(() => {
+    const off = (e: PointerEvent) => { if (!(e.target as HTMLElement).closest?.('.openwrap')) onClose(); };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('pointerdown', off); window.addEventListener('keydown', key);
+    return () => { window.removeEventListener('pointerdown', off); window.removeEventListener('keydown', key); };
+  }, [onClose]);
+  const words = times.map(t => spoken.format(t));
+  const line = words.length ? `I have ${words.length > 1 ? `${words.slice(0, -1).join(', ')} or ${words[words.length - 1]}` : words[0]} (Eastern). Which works best?` : '';
+  return <div className="openpop" role="dialog" aria-label="Next openings">
+    {times.map(t => <div key={t} className="opt"><span>{whenFull.format(t)}</span><button className="btn sm" onClick={() => onPick(t)}>Book</button></div>)}
+    {!times.length && <p className="hint">No open time in the next two weeks inside your working hours.</p>}
+    {line && <><p className="say">{line}</p>
+      <button className="btn sm" onClick={() => { navigator.clipboard?.writeText(line).then(onCopied, () => {}); }}>Copy this line</button></>}
+    <p className="hint">Working hours: {hoursLine(hours)}. <button className="linkish" onClick={onHours}>Change</button></p>
+  </div>;
+}
+
+/** The agent's working hours: time outside them is greyed out on the calendar and skipped for openings. */
+function HoursDialog({ hours, onSave, onClose }: { hours: WorkHours; onSave: (h: WorkHours) => void; onClose: () => void }) {
+  const [start, setStart] = useState(hours.start), [end, setEnd] = useState(hours.end);
+  const [days, setDays] = useState<number[]>(hours.days);
+  const times = Array.from({ length: 37 }, (_, i) => 5 * 60 + i * 30);   // 5:00 AM to 11:00 PM
+  const ok = end > start && days.length > 0;
+  return <Dialog title="My working hours" onClose={onClose}>
+    <div className="newev">
+      <div className="nerow">
+        <label><span>Start (ET)</span><select value={start} onChange={e => setStart(+e.target.value)}>{times.map(m => <option key={m} value={m}>{hm(m)}</option>)}</select></label>
+        <label><span>End (ET)</span><select value={end} onChange={e => setEnd(+e.target.value)}>{times.map(m => <option key={m} value={m}>{hm(m)}</option>)}</select></label>
+      </div>
+      <div><span className="hint">Days I work</span>
+        <div className="daypick">{[1, 2, 3, 4, 5, 6, 0].map(x => <button key={x} className={`chip ${days.includes(x) ? 'on' : ''}`}
+          onClick={() => setDays(ds => ds.includes(x) ? ds.filter(y => y !== x) : [...ds, x].sort())}>{WD[x]}</button>)}</div></div>
+      {end <= start && <p className="clash">End has to be after start.</p>}
+      <p className="hint">Time outside these hours is greyed out. You can still book there if you need to.</p>
+      <div className="bar"><span className="muted" />
+        <button className="btn" onClick={onClose}>Cancel</button>
+        <button className="btn primary" disabled={!ok} onClick={() => { onSave({ start, end, days }); onClose(); }}>Save</button></div>
+    </div>
+  </Dialog>;
 }

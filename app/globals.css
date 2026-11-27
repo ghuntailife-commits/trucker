@@ -1223,6 +1223,13 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 .wgrid .wg-ev.mine { border-left-color: var(--faint); background: var(--panel2); border-style: dashed; border-left-style: solid; }
 .wgrid .wg-ev.tall { align-items: flex-start; padding-top: 4px; }
 .wgrid .wg-col { cursor: pointer; }
+.wgrid .wg-off { position: absolute; left: 0; right: 0; pointer-events: none; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--line) 55%, transparent) 0 2px, transparent 2px 8px); }
+.wgrid .wg-off span { position: absolute; top: 8px; left: 0; right: 0; text-align: center; font-size: 11px; color: var(--muted); }
+.openpop { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: 300px; max-width: calc(100vw - 32px); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.14); padding: 12px; display: grid; gap: 8px; }
+.openpop .opt { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.openpop .say { font-size: 13px; background: var(--panel2); border-radius: 8px; padding: 8px 10px; }
+.openwrap { position: relative; }
+.daypick { display: flex; gap: 4px; flex-wrap: wrap; }
 .newev { display: grid; gap: 12px; min-width: 0; }
 .newev label { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); }
 .newev input, .newev select { font: inherit; font-size: 14px; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
@@ -1287,3 +1294,9 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 .wgrid .wg-ev:hover .wg-grip::after { opacity: 1; }
 .wgrid .wg-len { position: absolute; right: 6px; bottom: 4px; font-style: normal; font-size: 11px; color: var(--link); background: var(--panel); padding: 0 4px; border-radius: 4px; }
 .clash { margin: 0; font-size: 13px; padding: 6px 10px; border-radius: 8px; background: var(--amber-bg); color: var(--amber); }
+
+/* Today rows outside the contact's calling hours (George, 2026-11-27): still listed, greyed, at the bottom */
+.qt tr.quiet td { opacity: .55; }
+.qt tr.quiet.cur td { opacity: 1; }
+.quiettag { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.quietnote { margin: 6px 0 0; font-size: 12.5px; color: var(--amber, #b26b00); }

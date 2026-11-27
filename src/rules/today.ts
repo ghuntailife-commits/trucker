@@ -29,6 +29,8 @@ export interface TodayRow {
   done: boolean;
   nextAction: number | null;
   category: 1 | 2 | 3;   // 1 priority, 2 retry, 3 fresh
+  /** Outside calling hours in the contact's own time zone right now: still on the list, at the bottom. */
+  quiet?: 'early' | 'late';
 }
 
 const ZONE_OFFSET: Record<string, number> = { ET: 0, CT: -1, MT: -2, PT: -3 };
@@ -53,7 +55,7 @@ export function buildToday(contacts: Contact[], ctx: TodayContext, cfg: Config =
   const snapToday = sameDay(snap, now, tz) && hourFrac(snap, tz) >= cfg.pmStartHour;
   const nowH = parts(now, tz).h;
 
-  type W = { c: Contact; idx: number; na: number | null; untagged: boolean; dcn: number; dco: number;
+  type W = { quiet?: 'early' | 'late'; c: Contact; idx: number; na: number | null; untagged: boolean; dcn: number; dco: number;
     newn: boolean; dpm: boolean; ccu: boolean; dph: boolean; ctg: 1 | 2 | 3; sbk: number; kyb: number;
     rka: number; kxa: number; kxc: number; fky: number; psn: number; done: boolean; auto: boolean; score: number; fuDay: number | null };
 
@@ -89,8 +91,10 @@ export function buildToday(contacts: Contact[], ctx: TodayContext, cfg: Config =
     const due = nxtd || frsh || (wkd && inord) || pmr || ctc || fu;
     const callable = (tagKind(c.tag) !== 'scheduled' && callOrder(c, cfg) != null || fu) && phoneToCall(c) !== '';
     if (!(due && (callable || (wkd && inord)))) return;
-    // v2: only inside calling hours in the contact's own time zone (done-today rows stay so they show as done)
-    if (cfg.callHours && !(wkd && inord)) { const h = localHour(now, c); if (h < cfg.callHours[0] || h >= cfg.callHours[1]) return; }
+    // v2: calling hours in the contact's own time zone. George (2026-11-27): Today is always built, so someone
+    // outside their hours stays on the list, greyed and at the bottom, instead of the list going empty at night.
+    let quiet: 'early' | 'late' | undefined;
+    if (cfg.callHours && !(wkd && inord)) { const h = localHour(now, c); quiet = h < cfg.callHours[0] ? 'early' : h >= cfg.callHours[1] ? 'late' : undefined; }
 
     const dco = fu ? 2.5 : callOrder(c, cfg) ?? 5;   // follow-ups go right after callbacks
     const dwv = c.newNumberMark ?? -1;
@@ -110,7 +114,7 @@ export function buildToday(contacts: Contact[], ctx: TodayContext, cfg: Config =
     picked.push({ c, idx, na, untagged, dcn: c.dials, dco, newn, dpm, ccu, dph, ctg, sbk, kyb,
       rka: 0, kxa: 0, kxc: 0, fky: 0, psn: order.get(c.id) ?? 100000, auto, fuDay: fu ? fuDay! : null,
       done: c.lastDialed != null && c.lastDialed > 0 && c.lastDialed >= snap && !auto,
-      score: ctg === 3 && ctx.freshScore ? ctx.freshScore(c) : 1 });
+      score: ctg === 3 && ctx.freshScore ? ctx.freshScore(c) : 1, quiet });
   });
   // v2: automatic PM retries go next up: just before the first contact in the saved order not yet dialed
   const open = picked.filter(w => !w.done && !w.auto && w.psn < 100000).map(w => w.psn);
@@ -137,7 +141,7 @@ export function buildToday(contacts: Contact[], ctx: TodayContext, cfg: Config =
     w.fky = w.ctg === 1 ? r - 1_000_000 : w.ctg === 2 ? r / (1 - shr) : r / shr;
   }
   // 4. The saved order wins; contacts added since go after it
-  const c = sortBy(b, w => w.psn, w => w.fky).slice(0, Math.min(cfg.listSize, 200));
+  const c = sortBy(b, w => (w.quiet ? 1 : 0), w => w.psn, w => w.fky).slice(0, Math.min(cfg.listSize, 200));
 
   return c.map(w => {
     const done = w.done;
@@ -148,7 +152,7 @@ export function buildToday(contacts: Contact[], ctx: TodayContext, cfg: Config =
       : w.dpm ? 'PM retry'
       : w.ctg === 3 ? 'Fresh'
       : whyLabel(w.c, now, cfg);
-    return { contact: w.c, why, done, nextAction: w.na, category: w.ctg };
+    return { contact: w.c, why, done, nextAction: w.na, category: w.ctg, ...(w.quiet ? { quiet: w.quiet } : {}) };
   });
 }
 

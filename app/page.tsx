@@ -530,11 +530,11 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
                     const c = r.contact, isCur = c.id === current?.id, sold = soldIds.has(c.id) || c.tag.startsWith('SOLD');
                     const label = r.done ? `Done · ${baseWhy(r.why)}` : r.why;
                     return (
-                      <tr key={c.id} data-row={c.id} className={`${r.done ? 'done' : ''} ${isCur ? 'cur' : ''} ${sold ? 'sold' : ''}`}
+                      <tr key={c.id} data-row={c.id} className={`${r.done ? 'done' : ''} ${isCur ? 'cur' : ''} ${sold ? 'sold' : ''} ${r.quiet ? 'quiet' : ''}`}
                           onClick={() => setPicked(c.id)} tabIndex={0} onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setPicked(c.id); } }}
                           onContextMenu={e => { e.preventDefault(); setRowMenu({ id: c.id, x: e.clientX, y: e.clientY }); }}>
                         <td className="num muted">{r.n}</td>
-                        <td><span className={`pill ${sold ? 'Sold' : r.done ? 'Done' : chipClass(r.why) || 'Retry'}`}>{sold ? 'Sold' : label}</span></td>
+                        <td><span className={`pill ${sold ? 'Sold' : r.done ? 'Done' : chipClass(r.why) || 'Retry'}`}>{sold ? 'Sold' : label}</span>{r.quiet && !r.done && <small className="quiettag">{r.quiet === 'late' ? 'after 9 PM there' : 'before 8 AM there'}</small>}</td>
                         <td className="strong">{c.first} {c.last}</td>
                         <td className="tnum">{c.phone || c.backup || '—'}</td>
                         <td>{c.city}, {c.state} · {c.zone}</td>
@@ -552,7 +552,8 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
               </table>
             </div>
             <div className="tfoot">
-              <span>Showing {rows.length} of {d.today.length} · {s.done} done today · <span className="rankstat" title="Fresh contacts are ranked by how often contacts like them have booked, once enough have been dialed.">
+              <span>Showing {rows.length} of {d.today.length} · {s.done} done today · {(() => { const q = d.queue.filter(r => r.quiet).length;
+                return q ? <>{q === d.queue.length ? 'outside calling hours for everyone right now, so this is your list for when hours open' : `${q} outside their calling hours, at the bottom`} · </> : null; })()}<span className="rankstat" title="Fresh contacts are ranked by how often contacts like them have booked, once enough have been dialed.">
                 {d.scorer.ready ? 'fresh contacts ranked by your results' : `fresh ranking learns after ${d.scorer.need} dialed (${d.scorer.results} so far)`}</span></span>
               <span className="legend"><i className="sold" />Sold <i className="done" />Done today <i className="cur" />On the line</span>
             </div>
@@ -638,6 +639,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
               <h2 className="serif name">{current.first} {current.last}</h2>
               <div className="sub">{current.company}{current.job ? ` — ${current.job}` : ''}</div>
               <div className="sub muted">{current.city}, {current.state} · {ZONE_NAME[current.zone] ?? current.zone} · {localTime(current.zone, d.now)} local</div>
+              {currentRow?.quiet && <p className="quietnote">{currentRow.quiet === 'late' ? 'After 9 PM' : 'Before 8 AM'} for them right now. Best to call when their hours open.</p>}
               {d.scorer.ready && currentRow?.category === 3 && d.scorer.reason(current) && <div className="match">Good match · {d.scorer.reason(current)}</div>}
               <div className="quals" role="group" aria-label="Quick qualifiers">
                 {QUALIFIERS.map(q => {

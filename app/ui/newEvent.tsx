@@ -4,7 +4,7 @@
 import { useMemo, useState } from 'react';
 import type { Contact } from '../../src/rules/types';
 import type { MyEvent } from '../../src/calendar/myEvents';
-import { EVENT_LENGTHS } from '../../src/calendar/myEvents';
+import { EVENT_LENGTHS, REPEAT_LABEL, type Repeat } from '../../src/calendar/myEvents';
 import { parts, zoned } from '../../src/rules/time';
 import { tagShort } from '../../src/rules/tags';
 import { Dialog, TZ, timeOnly } from './shared';
@@ -33,6 +33,7 @@ export function NewEvent({ at, contacts, edit, onClose, onBook, onSave, clash }:
   const [title, setTitle] = useState(edit?.title ?? '');
   const [mins, setMins] = useState(edit?.mins ?? 60);
   const [note, setNote] = useState(edit?.note ?? '');
+  const [repeat, setRepeat] = useState<Repeat | ''>(edit?.repeat ?? '');
 
   const when = useMemo(() => { const [y, m, d] = date.split('-').map(Number); return y ? zoned(y, m, d, Math.floor(min / 60), min % 60, TZ) : NaN; }, [date, min]);
   const found = useMemo(() => {
@@ -45,7 +46,7 @@ export function NewEvent({ at, contacts, edit, onClose, onBook, onSave, clash }:
   const ok = !Number.isNaN(when) && (kind === 'mine' ? true : !!who);
   const save = () => {
     if (!ok) return;
-    if (kind === 'mine') onSave({ title: title.trim() || 'Busy', start: when, mins, note: note.trim() || undefined });
+    if (kind === 'mine') onSave({ title: title.trim() || 'Busy', start: when, mins, note: note.trim() || undefined, repeat: repeat || undefined });
     else onBook(who!.id, kind, when, kind === 'appt' && email.trim() ? email.trim() : undefined);
     onClose();
   };
@@ -63,8 +64,12 @@ export function NewEvent({ at, contacts, edit, onClose, onBook, onSave, clash }:
       </div>
       {kind === 'mine' ? <>
         <label className="nefull"><span>What</span><input autoFocus placeholder="Lunch, team meeting, kids' game…" value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') save(); }} /></label>
-        <label className="nefull"><span>Note (optional)</span><input value={note} onChange={e => setNote(e.target.value)} /></label>
-        <p className="hint">Shows on your calendar as busy time. Only you see it.</p>
+        <div className="nerow">
+          <label><span>Repeats</span><select value={repeat} onChange={e => setRepeat(e.target.value as Repeat | '')}>
+            <option value="">Doesn’t repeat</option>{(Object.keys(REPEAT_LABEL) as Repeat[]).map(r => <option key={r} value={r}>{REPEAT_LABEL[r]}</option>)}</select></label>
+          <label><span>Note (optional)</span><input value={note} onChange={e => setNote(e.target.value)} /></label>
+        </div>
+        <p className="hint">Shows on your calendar as busy time. Only you see it.{edit?.repeat ? ' Changes here apply to every repeat. To change just one, drag it on the calendar.' : ''}</p>
       </> : who ? <div className="newho">
         <div><b>{who.first} {who.last}</b><small>{[who.company, [who.city, who.state].filter(Boolean).join(', '), who.phone].filter(Boolean).join(' · ')}</small>
           {who.tag && <small>Now: {tagShort(who.tag)}</small>}</div>

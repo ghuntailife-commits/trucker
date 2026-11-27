@@ -4,7 +4,9 @@ import { contact, et } from './helpers';
 import { buildToday } from '../src/rules/today';
 import { DEFAULT_CONFIG, V27_CONFIG } from '../src/rules/config';
 
-const names = (now: number, cs = people(), cfg = DEFAULT_CONFIG) => buildToday(cs, { now, snap: now - 3_600_000, savedOrder: [] }, cfg).map(r => r.contact.first).sort();
+const rows = (now: number, cs = people(), cfg = DEFAULT_CONFIG) => buildToday(cs, { now, snap: now - 3_600_000, savedOrder: [] }, cfg);
+/** Who can be called right now (the rest stay on Today, greyed at the bottom). */
+const names = (now: number, cs = people(), cfg = DEFAULT_CONFIG) => rows(now, cs, cfg).filter(r => !r.quiet).map(r => r.contact.first).sort();
 const people = () => [contact({ first: 'East', zone: 'ET', state: 'GA' }), contact({ first: 'Central', zone: 'CT', state: 'TX' }),
   contact({ first: 'Mountain', zone: 'MT', state: 'CO' }), contact({ first: 'Arizona', zone: 'MT', state: 'AZ' }),
   contact({ first: 'Pacific', zone: 'PT', state: 'CA' }), contact({ first: 'Unknown', zone: '', state: '' })];
@@ -19,6 +21,14 @@ describe('calling hours', () => {
   it('before 8 AM their time they wait', () => {
     expect(names(et(26, 9, 30))).toEqual(['Central', 'East', 'Unknown']);
     expect(names(et(26, 11, 30))).toEqual(['Arizona', 'Central', 'East', 'Mountain', 'Pacific', 'Unknown']);
+  });
+  it('Today is never empty at night: everyone stays, outside-hours contacts last', () => {
+    const r = rows(et(27, 0, 30));
+    expect(r).toHaveLength(6);
+    expect(r.filter(x => x.quiet).length).toBe(6);
+    const mid = rows(et(26, 22, 30));
+    expect(mid.slice(0, 3).every(x => !x.quiet)).toBe(true);
+    expect(mid.slice(3).map(x => x.quiet)).toEqual(['late', 'late', 'late']);
   });
   it('v27 had no calling hours', () => {
     expect(names(et(26, 22, 30), people(), V27_CONFIG)).toHaveLength(6);

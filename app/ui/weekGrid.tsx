@@ -5,7 +5,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CalItem } from '../../src/calendar/events';
 import type { MyEvent } from '../../src/calendar/myEvents';
-import { hourRange, lanes, snapSlot, isOpen, SLOT_MIN, BLOCK_MS } from '../../src/calendar/grid';
+import { hourRange, lanes, snapSlot, isOpen, SLOT_MIN, BLOCK_MS, type WorkHours } from '../../src/calendar/grid';
+import { parts } from '../../src/rules/time';
 import { timeOnly, TZ } from './shared';
 
 const SLOT_PX = 26;
@@ -18,8 +19,8 @@ type Drag = { key: string; x0: number; y0: number; grab: number; moved: boolean;
 /** One block on the grid: a contact's appointment/callback/result, or one of the agent's own events. */
 type Block = { key: string; at: number; len: number; name: string; company: string; label: string; kind: string; tone: string; movable: boolean };
 
-export function WeekGrid({ days, items, mine, today, now, sel, onPick, canMove, onMove, onMoveMine, onResizeMine, onSlot, onMenu, nameOf, tone }: {
-  days: number[]; items: CalItem[]; mine: MyEvent[]; today: number; now: number; sel: string | null;
+export function WeekGrid({ days, items, mine, today, now, sel, onPick, canMove, onMove, onMoveMine, onResizeMine, onSlot, onMenu, nameOf, tone, hours }: {
+  hours?: WorkHours; days: number[]; items: CalItem[]; mine: MyEvent[]; today: number; now: number; sel: string | null;
   onPick: (key: string) => void; canMove: (it: CalItem) => boolean; onMove: (it: CalItem, at: number) => void;
   onMoveMine: (id: string, at: number) => void; onResizeMine: (id: string, mins: number) => void; onSlot: (at: number) => void; onMenu: (key: string, x: number, y: number) => void;
   nameOf: (it: CalItem) => { name: string; company: string }; tone: (it: CalItem) => string;
@@ -135,6 +136,12 @@ export function WeekGrid({ days, items, mine, today, now, sel, onPick, canMove, 
               onMouseLeave={() => setHover(null)}
               onClick={e => { if (drag || e.target !== e.currentTarget) return; const r = e.currentTarget.getBoundingClientRect(); const slot = Math.floor((e.clientY - r.top) / SLOT_PX); if (slot >= 0 && slot < slots) onSlot(slotAt(i, slot)); }}>
               {Array.from({ length: slots }, (_, s) => <div key={s} className={`wg-slot ${s % 2 ? 'half' : ''}`} style={{ top: s * SLOT_PX, height: SLOT_PX }} />)}
+              {hours && (() => {   // time outside the agent's working hours is greyed out (still usable)
+                const px = (m: number) => Math.max(0, Math.min(slots, (m - first * 60) / SLOT_MIN)) * SLOT_PX;
+                if (!hours.days.includes(parts(t, TZ).wd)) return <div className="wg-off" style={{ top: 0, height: slots * SLOT_PX }}><span>Day off</span></div>;
+                return <>{px(hours.start) > 0 && <div className="wg-off" style={{ top: 0, height: px(hours.start) }} />}
+                  {px(hours.end) < slots * SLOT_PX && <div className="wg-off" style={{ top: px(hours.end), height: slots * SLOT_PX - px(hours.end) }} />}</>;
+              })()}
               {hoverAt > 0 && !drag && hoverAt >= now && free(hoverAt) &&
                 <div className="wg-open" style={{ top: hover!.slot * SLOT_PX, height: SLOT_PX }}>+ {timeOnly(hoverAt)} open</div>}
               {t === today && nowMin >= first * 60 && nowMin <= last * 60 && <div className="wg-now" style={{ top: ((nowMin - first * 60) / SLOT_MIN) * SLOT_PX }} />}
