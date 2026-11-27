@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { defaultTeam, withRoster, type TeamSettings, type ViewerId, type AgentId, type AgentSetting, type RuleSettings, configFor } from '../team/agents';
 import { loadState, saveState } from './store';
-import type { Person } from '../live/supabase';
+import { LIVE, db, type Person } from '../live/supabase';
 import { agentSeed, storageKey } from './agentSeeds';
 import type { Seed } from './agentSeeds';
 
@@ -18,8 +18,15 @@ export function useTeam(person?: Person) {
     let live = true;
     loadState<TeamSettings>(KEY).then(t => {
       if (!live) return;
-      const team = t && t.v === 1 ? withRoster({ ...defaultTeam(), ...t }) : defaultTeam();
+      let team = t && t.v === 1 ? withRoster({ ...defaultTeam(), ...t }) : defaultTeam();
       setTeam(team);
+      // live: each agent keeps their own licensed states (the team settings are the admin's to change)
+      if (LIVE) db().from('kv').select('key,value').like('key', 'dispatch-lic-%').then(({ data }) => {
+        if (!live || !data?.length) return;
+        const lic = new Map(data.map((r: { key: string; value: unknown }) => [r.key.slice('dispatch-lic-'.length), r.value as string[]]));
+        team = { ...team, agents: team.agents.map(a => (Array.isArray(lic.get(a.id)) ? { ...a, states: lic.get(a.id)! } : a)) };
+        setTeam(team);
+      });
       if (!person) try { const v = localStorage.getItem(VIEW); if (v && (v === 'boss' || team.agents.some(a => a.id === v))) setViewerState(v); } catch { /* */ }
     });
     return () => { live = false; };
@@ -28,8 +35,10 @@ export function useTeam(person?: Person) {
 
   // live: only the admin can look at someone else's screen
   const setViewer = useCallback((v: ViewerId) => { if (person && person.role !== 'admin') return; setViewerState(v); if (!person) try { localStorage.setItem(VIEW, v); } catch { /* */ } }, [person]);
-  const setAgent = useCallback((id: AgentId, change: Partial<AgentSetting>) =>
-    setTeam(t => (t ? { ...t, agents: t.agents.map(a => (a.id === id ? { ...a, ...change } : a)) } : t)), []);
+  const setAgent = useCallback((id: AgentId, change: Partial<AgentSetting>) => {
+    if (LIVE && change.states) saveState(`dispatch-lic-${id}`, change.states);
+    setTeam(t => (t ? { ...t, agents: t.agents.map(a => (a.id === id ? { ...a, ...change } : a)) } : t));
+  }, []);
   const setRules = useCallback((rules: RuleSettings) => setTeam(t => (t ? { ...t, rules } : t)), []);
   const setTeamField = useCallback((change: Partial<Pick<TeamSettings, 'coachingHour' | 'coachingCopyTo'>>) => setTeam(t => (t ? { ...t, ...change } : t)), []);
   const reset = useCallback(() => setTeam(defaultTeam()), []);
