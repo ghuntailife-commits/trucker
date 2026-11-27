@@ -3,7 +3,10 @@
 import { DAY_MS, md } from './time';
 
 export const OBJECTIONS = ['Price', 'Needs to Think', 'Spouse / Family', 'Existing Coverage', 'Trust / Skepticism',
-  'Timing', 'Affordability', 'Other'] as const;
+  'Timing', 'Affordability',
+  // George, 2026-11-27: more reasons
+  'Uninsurable (health)', 'Not eligible (age, state, job)', 'No bank account / payment method', 'Lost job / income change',
+  'Wants to shop around', 'Bad past experience with insurance', 'Not interested', 'Other'] as const;
 
 export type AlpType = 'Trial' | 'Standard';
 /** Where a sale came from when it wasn't one of the agent's own list contacts (George, 2026-11-26). */
