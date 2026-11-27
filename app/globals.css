@@ -988,9 +988,9 @@ kbd { font: 600 12px var(--mono); background: var(--panel2); border: 1px solid v
 .pacewrap { position: relative; margin: 16px 0 8px; }
 .pace { display: block; margin-top: 6px; overflow: visible; user-select: none; }
 .pace .grid { stroke: var(--line2); stroke-width: 1; } .pace .axis { stroke: var(--line); stroke-width: 1; }
-.pace .tick { fill: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+.pace .tick { fill: var(--faint); font-size: 11px; font-weight: 400; font-variant-numeric: tabular-nums; }
 .pace .goalline { stroke: var(--text); stroke-width: 1; stroke-dasharray: 2 4; opacity: .45; }
-.pace .goallbl { fill: var(--text); font-size: 12px; font-weight: 600; }
+.pace .goallbl { fill: var(--muted); font-size: 11px; font-weight: 500; }
 .pace .paceline2 { stroke: var(--muted); stroke-width: 2; stroke-dasharray: 6 5; fill: none; }
 .pace .area.std { fill: var(--c-std-a); } .pace .area.trial { fill: var(--c-trial-a); }
 .pace .topline { fill: none; stroke-width: 2; stroke-linejoin: round; } .pace .topline.std { stroke: var(--c-std); } .pace .topline.trial { stroke: var(--c-trial); }
@@ -1074,3 +1074,4 @@ kbd { font: 600 12px var(--mono); background: var(--panel2); border: 1px solid v
 .lchip { display: inline-block; margin: 1px 3px 1px 0; padding: 1px 7px; border: 1px solid var(--line); border-radius: 10px; font: inherit; font-size: 11px; background: var(--panel2); color: var(--text); cursor: pointer; }
 .lchip.off { text-decoration: line-through; color: var(--faint); background: transparent; }
 .lchip:disabled { cursor: default; }
+.pace .alpdot.ontrial { fill: var(--c-trial); }

@@ -1,6 +1,6 @@
 'use client';
 // Home (George, 2026-11-26): the daily production note front and center, then cards with what matters today.
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { Page } from '../../src/team/agents';
 import type { DailyNote } from '../../src/home/dailyNote';
 import type { CoachNote } from '../../src/team/coaching';
@@ -42,7 +42,15 @@ function niceStep(max: number) {
 /** Month to date: standard and trial ALP stacked, against an even pace to the goal. Hover or drag for each day. */
 function PaceChart({ days, goal, daysInMonth, label }: { days: MonthDay[]; goal: number; daysInMonth: number; label: string }) {
   const [hover, setHover] = useState<number | null>(null);
-  const W = 640, H = 230, pad = { l: 48, r: 14, t: 18, b: 26 };
+  // drawn at the real width on screen, so text is always true size (11px) and never scales up
+  const box = useRef<HTMLDivElement>(null);
+  const [W, setW] = useState(640);
+  useEffect(() => {
+    const el = box.current; if (!el) return;
+    const ro = new ResizeObserver(([e]) => setW(Math.max(280, Math.round(e.contentRect.width))));
+    ro.observe(el); return () => ro.disconnect();
+  }, []);
+  const H = 200, pad = { l: 44, r: 52, t: 12, b: 22 };
   const last = days.at(-1) ?? { std: 0, trial: 0, daySales: 0, dayAlp: 0 };
   const want = Math.max(goal, last.std + last.trial, 1) * 1.06;
   const step = niceStep(want), top = Math.ceil(want / step) * step;
@@ -65,25 +73,24 @@ function PaceChart({ days, goal, daysInMonth, label }: { days: MonthDay[]; goal:
   const tipLeft = hover != null ? (x(hover) / W) * 100 : 0;
   const xt = [1, 5, 10, 15, 20, 25].filter(d => daysInMonth - d > 2).concat(daysInMonth);
   return (
-    <div className="pacewrap">
+    <div className="pacewrap" ref={box}>
       <div className="plegend" aria-hidden="true">
         <span><i className="sw pace" />Even pace to your goal</span>
         <span className="phint">Hover or tap a day</span>
       </div>
-      <svg className="pace" viewBox={`0 0 ${W} ${H}`} role="img"
+      <svg className="pace" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img"
         aria-label={`${label} ALP so far: ${money(last.std + last.trial)} (${money(last.std)} standard, ${money(last.trial)} trial) against a ${money(goal)} goal`}>
         {ticks.map(t => <g key={t}><line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} className={t ? 'grid' : 'axis'} />
           <text x={pad.l - 8} y={y(t) + 4} textAnchor="end" className="tick">{kfmt(t)}</text></g>)}
         <line x1={pad.l} x2={W - pad.r} y1={y(goal)} y2={y(goal)} className="goalline" />
-        <text x={pad.l + 6} y={y(goal) - 6} className="goallbl">Goal {money(goal)}</text>
+        <text x={W - pad.r + 6} y={y(goal) + 4} className="goallbl">Goal</text>
         <line x1={x(0)} y1={y(0)} x2={x(daysInMonth)} y2={y(goal)} className="paceline2" />
         {days.length > 0 && <>
           <polygon points={`${stdTop.join(' ')} ${base}`} className="area std" />
           {last.trial > 0 && <polygon points={trialArea} className="area trial" />}
           <polyline points={stdTop.join(' ')} className="topline std" />
           {last.trial > 0 && <polyline points={allTop.join(' ')} className="topline trial" />}
-          <circle cx={x(days.length)} cy={y(last.std + last.trial)} r={4.5} className="alpdot" />
-          <text x={x(days.length) - 8} y={y(last.std + last.trial) - 10} textAnchor="end" className="nowlbl">{money(last.std + last.trial)}</text>
+          <circle cx={x(days.length)} cy={y(last.std + last.trial)} r={4.5} className={`alpdot ${last.trial > 0 ? "ontrial" : ""}`} />
         </>}
         {xt.map(d => <text key={d} x={x(d)} y={H - 8} textAnchor="middle" className="tick">{d}</text>)}
         {hover != null && <g className="cross"><line x1={x(hover)} x2={x(hover)} y1={pad.t} y2={H - pad.b} />
@@ -122,7 +129,7 @@ export function HomePage(h: HomeProps) {
   return (
     <div className="home">
       <section className="hcard note">
-        <div className="eyebrow">Daily note · rules draft, Claude writes it at go-live</div>
+        <div className="eyebrow">Daily note</div>
         <h1>{note.hello}</h1>
         <p className="lead">{note.lines[0]}</p>
         <div className="goalbar" role="img" aria-label={`${m.pct}% of the monthly goal: ${money(m.std)} standard and ${money(m.trial)} trial`}>
