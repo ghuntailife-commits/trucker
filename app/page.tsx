@@ -27,10 +27,20 @@ import { useUpdateCheck } from '../src/live/useUpdateCheck';
 import { MoveContacts } from './ui/transfer';
 import { Dialog, TZ, TZ_ABBR, TZ_NAME, ZONE_TZ, chipClass, localTime, Ico, IC, fmtSecs, ZONE_NAME, timeOnly, saveText, NoteText } from './ui/shared';
 import { useTeam, type Team } from '../src/app-store/useTeam';
-import { pagesFor, viewers, type AgentId, type Page, type ViewerId } from '../src/team/agents';
+import { pagesFor, quoNumbers, viewers, type AgentId, type Page, type ViewerId } from '../src/team/agents';
 import { TeamPage, HealthList } from './ui/team';
 import { SettingsPage } from './ui/settings';
 import { QuoText } from './ui/quo';
+import { pickFrom } from '../src/quo/localMatch';
+
+/** Local match for calls (George, 2026-11-27): Quo's app can't be told which line to call from, so the Call button
+ *  says which of the agent's numbers is closest to the contact. Only when they have more than one. */
+function localLine(me: { quoNumber?: string }, to: string) {
+  const mine = quoNumbers(me.quoNumber);
+  if (mine.length < 2) return null;
+  const p = pickFrom(mine, to), d = p.from.replace(/\D/g, '').slice(-10);
+  return { label: `Quo · use ${d.slice(0, 3)} line`, title: `Pick (${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)} in Quo: ${p.why}` };
+}
 import { CtxMenu, contactEntries, RemoveDialog, TodaySettings } from './ui/contactActions';
 import { useSort } from './ui/sort';
 import { CoachPage } from './ui/coach';
@@ -744,7 +754,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
                 </button>
               ) : (
                 <button className="callbtn" disabled={!dialNum} onClick={() => startCall(current, backupMode)}>
-                  <Ico d={IC.phone} size={20} /><span>{dialNum || 'No number'}</span>{quoOn && dialNum && <small className="via">Quo</small>}
+                  <Ico d={IC.phone} size={20} /><span>{dialNum || 'No number'}</span>{quoOn && dialNum && <small className="via" title={localLine(me, dialNum)?.title}>{localLine(me, dialNum)?.label ?? 'Quo'}</small>}
                 </button>
               )}
               <div className="numline">
