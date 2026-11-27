@@ -38,3 +38,29 @@ describe('Quo webhook signatures (Standard Webhooks)', () => {
     expect(await verifyStandard(id, ts, `v1,${sig}`, body + ' ', secret)).toBe(false);
   });
 });
+
+describe("Quo's 2026 webhook format (data.resource + data.context)", () => {
+  it('reads a received text', async () => {
+    const { quoParts, quoNote, quoNumberId } = await import('../src/quo/events');
+    const body = { id: 'EV1', apiVersion: '2026-03-30', type: 'message.received', createdAt: '2026-11-27T02:18:27.681Z',
+      data: { context: { phoneNumberId: 'PN1', senderIdentifier: '+15555550101', recipientIdentifiers: ['+15555550199'] },
+        resource: { id: 'AC1', direction: 'incoming', text: 'Hello', createdAt: '2026-11-27T02:18:27Z' } } };
+    const p = quoParts(body)!;
+    expect(p.ours).toBe('+15555550199'); expect(p.them).toBe('+15555550101'); expect(quoNumberId(body)).toBe('PN1');
+    expect(quoNote({ type: 'message.received', payload: body })).toBe('Text from them: "Hello"');
+  });
+  it('reads a call, its recording and its transcript', async () => {
+    const { quoParts, quoNote, transcriptText } = await import('../src/quo/events');
+    const ctx = { phoneNumberId: 'PN1', participants: { workspace: ['+15555550199'], external: ['+15555550101'] } };
+    const call = { type: 'call.completed', data: { context: ctx, resource: { id: 'CA1', direction: 'outgoing', status: 'answered', duration: 125 } } };
+    const p = quoParts(call)!;
+    expect([p.callId, p.ours, p.them]).toEqual(['CA1', '+15555550199', '+15555550101']);
+    expect(quoNote({ type: 'call.completed', payload: call })).toBe('Quo call: 2m 05s');
+    const rec = { type: 'call.recording.completed', data: { context: ctx, resource: { id: 'CA1', recordings: [{ url: 'https://example.com/r.mp3' }] } } };
+    expect(quoNote({ type: 'call.recording.completed', payload: rec })).toBe('Call recording: https://example.com/r.mp3');
+    const tr = { type: 'call.transcript.completed', data: { context: ctx, resource: { callId: 'CA1', dialogue: [
+      { userId: 'US1', identifier: null, content: 'Hi, this is the agent' }, { userId: null, identifier: '+15555550101', content: 'Hey' }] } } };
+    expect(quoParts(tr)!.callId).toBe('CA1');
+    expect(transcriptText(tr)).toBe('Agent: Hi, this is the agent\nContact: Hey');
+  });
+});

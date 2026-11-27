@@ -5,7 +5,21 @@ import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { adminDb, teamSettings, agentByNumber } from '../../../../src/live/server';
 import { verifySignature, verifyStandard } from '../../../../src/quo/quo';
-import { quoParts, transcriptText, NOTE_PROMPT } from '../../../../src/quo/events';
+import { quoParts, quoNumberId, transcriptText, NOTE_PROMPT } from '../../../../src/quo/events';
+
+/** The agent's Quo number from Quo's id for it (PN...), asked from Quo once per server start. */
+const numberIds = new Map<string, string>();
+async function numberFromId(pn: string): Promise<string> {
+  if (!pn || !process.env.QUO_API_KEY) return '';
+  if (!numberIds.has(pn)) {
+    try {
+      const r = await fetch('https://api.openphone.com/v1/phone-numbers', { headers: { Authorization: process.env.QUO_API_KEY } });
+      const j = await r.json();
+      for (const n of j?.data ?? []) if (n?.id && n?.number) numberIds.set(n.id, n.number);
+    } catch (e) { console.error('quo phone numbers failed', (e as Error).message); }
+  }
+  return numberIds.get(pn) ?? '';
+}
 
 export async function POST(req: Request) {
   const raw = await req.text();
@@ -28,7 +42,9 @@ export async function POST(req: Request) {
 
   const db = adminDb();
   let agentId: string | null = null, phone = ev.them;
-  if (ev.ours) agentId = agentByNumber(await teamSettings(db), ev.ours)?.id ?? null;
+  const team = await teamSettings(db);
+  if (ev.ours) agentId = agentByNumber(team, ev.ours)?.id ?? null;
+  if (!agentId) { const n = await numberFromId(quoNumberId(body)); if (n) agentId = agentByNumber(team, n)?.id ?? null; }
   if ((!agentId || !phone) && ev.callId) {
     // transcripts and summaries only name the call: take the agent and number from that call's other events
     const { data } = await db.from('quo_events').select('agent_id,phone').eq('call_id', ev.callId).not('agent_id', 'is', null).limit(1);
@@ -53,7 +69,7 @@ export async function POST(req: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   // a transcript or summary that arrived before its call: give it this call's agent and number now
   if (agentId && ev.callId) await db.from('quo_events').update({ agent_id: agentId, phone }).eq('call_id', ev.callId).is('agent_id', null);
-  console.log('quo webhook: stored', ev.type, 'agent', agentId, 'ai note', !!ai);
+  console.log('quo webhook: stored', ev.type, 'agent', agentId, 'ours', ev.ours, 'them', ev.them ? 'yes' : 'no', 'ai note', !!ai);
   return NextResponse.json({ ok: true });
 }
 
