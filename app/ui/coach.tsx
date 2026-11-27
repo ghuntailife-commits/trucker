@@ -12,6 +12,7 @@ import { loadCoachCalls, loadWeekly, askCoach, type WeeklyNote } from '../../src
 import { Panel, Kpi, Rows, pctTxt } from './charts';
 import { TZ } from './shared';
 import { useSort } from './sort';
+import { PlaybookView } from './playbook';
 
 const md = new Intl.DateTimeFormat('en-US', { timeZone: TZ, month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 const DAY = 86_400_000;
@@ -25,6 +26,7 @@ export function CoachPage({ me, admin, agents, contacts, now }: { me: AgentSetti
   const [weekly, setWeekly] = useState<WeeklyNote | null>(null);
   const [err, setErr] = useState(''); const [busy, setBusy] = useState<'' | 'week' | 'tag'>('');
   const [reload, setReload] = useState(0);
+  const [tab, setTab] = useState<'book' | 'calls'>('book');
   const since = now - days * DAY;
 
   useEffect(() => {
@@ -60,22 +62,26 @@ export function CoachPage({ me, admin, agents, contacts, now }: { me: AgentSetti
     <div className="respage">
       <section className="hero">
         <div className="title">
-          <div className="eyebrow">{who === 'all' ? 'Everyone with Quo' : name(who)} · from Claude&rsquo;s call notes</div>
+          <div className="eyebrow">{tab === 'book' ? 'The whole team · learns from every transcribed call' : `${who === 'all' ? 'Everyone with Quo' : name(who)} · from Claude’s call notes`}</div>
           <h1>Coaching</h1>
         </div>
         <div className="rtools">
-          {admin && <select className="coachwho" value={who} onChange={e => setWho(e.target.value)} aria-label="Whose coaching">
+          {admin && tab === 'calls' && <select className="coachwho" value={who} onChange={e => setWho(e.target.value)} aria-label="Whose coaching">
             {quoAgents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             <option value="all">Everyone</option>
           </select>}
-          <div className="seg mini" role="group" aria-label="Date range">
-            {([[7, 'Last 7 days'], [30, 'Last 30 days']] as [7 | 30, string][]).map(([k, l]) => <button key={k} className={days === k ? 'on' : ''} onClick={() => setDays(k)}>{l}</button>)}
+          <div className="seg mini" role="group" aria-label="Coaching view">
+            <button className={tab === 'book' ? 'on' : ''} onClick={() => setTab('book')}>Team Playbook</button>
+            <button className={tab === 'calls' ? 'on' : ''} onClick={() => setTab('calls')}>{admin ? 'Calls' : 'My calls'}</button>
           </div>
+          {tab === 'calls' && <div className="seg mini" role="group" aria-label="Date range">
+            {([[7, 'Last 7 days'], [30, 'Last 30 days']] as [7 | 30, string][]).map(([k, l]) => <button key={k} className={days === k ? 'on' : ''} onClick={() => setDays(k)}>{l}</button>)}
+          </div>}
         </div>
       </section>
       {!LIVE && <p className="hint coachdemo">Demo: made-up calls, to show what the Coaching tab looks like once Quo calls come in.</p>}
       {err && <p className="warnline coachdemo">{err}</p>}
-      {calls === null ? <div className="empty">Loading calls…</div> : (
+      {tab === 'book' ? <PlaybookView agent={me.id} admin={admin} now={now} /> : calls === null ? <div className="empty">Loading calls…</div> : (
         <div className="rgrid">
           <div className="span4 kgrid k4">
             <Kpi label="Calls analyzed" value={s.calls} sub={`${calls.length - s.calls ? `${calls.length - s.calls} not tagged yet · ` : ''}last ${days} days`} />

@@ -1244,3 +1244,31 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 .ctxmenu button.danger { color: var(--red); border-top: 1px solid var(--line2); border-radius: 0 0 6px 6px; margin-top: 3px; }
 .confdel { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
 .undoline { font-size: 13px; color: var(--muted); margin: 0 0 10px; }
+/* Team Playbook (2026-11-26) */
+.pbtabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 16px 0; }
+.pbtabs button { display: grid; text-align: left; gap: 1px; padding: 7px 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel); font-size: 13.5px; font-weight: 600; }
+.pbtabs button small { font-weight: 400; color: var(--muted); font-size: 11.5px; }
+.pbtabs button.on { border-color: var(--link); background: var(--blue-bg); color: var(--blue); }
+.pbbody { padding: 12px 16px 16px; }
+.pbsay { margin: 0 0 10px; font-size: 13.5px; color: var(--muted); }
+.pbsay .eyebrow { margin-right: 6px; }
+.pblist { margin: 0; padding-left: 22px; display: grid; gap: 12px; }
+.pbr .pbl { font: 500 15.5px/1.45 var(--serif); }
+.pbr .pbm { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-top: 4px; font-size: 13px; }
+.pbex { margin: 6px 0 0; padding-left: 16px; font-size: 12.5px; color: var(--muted); display: grid; gap: 3px; }
+.pbop { list-style: none; margin: 0; padding: 6px 16px 14px; display: grid; gap: 8px; }
+.pbop li { display: grid; grid-template-columns: 1fr auto; gap: 0 10px; font-size: 13.5px; }
+.pbop li b { font-variant-numeric: tabular-nums; } .pbop li small { grid-column: 2; color: var(--muted); font-size: 11.5px; text-align: right; }
+.askbox { padding: 12px 16px 4px; display: grid; gap: 10px; max-height: 420px; overflow: auto; }
+.askstart { display: flex; flex-wrap: wrap; gap: 6px; }
+.askturn { display: grid; gap: 6px; }
+.askq { justify-self: end; margin: 0; background: var(--blue-bg); color: var(--blue); padding: 7px 11px; border-radius: 12px 12px 3px 12px; font-size: 13.5px; max-width: 85%; }
+.aska { margin: 0; white-space: pre-wrap; font-size: 14px; line-height: 1.5; }
+.askform { display: flex; gap: 8px; padding: 8px 16px 16px; }
+.askform input { flex: 1; font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); }
+.teach { display: grid; gap: 8px; padding: 12px 16px 16px; }
+.teach input, .teach textarea { font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); resize: vertical; }
+.teach .bar { display: flex; gap: 8px; align-items: center; justify-content: flex-end; } .teach .bar .muted { margin-right: auto; font-size: 12.5px; }
+.teachitem { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; border-top: 1px solid var(--line2); padding-top: 8px; font-size: 13.5px; }
+.teachitem .muted { font-size: 12px; margin-right: auto; }
+.teachtext { width: 100%; white-space: pre-wrap; font: 13px/1.5 inherit; font-family: inherit; background: var(--panel2); padding: 10px; border-radius: 8px; margin: 4px 0 0; max-height: 260px; overflow: auto; }
