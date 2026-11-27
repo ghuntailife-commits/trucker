@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { adminDb, teamSettings, whoIsCalling } from '../../../../src/live/server';
 import { checkText, sendTextRequest } from '../../../../src/quo/quo';
 import { quoNumbers } from '../../../../src/team/agents';
+import { quoKeyFor } from '../../../../src/quo/keys';
 
 export async function POST(req: Request) {
   try {
@@ -15,8 +16,8 @@ export async function POST(req: Request) {
     const t = { from: quoNumbers(agent.quoNumber)[0] ?? '', to, content };
     const problem = checkText(t);
     if (problem) return NextResponse.json({ error: problem }, { status: 400 });
-    const key = process.env.QUO_API_KEY;
-    if (!key) return NextResponse.json({ error: 'QUO_API_KEY is not set on Vercel.' }, { status: 500 });
+    const key = quoKeyFor(agent.id);
+    if (!key) return NextResponse.json({ error: 'No Quo API key on Vercel for you yet.' }, { status: 500 });
     const { url, init } = sendTextRequest(t, key);
     const r = await fetch(url, init);
     const body = await r.text();
