@@ -97,3 +97,4 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 | 2026-11-26 | Results, Sales: Add a sale for company leads, referrals and other sources. Counts toward ALP and goal, not close rate; shows its source on the sales list | George |
 | 2026-11-26 | Follow-ups after a presentation: the dialer shows only Sale, Still no sale and No answer (keys 1-3). A no-answer brings it back the next day; after 3 no-answer calls it drops off Today | George |
 | 2026-11-26 | The top bar no longer repeats the page title | George |
+| 2026-11-26 | Page name back in the top bar (smaller); the big heading under it is gone | George |

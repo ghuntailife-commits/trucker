@@ -1036,7 +1036,9 @@ kbd { font: 600 12px var(--mono); background: var(--panel2); border: 1px solid v
 .seg.three button.on { background: var(--accent); color: var(--accent-ink); }
 .lsmeta { display: inline-flex; align-items: center; gap: 10px; }
 .rt .spill.mini { margin-left: 6px; }
-/* George 2026-11-26: the page's own heading already names it; the top bar keeps only the spacer. */
-.pagetitle { visibility: hidden; }
+/* George 2026-11-26: the page name lives only in the top bar (smaller), not again as a big heading under it. */
+.hero .title h1 { display: none; }
+.hero .title .eyebrow { margin-bottom: 6px; }
 .keys .fuhint { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); text-align: center; }
 .sendto, .firstn { white-space: nowrap; } .qt.lib td { white-space: nowrap; }
+.hero { align-items: center; }
