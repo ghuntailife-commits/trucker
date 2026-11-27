@@ -37,6 +37,8 @@ export interface Contact {
   /** No-answer follow-up calls since the last presentation (v2). */
   followUpTries?: number;
   swapMemo: SwapMemo | null;
+  /** When a Quo call already counted today's dial for this contact (the next No answer within 15 min uses it). */
+  quoDialAt?: number | null;
   seq: number;                // original order inside its list (keeps the old row order for ties)
   /** When the current appointment was last confirmed (v2). */
   confirmedAt?: number | null;

@@ -162,3 +162,4 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 | 2026-11-27 | Gentler auto-reload after an update: waits 3 minutes (several updates = one reload), then only when the tab has been in the background a minute or untouched 10 minutes; otherwise a banner with Reload now. |
 | 2026-11-27 | Bring over sheet work (admin): read an agent's old sheet read only, preview, then send the contacts it worked since a time you pick, plus their activity, sales and no-sales, to their Dispatch. Contacts Dispatch dialed later are left alone. |
 | 2026-11-27 | Appointments: a callback whose time has passed now has No answer and No-show buttons. |
+| 2026-11-27 | An outgoing Quo call now counts as a dial, even with no result tapped. Calls within 15 minutes of each other (or of a No answer tap) count once. |

@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Contact, LogEvent } from '../rules/types';
 import { DEFAULT_CONFIG, type Config } from '../rules/config';
-import { dialerAction, disposition, quickNote, confirmAppt, toggleQual, type DialerKey, type DialerOpts } from '../rules/engine';
+import { dialerAction, disposition, quickNote, quoDial, confirmAppt, toggleQual, type DialerKey, type DialerOpts } from '../rules/engine';
 import { learnFreshScores } from '../rules/score';
 import { realPresentations } from '../reports/presented';
 import { buildToday, buildAppointments, type TodayRow, type ApptRow } from '../rules/today';
@@ -251,7 +251,7 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
       const t = Date.now();
       const r = fn(c, t);
       if (r.refused) { say(r.refused, 'warn'); return prev; }
-      if (r.ignored) { say(r.message, 'warn'); return prev; }
+      if (r.ignored) { if (r.message) say(r.message, 'warn'); return prev; }
       say(r.message);
       const snap: Snapshot = { label, contact: c, logLen: prev.log.length, salesLen: prev.sales.length, noSalesLen: prev.noSales.length };
       const next: Saved = { ...prev, contacts: prev.contacts.map(x => (x.id === id ? r.contact : x)), log: [...prev.log, ...r.events],
@@ -280,6 +280,8 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
     const r = quickNote(c, text, t, CFG);
     return facts.length ? { ...r, contact: { ...r.contact, profile: mergeFacts(r.contact.profile, facts, at) } } : r;
   }), [commit]);
+  /** An outgoing Quo call counts as a dial (see quoDial). */
+  const quoDialed = useCallback((id: string, at: number) => commit(id, 'Quo call', (c, t) => quoDial(c, at, t)), [commit]);
   const confirm = useCallback((id: string) => commit(id, 'confirm', (c, t) => confirmAppt(c, t, CFG)), [commit]);
   const qual = useCallback((id: string, q: string) => commit(id, 'tag', c => toggleQual(c, q)), [commit]);
 
@@ -461,5 +463,5 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
   }, [s?.contacts]);
 
   return { ready: !!s, now, today, appts, queue, stats, toast, byId, recent, noteFacts, learnFacts, log: s?.log ?? [], canUndo: !!s?.undo.length, batch, book, addOutsideSale, confirm, qual, scorer, cfg: CFG, say: say2, contacts: s?.contacts ?? [], pass: s?.pass ?? 1, noSales: s?.noSales ?? [],
-    undoLabel: s?.undo.at(-1)?.label, press, note, outcome, amend, skip, replace, pin, unpin, hold, resume, prefs: s?.prefs ?? {}, setPrefs, removeToLibrary, pins: s?.pins ?? [], logCall, undo, reSort, resetDemo, find, sales: s?.sales ?? [], goal: s?.goal ?? 25000, agent, setGoal, calls: s?.calls ?? [] };
+    undoLabel: s?.undo.at(-1)?.label, press, note, quoDialed, outcome, amend, skip, replace, pin, unpin, hold, resume, prefs: s?.prefs ?? {}, setPrefs, removeToLibrary, pins: s?.pins ?? [], logCall, undo, reSort, resetDemo, find, sales: s?.sales ?? [], goal: s?.goal ?? 25000, agent, setGoal, calls: s?.calls ?? [] };
 }

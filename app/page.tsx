@@ -194,7 +194,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       for (const e of evs) {
         const c = matchContact(dRef.current.contacts ?? [], e.phone);
         if (c && e.note) dRef.current.noteFacts(c.id, e.note, e.facts, e.at);
-        if (c && /^Quo call: /.test(e.note)) endRef.current(c.id);
+        if (c && /^Quo call: /.test(e.note)) { dRef.current.quoDialed(c.id, e.at); endRef.current(c.id); }   // an outgoing call counts as a dial (George, 2026-11-27)
         else if (e.note && /^Text from/.test(e.note)) dRef.current.say(`Quo: a text from ${e.phone}, who is not in your contacts.`, 'warn');
       }
       await markQuoApplied(evs.map(e => e.id));

@@ -67,6 +67,19 @@ function rest(x: Contact, n: number, why: string, now: number, cfg: Config, reco
   if (record && back) x.swapMemo = { at: now, status: before.status, mark: before.mark, cancelRest: true, noteLine: line };
 }
 
+// ---------- A call made in Quo counts as a dial (George, 2026-11-27) ----------
+export const QUO_DIAL_WINDOW = 15 * 60_000;
+/** An outgoing Quo call counts one dial, even if the agent never taps a result. Calls within 15 minutes of the last
+ *  dial (a second try right away, or the agent already tapped No answer) are one dial, not two. */
+export function quoDial(c: Contact, at: number, now: number): Result {
+  if (c.lastDialed != null && c.lastDialed >= at - QUO_DIAL_WINDOW) return { contact: c, events: [], ignored: true, message: '' };
+  const x = clone(c);
+  x.dials = c.dials + 1;
+  x.lastDialed = at;
+  x.quoDialAt = now;
+  return { contact: x, events: [ev(x, at, 'Dial')], message: `${c.first} ${c.last}: Quo call counted as a dial (${x.dials} total).` };
+}
+
 // ---------- Dial +1 (no answer / voicemail) ----------
 export function dial(c: Contact, now: number, cfg: Config = DEFAULT_CONFIG): Result {
   const tz = cfg.tz;
@@ -75,11 +88,14 @@ export function dial(c: Contact, now: number, cfg: Config = DEFAULT_CONFIG): Res
       message: `${c.first} ${c.last}: already logged a moment ago, extra click ignored (still ${c.dials} dials).` };
   }
   const x = clone(c);
-  const n = c.dials + 1;
+  // a Quo call just counted this dial (quoDial): the No answer button finishes it without counting it again
+  const counted = c.quoDialAt != null && now >= c.quoDialAt && now - c.quoDialAt < QUO_DIAL_WINDOW;
+  const n = counted ? c.dials : c.dials + 1;
   x.dials = n;
   x.lastDialed = now;
   x.swapMemo = null;
-  const events: LogEvent[] = [ev(x, now, 'Dial')];
+  x.quoDialAt = null;
+  const events: LogEvent[] = counted ? [] : [ev(x, now, 'Dial')];
   const kind = tagKind(c.tag);
   const stamp = `${md(now, tz)}: `;
 
