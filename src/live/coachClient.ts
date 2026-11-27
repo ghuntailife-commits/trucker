@@ -54,7 +54,7 @@ export async function askCoach(agent: string, action: 'week' | 'tag'): Promise<{
 }
 
 /** Re-reads older calls for "What we know" in the call brief, a few at a time. */
-export async function profileBackfill(agent: string): Promise<{ error?: string; found?: { phone: string; at: number; facts: unknown }[]; more?: boolean }> {
+export async function profileBackfill(agent: string): Promise<{ error?: string; found?: { phone: string; at: number; facts: unknown; note?: string }[]; more?: boolean }> {
   const { data } = await db().auth.getSession();
   const token = data.session?.access_token;
   if (!token) return { error: 'signed out' };

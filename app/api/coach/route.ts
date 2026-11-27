@@ -56,17 +56,20 @@ export async function POST(req: Request) {
     }
 
     if (action === 'profile') {
-      const { data, error } = await db.from('quo_events').select('id,payload,phone,at,ai_tags').eq('agent_id', agent).eq('type', 'call.transcript.completed')
+      // also repairs calls whose AI notes failed (2026-11-26 to 11-27, a forced tool choice Opus 5.5 refused): those come back with their notes
+      const { data, error } = await db.from('quo_events').select('id,payload,phone,at,ai_tags,ai_note').eq('agent_id', agent).eq('type', 'call.transcript.completed')
         .gte('at', new Date(Date.now() - 60 * 86_400_000).toISOString()).order('at', { ascending: false }).limit(300);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      const todo = (data ?? []).filter(e => !Array.isArray((e.ai_tags as { facts?: unknown } | null)?.facts));
-      const out: { phone: string; at: number; facts: unknown }[] = [];
+      const todo = (data ?? []).filter(e => transcriptText(e.payload).length > 40
+        && (!e.ai_note || !Array.isArray((e.ai_tags as { facts?: unknown } | null)?.facts)));
+      const out: { phone: string; at: number; facts: unknown; note?: string }[] = [];
       for (const e of todo.slice(0, 4)) {
-        const text = transcriptText(e.payload);
-        const got = text.length > 40 ? await tagTranscript(client, text) : null;
-        const tags = got?.tags ?? { ...((e.ai_tags as object | null) ?? { outcome: 'Other', objections: [], wentWell: '', tryNext: '' }), facts: [] };
-        await db.from('quo_events').update({ ai_tags: tags }).eq('id', e.id);
-        if (got?.tags.facts?.length) out.push({ phone: e.phone ?? '', at: Date.parse(e.at), facts: got.tags.facts });
+        const got = await tagTranscript(client, transcriptText(e.payload)).catch(() => null);
+        if (!got) continue;
+        const tags = got.tags ?? { ...((e.ai_tags as object | null) ?? { outcome: 'Other', objections: [], wentWell: '', tryNext: '' }), facts: [] };
+        await db.from('quo_events').update({ ai_tags: tags, ...(e.ai_note ? {} : { ai_note: got.note }) }).eq('id', e.id);
+        const note = e.ai_note ? undefined : got.note;
+        if (got.tags?.facts?.length || note) out.push({ phone: e.phone ?? '', at: Date.parse(e.at), facts: got.tags?.facts ?? [], note });
       }
       return NextResponse.json({ ok: true, found: out, more: todo.length > 4 });
     }

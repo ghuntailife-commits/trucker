@@ -155,13 +155,17 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
     };
     pull();
     // once per computer: read the calls from before "What we know" existed into the contacts (George, 2026-11-27)
-    const flag = `dispatch-profile-backfill-v1-${agent}`;
+    const flag = `dispatch-profile-backfill-v2-${agent}`;
     let first = true; try { first = !localStorage.getItem(flag); } catch { /* */ }
     if (first) (async () => {
       for (let i = 0; i < 15 && !stop; i++) {
         const r = await profileBackfill(agent);
         if (r.error || stop) return;
-        dRef.current.learnFacts((r.found ?? []).flatMap(f => { const c = matchContact(dRef.current.contacts ?? [], f.phone); return c ? [{ id: c.id, facts: readFacts(f.facts), at: f.at }] : []; }));
+        for (const f of r.found ?? []) {   // calls whose AI notes were missed: the notes go on the contact now
+          const c = matchContact(dRef.current.contacts ?? [], f.phone);
+          if (c && f.note) dRef.current.noteFacts(c.id, `Call notes (AI): ${f.note.replace(/\s+/g, ' ')}`, readFacts(f.facts), f.at);
+        }
+        dRef.current.learnFacts((r.found ?? []).filter(f => !f.note).flatMap(f => { const c = matchContact(dRef.current.contacts ?? [], f.phone); return c ? [{ id: c.id, facts: readFacts(f.facts), at: f.at }] : []; }));
         if (!r.more) { try { localStorage.setItem(flag, String(Date.now())); } catch { /* */ } return; }
       }
     })();

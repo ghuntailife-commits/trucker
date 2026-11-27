@@ -43,7 +43,7 @@ async function learn(): Promise<Record<string, unknown>> {
       if (text.length <= 40) { r.ai_tags = { outcome: 'Other', objections: [], wentWell: '', tryNext: '', exchanges: [] }; return; }
       try {
         const got = await tagTranscript(client, text);
-        if (got) { r.ai_tags = got.tags; r.ai_note ||= got.note; await db.from('quo_events').update({ ai_tags: got.tags, ai_note: r.ai_note }).eq('id', r.id); retagged++; }
+        if (got?.tags) { r.ai_tags = got.tags; r.ai_note ||= got.note; await db.from('quo_events').update({ ai_tags: got.tags, ai_note: r.ai_note }).eq('id', r.id); retagged++; }
       } catch (e) { console.error('playbook retag failed', (e as Error).message); }
     }));
   }
@@ -62,8 +62,8 @@ async function learn(): Promise<Record<string, unknown>> {
     next = { ...pb, callsStudied: pb.callsStudied + calls.length, watermark: Math.max(pb.watermark, ...calls.map(c => c.at)), updatedAt: Date.now() };
   } else {
     const input = learnInput(pb, talk, teach);
-    const msg = await client.messages.stream({ model: 'claude-opus-5-5', max_tokens: 16000, system: LEARN_PROMPT,
-      tools: [LEARN_TOOL], tool_choice: { type: 'tool', name: LEARN_TOOL.name },
+    const msg = await client.messages.stream({ model: 'claude-opus-5-5', max_tokens: 32000, system: `${LEARN_PROMPT}\nAlways answer by calling the ${LEARN_TOOL.name} tool exactly once.`,
+      tools: [LEARN_TOOL], tool_choice: { type: 'auto' },   // Opus 5.5 does not allow a forced tool choice
       messages: [{ role: 'user', content: input.text }] }).finalMessage();
     if (msg.stop_reason === 'max_tokens') return { error: 'The learning run was cut short. Try again; it will take fewer calls.' };
     const use = msg.content.find(b => b.type === 'tool_use') as { input: unknown } | undefined;

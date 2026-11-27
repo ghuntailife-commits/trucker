@@ -130,3 +130,4 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 | 2026-11-27 | Quo works for an agent with their own Quo account (Gracie): per-agent keys QUO_API_KEY_<ID> and QUO_SIGNING_KEY_<ID> on Vercel; their calls, texts, recordings and AI notes land in their Dispatch | George |
 | 2026-11-27 | Settings: sign-in email per agent (iCloud, Outlook, Gmail), with a confirm before saving | George |
 | 2026-11-27 | Dialer: click the green call button (or C / Enter) to end the call and pick the result; the timer also stops by itself when Quo reports the call ended | George |
+| 2026-11-27 | Fix: AI call notes failed since the coaching tags were added (Opus 5.5 refuses a forced tool choice). Now asks with tool choice auto; missed calls get their notes on the next Dispatch open | Bug |
