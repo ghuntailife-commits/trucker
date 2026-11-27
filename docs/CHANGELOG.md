@@ -141,3 +141,4 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 | 2026-11-27 | Admin only: Search every agent. All agents button (or the search box's last row) looks through every agent's contacts; click one to open that agent's Dispatch on the contact | George |
 | 2026-11-27 | Today: a number found for someone never dialed shows as Fresh, not New number | George |
 | 2026-11-27 | Contacts the admin imports for another agent also go to that agent's inbox, so the agent's open Dispatch can't wipe them; Dispatch checks the inbox every minute, on focus and on Re-sort | George |
+| 2026-11-27 | Admin on another agent's Dispatch: every change (add, import, edit, remove, notes, results) goes through the agent's inbox and shows on their open screen within a minute; nobody saves over anyone | George |

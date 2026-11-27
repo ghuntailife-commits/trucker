@@ -57,6 +57,9 @@ const PAGE_LABEL: Record<Page, string> = { home: 'Home', today: 'Today', appts: 
 const ROLE_LABEL = { admin: 'admin', lead: 'team lead', agent: 'agent', boss: 'results only' } as const;
 
 /** Day or night, remembered in this browser. */
+// survives the screen reloading when Search every agent switches to another agent's Dispatch
+const PENDING: { pick: { agent: string; id: string } | null } = { pick: null };
+
 function useTheme() {
   const [theme, setTheme] = useState<'light' | 'dark' | null>(null);
   useEffect(() => {
@@ -127,7 +130,8 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const [licOpen, setLicOpen] = useState(false);
   const [tzOpen, setTzOpen] = useState(false);
   const [allOpen, setAllOpen] = useState<string | null>(null);   // admin: search every agent
-  const [pendingPick, setPendingPick] = useState<{ agent: string; id: string } | null>(null);
+  const [pendingPick, setPendingPick0] = useState<{ agent: string; id: string } | null>(() => PENDING.pick);
+  const setPendingPick = (v: { agent: string; id: string } | null) => { PENDING.pick = v; setPendingPick0(v); };
   // The agent's time zone follows them to other computers (kv dispatch-tz-<id>); a change reloads so every screen uses it.
   const tzKey = `dispatch-tz-${t.person?.agent_id ?? agent}`;
   useEffect(() => { loadState<string>(tzKey).then(v => { if (v && v !== TZ && saveMyTz(v)) location.reload(); }).catch(() => {}); }, [tzKey]);

@@ -19,6 +19,7 @@ import { amendResult, type AmendTarget, type AmendTo, type AmendForm } from '../
 import { REAL_SEED } from './realSeed';
 import { loadState, saveState } from './store';
 import { signedInAs } from '../live/kvStore';
+import { applyInbox, diffState, isEmpty, mergeInbox, type Inbox as InboxT } from './inbox';
 import { withZone } from '../contacts/zones';
 import { hold as holdContact, resume as resumeContact, isHeld } from '../rules/hold';
 import { startOfDay } from '../rules/time';
@@ -73,14 +74,8 @@ export function withPrefs(CFG: Config, p?: TodayPrefs): Config {
 }
 const feeds = (s: Saved) => { const off = new Set(s.prefs?.offLists ?? []); return s.contacts.filter(c => c.list !== 'Hardcards' && !off.has(c.list)); };
 
-type Inbox = { contacts: Contact[]; removed: string[] };
-/** Adds contacts waiting in the agent's inbox (sent from the library, or imported by the admin) and drops the removed ones. */
-function fromInbox(s: Saved, inbox: Inbox): Saved {
-  const have = new Set(s.contacts.map(c => c.id)), gone = new Set(inbox.removed ?? []);
-  const add = (inbox.contacts ?? []).filter(c => !have.has(c.id) && !gone.has(c.id)).map(withZone);
-  if (!add.length && !gone.size) return s;
-  return { ...s, contacts: [...s.contacts.filter(c => !gone.has(c.id)), ...add], savedOrder: [...s.savedOrder.filter(id => !gone.has(id)), ...add.map(c => c.id)] };
-}
+type Inbox = InboxT<Sale, NoSale>;
+const fromInbox = (s: Saved, box: Inbox): Saved => applyInbox(s, box, withZone);
 
 function fresh(now: number, agent: AgentId, tz: string): Saved {
   const r = agentSeed(agent, now, tz);
@@ -130,14 +125,14 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
   // load once (and re-sort on the first open of each day, like the sheet)
   useEffect(() => {
     let live = true;
-    Promise.all([loadState<Saved>(KEY), loadState<{ contacts: Contact[]; removed: string[] }>(`dispatch-inbox-${agent}`)]).then(([got, inbox]) => {
+    Promise.all([loadState<Saved>(KEY), loadState<Inbox>(`dispatch-inbox-${agent}`)]).then(([got, inbox]) => {
       if (!live) return;
       const t = Date.now();
       let loaded = got && got.v === 1 ? got : fresh(t, agent, CFG.tz);
       loaded = normalize(loaded);
       // contacts the admin sent from the library while this screen was closed (useLibrary)
-      if (inbox && (inbox.contacts.length || inbox.removed.length)) {
-        loaded = fromInbox(loaded, inbox);
+      if (!isEmpty(inbox)) {
+        loaded = fromInbox(loaded, inbox!);
         const me = signedInAs();
         if (!me || me === agent) saveState(`dispatch-inbox-${agent}`, { contacts: [], removed: [] });
       }
@@ -153,7 +148,7 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
     const me = signedInAs();
     if (me && me !== agent) return 0;
     const box = await loadState<Inbox>(`dispatch-inbox-${agent}`).catch(() => null);
-    if (!box || !(box.contacts?.length || box.removed?.length)) return 0;
+    if (!box || isEmpty(box)) return 0;
     setS(p => (p ? fromInbox(p, box) : p));
     saveState(`dispatch-inbox-${agent}`, { contacts: [], removed: [] });
     return box.contacts?.length ?? 0;
@@ -166,7 +161,30 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', vis); window.removeEventListener('focus', vis); };
   }, [!!s, pullInbox]); // eslint-disable-line react-hooks/exhaustive-deps
   // nothing is saved for someone who has no contacts and no history yet (live: their data arrives at switch-over)
-  useEffect(() => { if (s && (s.contacts.length || s.log.length || s.sales.length)) saveState(KEY, s); }, [s]);
+  // The admin looking at someone else's Dispatch: changes go to that agent's inbox, and their own screen applies them
+  // (George, 2026-11-27), so the admin and the agent never save over each other.
+  const base = useRef<Saved | null>(null);
+  const fwd = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!s) return;
+    const me = signedInAs();
+    if (me && me !== agent) {
+      if (!base.current) { base.current = s; return; }
+      if (fwd.current) return;
+      fwd.current = setTimeout(async () => {
+        fwd.current = null;
+        const from = base.current!, to = latestS.current!;
+        const ops = diffState<Sale, NoSale>(from, to);
+        base.current = to;
+        if (isEmpty(ops)) return;
+        const box = await loadState<Inbox>(`dispatch-inbox-${agent}`).catch(() => null);
+        saveState(`dispatch-inbox-${agent}`, mergeInbox(box, ops));
+      }, 1500);
+      return;
+    }
+    if (s.contacts.length || s.log.length || s.sales.length) saveState(KEY, s);
+  }, [s]); // eslint-disable-line react-hooks/exhaustive-deps
+  const latestS = useRef<Saved | null>(null); latestS.current = s;
 
   const say = useCallback((text: string, kind: 'ok' | 'warn' = 'ok') => {
     setToast({ text, kind });
@@ -374,18 +392,9 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
       const savedOrder = change.added?.length ? [...prev.savedOrder, ...change.added.map(c => c.id)] : prev.savedOrder;
       return { ...prev, contacts, savedOrder, log: [...prev.log, ...(change.events ?? [])], undo: [...prev.undo.slice(-19), snap] };
     });
-    // George (2026-11-27): the admin imported into Ivan's Dispatch while Ivan had it open, and Ivan's next save wiped
-    // the import. Contacts the admin adds for someone else also go in that agent's inbox, which their own screen picks up.
-    const me = signedInAs();
-    if (change.added?.length && me && me !== agent) {
-      const add = change.added;
-      void loadState<Inbox>(`dispatch-inbox-${agent}`).catch(() => null).then(box => {
-        saveState(`dispatch-inbox-${agent}`, { contacts: [...(box?.contacts ?? []), ...add], removed: box?.removed ?? [] });
-      });
-    }
     say(message);
     setNow(Date.now());
-  }, [say, agent]);
+  }, [say]);
 
   /** A sale from a company lead, referral or other source: no contact behind it, one Undo step. */
   const addOutsideSale = useCallback((rec: Sale) => {
