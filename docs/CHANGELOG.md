@@ -157,3 +157,4 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 | 2026-11-27 | Team feed: leads assigned, sales with ALP, presentations with the no-sale reason and bookings, posted by each agent's screen (kv dispatch-team-feed via /api/feed). Sage-green notes bottom left; yours say You / For you. Home Recent shows the whole team. Needs Number: Assigned column, sortable. |
 | 2026-11-27 | Hung up (or Not interested) with Spanish or another language in the note moves the contact to a Non-English list, noting the list it came from. |
 | 2026-11-27 | Meet: recordings whose title is a phone number or a person's name are read even when that contact isn't on the agent's Dispatch (coaching still counts); the year-back read runs again once. |
+| 2026-11-27 | Redeploy so the site picks up Austin's Quo keys. |
