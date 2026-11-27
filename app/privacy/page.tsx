@@ -24,7 +24,7 @@ export default function Privacy() {
     <h2>How we keep it safe</h2>
     <p>Your information is stored in secure systems that only our agents and administrators can sign in to, and each agent sees only their own clients.</p>
     <h2>Your choices</h2>
-    <p>You can ask us to stop contacting you, to correct your information, or to delete it, by telling your agent, replying STOP to any text, or writing to us at {ADDRESS}.</p>
+    <p>You can ask us to stop contacting you, to correct your information, or to delete it, by telling your agent, replying STOP to any text, emailing ghunt.ailife@gmail.com, calling 615-753-1733, or writing to us at {ADDRESS}.</p>
     <h2>Changes</h2>
     <p>If we change this policy, we will post the new version on this page with a new date.</p>
   </LegalPage>;
