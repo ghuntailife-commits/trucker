@@ -390,7 +390,8 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
       const before = prev.contacts.filter(c => changed.has(c.id) || removed.has(c.id));
       const snap: Snapshot = { label, before, added: (change.added ?? []).map(c => c.id), logLen: prev.log.length,
         salesLen: prev.sales.length, noSalesLen: prev.noSales.length };
-      const contacts = [...prev.contacts.filter(c => !removed.has(c.id)).map(c => changed.get(c.id) ?? c), ...(change.added ?? [])];
+      const stamp = Date.now();   // "date assigned" for contacts arriving now
+      const contacts = [...prev.contacts.filter(c => !removed.has(c.id)).map(c => changed.get(c.id) ?? c), ...(change.added ?? []).map(c => (c.addedAt ? c : { ...c, addedAt: stamp }))];
       // contacts added today join the end of today's saved order, like the sheet's import
       const savedOrder = change.added?.length ? [...prev.savedOrder, ...change.added.map(c => c.id)] : prev.savedOrder;
       return { ...prev, contacts, savedOrder, log: [...prev.log, ...(change.events ?? [])], undo: [...prev.undo.slice(-19), snap] };

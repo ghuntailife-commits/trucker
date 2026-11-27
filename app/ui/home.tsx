@@ -5,6 +5,7 @@ import type { Page } from '../../src/team/agents';
 import type { DailyNote } from '../../src/home/dailyNote';
 import type { CoachNote } from '../../src/team/coaching';
 import { NAV_ICON } from './sidebar';
+import type { Recent } from '../../src/home/recent';
 
 const money = (n: number) => '$' + Math.round(n).toLocaleString('en-US');
 const Icon = ({ p }: { p: Page }) => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={NAV_ICON[p]} /></svg>;
@@ -19,6 +20,9 @@ export interface HomeProps {
   health: { fix: number; check: number };
   sheet: { waiting: number; look: number; needs: number };
   wins: { id: string; name: string; alp: number; at: number }[];
+  /** Recent news: deliveries, bookings, sales (George, 2026-11-27). */
+  recent: Recent[];
+  ago: (ms: number) => string;
   /** Running standard and trial ALP at the end of each day this month so far. */
   monthDays: MonthDay[];
   /** When nothing is left today: the next day's appointments and its label. */
@@ -183,6 +187,13 @@ export function HomePage(h: HomeProps) {
           {h.coach.bestTime && <p className="hint">{h.coach.bestTime}</p>}
         </section>
       )}
+
+      <section className="hcard recent">
+        <header><Icon p="contacts" /><h2>Recent</h2></header>
+        {h.recent.length ? <ul className="rfeed">{h.recent.slice(0, 7).map((r, i) => <li key={i}><button onClick={() => r.go && h.go(r.go)}>
+          <i className={`dot ${r.tone}`} /><b>{r.text}</b>{r.sub && <small>{r.sub}</small>}<span className="t">{h.ago(r.at)}</span></button></li>)}</ul>
+          : <p className="hint">Nothing new this week yet.</p>}
+      </section>
 
       <section className="hcard wins">
         <header><Icon p="results" /><h2>Recent sales</h2><button className="linkish" onClick={() => h.go('results')}>Results</button></header>

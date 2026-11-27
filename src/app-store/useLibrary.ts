@@ -64,7 +64,7 @@ export function useLibrary(me: AgentId, mine: { contacts: Contact[]; batch: (lab
     if (to.id === me) mine.batch('Contacts from the library', { added: r.added }, `${r.added.length} contacts added from the library.`);
     else {
       const inbox = (await loadState<Inbox>(inboxKey(to.id))) ?? { contacts: [], removed: [] };
-      await saveState(inboxKey(to.id), { ...inbox, contacts: [...inbox.contacts, ...r.added] });
+      await saveState(inboxKey(to.id), { ...inbox, contacts: [...inbox.contacts, ...r.added.map(c => ({ ...c, addedAt: c.addedAt ?? Date.now() }))] });
     }
     setSt(r.state);
     return r.added.length;

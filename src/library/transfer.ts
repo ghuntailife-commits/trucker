@@ -25,6 +25,6 @@ export function planTransfer(picked: Contact[], from: { name: string }, to: { na
     const s = (seq.get(c.list) ?? 2) + 1; seq.set(c.list, s);
     const note = `${md(opts.now, opts.tz)}: Moved from ${from.name} to ${to.name}`;
     return { id: c.id, name, ok: true, result: `Will move to ${to.name}${c.tag ? ' (tag and history go with it)' : ''}`,
-      contact: { ...c, id: opts.nextId(i), seq: s, notes: addNote(c.notes, note) } };
+      contact: { ...c, id: opts.nextId(i), seq: s, notes: addNote(c.notes, note), addedAt: opts.now } };
   });
 }

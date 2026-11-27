@@ -49,6 +49,8 @@ export interface Contact {
   holdKind?: 'pause' | 'rest';
   /** What the calls taught us about the person (src/brief/profile.ts), gleaned by Claude from transcripts (George, 2026-11-27). */
   profile?: import('../brief/profile').Fact[];
+  /** When this contact arrived on this agent's Dispatch: import, library delivery or a move (George, 2026-11-27: "date assigned"). */
+  addedAt?: number | null;
 }
 
 export type EventKind = 'Dial' | 'Tag' | 'Swap' | 'Note' | 'Import';

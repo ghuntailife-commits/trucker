@@ -77,7 +77,7 @@ export function ContactsPage({ d, onDial, onText, agentName = 'agent', allAgents
   }, [d.contacts, list, group, q]);
   const { sorted: rows, th } = useSort<Contact>(filtered, {
     name: c => `${c.last} ${c.first}`, phone: c => c.phone, backup: c => c.backup, list: c => c.list, loc: c => `${c.state} ${c.city}`,
-    company: c => c.company, status: c => pillFor(c)[0], dials: c => c.dials, last: c => c.lastDialed, next: c => c.callAt,
+    company: c => c.company, status: c => pillFor(c)[0], dials: c => c.dials, last: c => c.lastDialed, next: c => c.callAt, added: c => c.addedAt ?? null,
     note: c => notesNewestFirst(c.notes)[0]?.replace(/^\d{1,2}\/\d{1,2}:\s*/, '') ?? '' });
   useEffect(() => setShown(PAGE), [group, list, q]);
   const pickOrder = useMemo(() => rows.slice(0, shown).map(c => c.id), [rows, shown]);
@@ -139,7 +139,7 @@ export function ContactsPage({ d, onDial, onText, agentName = 'agent', allAgents
                   {onMove && <th className="pickc"><input type="checkbox" aria-label="Pick every contact shown" checked={!!pickOrder.length && pickOrder.every(id => picked.has(id))}
                     onChange={e => setPicked(x => { const n = new Set(x); for (const id of pickOrder) { if (e.target.checked) n.add(id); else n.delete(id); } return n; })} /></th>}
                   {th('name', 'Contact')}{th('phone', 'Phone')}{th('backup', 'Backup')}{th('list', 'List')}{th('loc', 'Location · Zone')}{th('company', 'Company — Role')}
-                  {th('status', 'Status')}{th('dials', 'Dials', 'num')}{th('last', 'Last', 'num')}{th('next', 'Next', 'num')}{th('note', 'Notes (newest)')}
+                  {th('status', 'Status')}{th('dials', 'Dials', 'num')}{th('last', 'Last', 'num')}{th('next', 'Next', 'num')}{th('added', 'Assigned', 'num')}{th('note', 'Notes (newest)')}
                 </tr></thead>
                 <tbody>
                   {rows.slice(0, shown).map(x => {
@@ -159,11 +159,12 @@ export function ContactsPage({ d, onDial, onText, agentName = 'agent', allAgents
                         <td className="num">{x.dials}</td>
                         <td className="num muted">{x.lastDialed ? md(x.lastDialed, TZ) : '—'}</td>
                         <td className="num muted">{x.callAt ? md(x.callAt, TZ) : '—'}</td>
+                        <td className="num muted" title={x.addedAt ? `Arrived on this Dispatch ${new Date(x.addedAt).toLocaleString('en-US', { timeZone: TZ })}` : 'From before Dispatch kept arrival dates (11/27)'}>{x.addedAt ? md(x.addedAt, TZ) : '—'}</td>
                         <td className="note muted">{(notesNewestFirst(x.notes)[0] ?? '').replace(/^(\d{1,2}\/\d{1,2}):\s*/, '$1 ')}</td>
                       </tr>
                     );
                   })}
-                  {!rows.length && <tr><td colSpan={11} className="emptyrow">No contacts match.</td></tr>}
+                  {!rows.length && <tr><td colSpan={12} className="emptyrow">No contacts match.</td></tr>}
                 </tbody>
               </table>
             </div>

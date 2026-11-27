@@ -32,6 +32,7 @@ import { TeamPage, HealthList } from './ui/team';
 import { SettingsPage } from './ui/settings';
 import { QuoText } from './ui/quo';
 import { pickFrom } from '../src/quo/localMatch';
+import { recentEvents, ago } from '../src/home/recent';
 
 /** Local match for calls (George, 2026-11-27): Quo's app can't be told which line to call from, so the Call button
  *  says which of the agent's numbers is closest to the contact. Only when they have more than one. */
@@ -427,6 +428,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   }, [d.sales, d.now]);
   const wins = useMemo(() => [...d.sales].sort((a, b) => b.at - a.at).slice(0, 4).map(x => { const c = d.byId.get(x.contactId);
     return { id: x.contactId, name: c ? `${c.first} ${c.last}` : x.who ? `${x.who.first} ${x.who.last}` : 'Sale', alp: saleAlp(x), at: x.at }; }), [d.sales, d.byId]);
+  const recent = useMemo(() => recentEvents(d.contacts, d.log, d.sales.map(x => ({ at: x.at, contactId: x.contactId, alp: saleAlp(x) })), d.now), [d.contacts, d.log, d.sales, d.now]);
   const bk = current ? briefKind(why) : null;
   const brief = current && bk ? buildBrief({ c: current, kind: bk, agent: me.name, now: d.now, tz: TZ, cfg: d.cfg, noShowRate,
     noSale: bk === 'followUp' ? [...d.noSales].reverse().find(n => n.contactId === current.id) : undefined }) : null;
@@ -546,7 +548,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
 
       {switching && <SwitchPage onDone={() => location.reload()} />}
       {!switching && page === 'home' && <HomePage note={note} stats={s} appts={homeAppts} nextAppts={nextAppts} nextLabel={nextLabel} waiting={{ ...waiting, newNumbers: newNums }} coach={coach}
-        health={hc} sheet={{ waiting: sheetWaitN, look: sheetLookN, needs: needsN }} wins={wins} monthDays={monthDays} daysInMonth={daysInMonth}
+        health={hc} sheet={{ waiting: sheetWaitN, look: sheetLookN, needs: needsN }} wins={wins} recent={recent} ago={x => ago(x, d.now, TZ)} monthDays={monthDays} daysInMonth={daysInMonth}
         go={setPage} openHealth={() => setHealthOpen(true)} onDial={id => { setPicked(id); setPage('today'); }} onAppt={(id, at) => { setOpenAppt({ id, at }); setPage('appts'); }} timeOnly={timeOnly} md={x => md(x, TZ)} />}
       {!switching && page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onText={textContact} agentName={me.name}
         allAgents={isAdmin ? t.team.agents.map(a => ({ id: a.id, name: a.name })) : undefined} onMove={isAdmin ? ids => setMoveIds(ids) : undefined} />}

@@ -51,7 +51,8 @@ export function applyInbox<T extends State<S, N> & { savedOrder: string[] }, S, 
   const gone = new Set(inbox.removed ?? []);
   const have = new Set(s.contacts.map(c => c.id));
   const changed = new Map((inbox.changed ?? []).map(c => [c.id, prep(c)]));
-  const add = (inbox.contacts ?? []).filter(c => !have.has(c.id) && !gone.has(c.id)).map(prep);
+  const stamp = Date.now();   // date assigned, when the sender didn't set it
+  const add = (inbox.contacts ?? []).filter(c => !have.has(c.id) && !gone.has(c.id)).map(prep).map(c => (c.addedAt ? c : { ...c, addedAt: stamp }));
   const seen = new Set(s.log.map(e => `${e.at}|${e.contactId}|${e.kind}`));
   const events = (inbox.events ?? []).filter(e => !seen.has(`${e.at}|${e.contactId}|${e.kind}`));
   return { ...s,
