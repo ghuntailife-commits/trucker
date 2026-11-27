@@ -1,6 +1,6 @@
 // Google Calendar sync plan (George, 2026-11-26). Made-up events only.
 import { describe, expect, it } from 'vitest';
-import { hashOf, planSync, type Row, type WantedEvent } from '../src/calendar/google';
+import { adoptOriginals, hashOf, planSync, strayCopies, type Row, type WantedEvent } from '../src/calendar/google';
 
 const now = Date.UTC(2026, 10, 27, 15);
 const ev = (uid: string, start: number, kind: 'appt' | 'callback' = 'appt'): WantedEvent => ({ uid, contactId: uid.split(':')[0], kind, title: 'Avery Test - Acme', start, end: start + 1_800_000,
@@ -31,5 +31,29 @@ describe('calendar sync plan', () => {
   it('leaves an event deleted in Google Calendar deleted while nothing changes in Dispatch', () => {
     const a = ev('a:appt', now + 3_600_000);
     expect(planSync([a], [row(a)], new Map([['g-a:appt', { start: a.start, cancelled: true }]]), now).upsert).toEqual([]);
+  });
+});
+
+describe('taking over events the old sheet made (no doubles)', () => {
+  const w = { ...ev('a:appt', now + 3_600_000), title: 'Avery Test - Acme - (214) 555-0150 - TX' };
+  const old = { id: 'sheet-1', title: 'Avery Test - Acme - (214) 555-0150- TX (CT)', start: w.start, allDay: false };
+  it('points a new booking at the existing event instead of adding one', () => {
+    const r = adoptOriginals([w], [], [old]);
+    expect(r.rows).toEqual([{ uid: 'a:appt', google_id: 'sheet-1', contact_id: 'a', start_at: w.start, hash: '' }]);
+    expect(r.copies).toEqual([]);
+  });
+  it('moves a booking Dispatch already copied onto the original and lists the copy', () => {
+    const r = adoptOriginals([w], [row(w)], [old]);
+    expect(r.rows[0].google_id).toBe('sheet-1'); expect(r.rows[0].hash).toBe('');
+    expect(r.copies).toEqual(['g-a:appt']);
+  });
+  it('leaves other times and other people alone', () => {
+    expect(adoptOriginals([w], [], [{ ...old, start: w.start + 1_800_000 }]).rows).toEqual([]);
+    expect(adoptOriginals([w], [], [{ ...old, title: 'Blake Sample - (615) 555-0199' }]).rows).toEqual([]);
+  });
+  it('finds leftover Dispatch copies for a contact whose row points elsewhere', () => {
+    const g = new Map([['sheet-1', { start: w.start, cancelled: false, uid: 'a:appt' }], ['g-a:appt', { start: w.start, cancelled: false, uid: 'a:appt' }],
+      ['old', { start: now - 1000, cancelled: false, uid: 'a:appt' }]]);
+    expect(strayCopies([{ ...row(w), google_id: 'sheet-1' }], g, now)).toEqual(['g-a:appt']);
   });
 });

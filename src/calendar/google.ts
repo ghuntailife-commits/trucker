@@ -36,6 +36,40 @@ export function planSync(wanted: WantedEvent[], rows: Row[], google: Map<string,
   return { moves, moved, upsert, remove, forget };
 }
 
+/** Events the agent's old sheet already put on their calendar for the same contact and time (George, 2026-11-27: every
+ * appointment showed twice). Dispatch takes those over instead of adding its own: the row is pointed at the original
+ * (hash '' so it gets Dispatch's notes), and a copy Dispatch already made is listed for removal. Pure. */
+const phoneKey = (title: string) => (title.match(/\(?\d{3}\)?[\s.-]*\d{3}[\s.-]?\d{4}/)?.[0] ?? '').replace(/\D/g, '').slice(-10);
+const keyOf = (title: string, start: number) => `${start}|${phoneKey(title) || title.trim().toLowerCase()}`;
+export function adoptOriginals(wanted: WantedEvent[], rows: Row[], others: { id: string; title: string; start: number; allDay: boolean }[]) {
+  const orig = new Map<string, string>();
+  for (const o of others) if (!o.allDay) orig.set(keyOf(o.title, o.start), o.id);
+  const byUid = new Map(rows.map(r => [r.uid, r]));
+  const taken = new Set(rows.map(r => r.google_id));
+  const out = rows.slice(), copies: string[] = [];
+  for (const w of wanted) {
+    const id = orig.get(keyOf(w.title, w.start));
+    if (!id || taken.has(id)) continue;
+    taken.add(id);
+    const r = byUid.get(w.uid);
+    if (r) { copies.push(r.google_id); out[out.indexOf(r)] = { ...r, google_id: id, hash: '' }; }
+    else out.push({ uid: w.uid, google_id: id, contact_id: w.contactId, start_at: w.start, hash: '' });
+  }
+  return { rows: out, copies };
+}
+
+/** Dispatch events left over for a contact whose row now points at a different event (a copy from before Dispatch took
+ * over the original, or two syncs racing). Only upcoming, not-deleted ones. Pure. */
+export function strayCopies(rows: Row[], google: Map<string, { start: number; cancelled: boolean; uid?: string }>, now: number) {
+  const byUid = new Map(rows.map(r => [r.uid, r.google_id]));
+  const out: string[] = [];
+  for (const [id, e] of google) {
+    const mine = e.uid ? byUid.get(e.uid) : undefined;
+    if (!e.cancelled && e.start > now && mine && mine !== id) out.push(id);
+  }
+  return out;
+}
+
 export async function accessToken(refresh: string): Promise<string> {
   const { id, secret } = googleKeys();
   if (!id || !secret) throw new Error('GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are not set on Vercel.');
@@ -61,14 +95,14 @@ async function g<T>(token: string, url: string, init: RequestInit = {}): Promise
 
 /** Dispatch's events on the agent's calendar from yesterday on, by Google id. */
 export async function listOurs(token: string, agent: string, now: number) {
-  const out = new Map<string, { start: number; cancelled: boolean }>();
+  const out = new Map<string, { start: number; cancelled: boolean; uid?: string }>();
   let page: string | undefined;
   do {
     const p = new URLSearchParams({ privateExtendedProperty: `dispatchAgent=${agent}`, timeMin: new Date(now - 86_400_000).toISOString(),
       showDeleted: 'true', singleEvents: 'true', maxResults: '2500' });
     if (page) p.set('pageToken', page);
-    const j = await g<{ items?: { id: string; status: string; start?: { dateTime?: string } }[]; nextPageToken?: string }>(token, `${API}?${p}`);
-    for (const e of j?.items ?? []) out.set(e.id, { start: e.start?.dateTime ? Date.parse(e.start.dateTime) : 0, cancelled: e.status === 'cancelled' });
+    const j = await g<{ items?: { id: string; status: string; start?: { dateTime?: string }; extendedProperties?: { private?: Record<string, string> } }[]; nextPageToken?: string }>(token, `${API}?${p}`);
+    for (const e of j?.items ?? []) out.set(e.id, { start: e.start?.dateTime ? Date.parse(e.start.dateTime) : 0, cancelled: e.status === 'cancelled', uid: e.extendedProperties?.private?.uid });
     page = j?.nextPageToken;
   } while (page);
   return out;
@@ -108,7 +142,12 @@ const body = (e: WantedEvent, agent: string) => ({
 export async function putEvent(token: string, agent: string, e: WantedEvent, googleId?: string): Promise<string> {
   const q = `?sendUpdates=${e.guests.length ? 'all' : 'none'}`;
   if (googleId) {
-    const j = await g<{ id: string }>(token, `${API}/${encodeURIComponent(googleId)}${q}`, { method: 'PUT', body: JSON.stringify({ ...body(e, agent), status: 'confirmed' }) });
+    const b = body(e, agent);
+    // an event the old sheet made: keep its text-tracking lines (Texts: ..., NO TEXTS) under Dispatch's notes
+    const cur = await g<{ description?: string }>(token, `${API}/${encodeURIComponent(googleId)}`).catch(() => null);
+    const keep = (cur?.description ?? '').split('\n').filter(l => /^\s*(Texts:|NO TEXTS)/i.test(l) && !b.description.includes(l.trim()));
+    if (keep.length) b.description = `${b.description}\n${keep.join('\n')}`;
+    const j = await g<{ id: string }>(token, `${API}/${encodeURIComponent(googleId)}${q}`, { method: 'PUT', body: JSON.stringify({ ...b, status: 'confirmed' }) });
     if (j) return j.id;
   }
   const j = await g<{ id: string }>(token, `${API}${q}`, { method: 'POST', body: JSON.stringify(body(e, agent)) });
