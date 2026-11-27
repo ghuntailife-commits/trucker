@@ -19,7 +19,7 @@ import { REAL_SEED } from '../src/app-store/realSeed';
 import { ResultForm, type ResultKind, type ResultInitial } from './ui/forms';
 import type { AmendTarget } from '../src/rules/amend';
 import { saleAlp } from '../src/rules/results';
-import { TZ, ZONE_TZ, chipClass, localTime, Ico, IC, fmtSecs, ZONE_NAME, timeOnly, saveText } from './ui/shared';
+import { TZ, ZONE_TZ, chipClass, localTime, Ico, IC, fmtSecs, ZONE_NAME, timeOnly, saveText, NoteText } from './ui/shared';
 import { useTeam, type Team } from '../src/app-store/useTeam';
 import { pagesFor, viewers, type AgentId, type Page, type ViewerId } from '../src/team/agents';
 import { TeamPage, HealthList } from './ui/team';
@@ -696,7 +696,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
                 <div className="eyebrow">History</div>
                 {history.length ? history.slice(0, 6).map((l, i) => {
                   const m = l.match(/^(\d{1,2}\/\d{1,2}):\s*(.*)$/);
-                  return <div className="hl" key={i}><span>{m ? m[1] : ''}</span><p>{m ? m[2] : l}</p></div>;
+                  return <div className="hl" key={i}><span>{m ? m[1] : ''}</span><p><NoteText text={m ? m[2] : l} /></p></div>;
                 }) : <p className="hint">No calls logged yet.</p>}
                 {research.length > 0 && <p className="research">Research · {research.join(' ')}</p>}
               </div>

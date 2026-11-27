@@ -8,7 +8,7 @@ import { tagKind } from '../../src/rules/tags';
 import { addDays, parts, startOfDay, DAY_MS } from '../../src/rules/time';
 import { notesNewestFirst } from '../../src/rules/notes';
 import { calendarItems, weekStart, eventFor, toIcs, type CalItem } from '../../src/calendar/events';
-import { TZ, ZONE_NAME, saveText, timeOnly, localTime } from './shared';
+import { TZ, ZONE_NAME, saveText, timeOnly, localTime, NoteText } from './shared';
 import type { ResultKind, ResultInitial } from './forms';
 import type { AmendTarget } from '../../src/rules/amend';
 
@@ -204,7 +204,7 @@ function Detail({ it, c, d, onDial, onResult, onQuoText }: { it: CalItem; c: Con
         {(it.kind === 'appt' || it.kind === 'callback') && it.at >= d.now && <button className="linkish" onClick={ics}>Add to my calendar</button>}
       </div>
       {notes.length > 0 && <div className="hist"><div className="eyebrow">History</div>
-        {notes.map((l, i) => { const m = l.match(/^(\d{1,2}\/\d{1,2}):\s*(.*)$/); return <div className="hl" key={i}><span>{m ? m[1] : ''}</span><p>{m ? m[2] : l}</p></div>; })}</div>}
+        {notes.map((l, i) => { const m = l.match(/^(\d{1,2}\/\d{1,2}):\s*(.*)$/); return <div className="hl" key={i}><span>{m ? m[1] : ''}</span><p><NoteText text={m ? m[2] : l} /></p></div>; })}</div>}
     </div>
   );
 }

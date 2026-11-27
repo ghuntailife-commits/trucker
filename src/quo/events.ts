@@ -70,10 +70,7 @@ export function quoNote(e: { type: string; payload: Any; ai_note?: string | null
       return url ? `Call recording: ${url}` : '';
     }
     case 'call.transcript.completed': return e.ai_note ? `Call notes (AI): ${e.ai_note.replace(/\s+/g, ' ')}` : '';
-    case 'call.summary.completed': {
-      const s = [...(Array.isArray(o.summary) ? o.summary : []), ...(Array.isArray(o.nextSteps) ? o.nextSteps.map((x: string) => `Next: ${x}`) : [])];
-      return s.length ? `Quo summary: ${s.join(' ').replace(/\s+/g, ' ')}` : '';
-    }
+    case 'call.summary.completed': return '';   // George 2026-11-26: Claude's call notes only, not Quo's summary too
   }
   return '';
 }

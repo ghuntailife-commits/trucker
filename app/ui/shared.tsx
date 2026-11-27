@@ -67,3 +67,11 @@ export function Dialog({ title, onClose, children, wide }: { title: string; onCl
     </div>
   );
 }
+
+/** A history line with its web links shown as short clickable words ("Call recording") instead of the long address. */
+export function NoteText({ text }: { text: string }) {
+  const rec = text.match(/^Call recording:\s*(https?:\/\/\S+)\s*$/);
+  if (rec) return <a href={rec[1]} target="_blank" rel="noreferrer">Call recording</a>;
+  const parts = text.split(/(https?:\/\/\S+)/);
+  return <>{parts.map((p, i) => i % 2 ? <a key={i} href={p} target="_blank" rel="noreferrer">link</a> : p)}</>;
+}

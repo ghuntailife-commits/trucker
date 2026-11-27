@@ -10,7 +10,7 @@ import { parseTable, toCsv } from '../../src/contacts/csv';
 import { IMPORT_COLUMNS, planImport, type ImportLine } from '../../src/contacts/importer';
 import { needsGroup } from '../../src/contacts/needs';
 import { EDIT_LABELS, planEdit, type EditFields } from '../../src/contacts/edit';
-import { TZ, ZONE_NAME, Dialog, saveText } from './shared';
+import { TZ, ZONE_NAME, Dialog, saveText, NoteText } from './shared';
 
 type D = ReturnType<typeof useDialer>;
 type Group = 'all' | 'working' | 'callback' | 'appt' | 'notint' | 'bad' | 'needs' | 'dnc' | 'sold';
@@ -246,7 +246,7 @@ function Detail({ c, d, onDial, onDelete }: { c: Contact; d: D; onDial: (id: str
         <div className="eyebrow">Notes</div>
         {lines.length ? lines.slice(0, 10).map((l, i) => {
           const m = l.match(/^(\d{1,2}\/\d{1,2}):\s*(.*)$/);
-          return <div className="hl" key={i}><span>{m ? m[1] : ''}</span><p>{m ? m[2] : l}</p></div>;
+          return <div className="hl" key={i}><span>{m ? m[1] : ''}</span><p><NoteText text={m ? m[2] : l} /></p></div>;
         }) : <p className="hint">No notes yet.</p>}
         {events.length > 0 && <>
           <div className="eyebrow" style={{ marginTop: 16 }}>Activity</div>
