@@ -42,17 +42,25 @@ export async function POST(req: Request) {
       return NextResponse.json((e as Error).message === 'RECONNECT' ? { connected: false, reconnect: true } : { error: (e as Error).message });
     }
     const now = Date.now();
+    // every calendar she can see and edit, not just the main one (George, 2026-11-27: Gracie's are on an "APPOINTMENTS" calendar)
+    const cl = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=writer&fields=items(id,summary)', { headers: { Authorization: `Bearer ${token}` } });
+    if (cl.status === 403 && /insufficient|scope/i.test(await cl.clone().text())) return NextResponse.json({ connected: true, reconnect: true, needs: 'calendars' });
+    const cals = cl.ok ? ((await cl.json()) as { items?: { id: string }[] }).items?.map(c => c.id) ?? ['primary'] : ['primary'];
     const events: CalEvent[] = [];
+    for (const cal of cals.length ? cals : ['primary']) {
     let page: string | undefined;
     do {
       const q = new URLSearchParams({ timeMin: new Date(now - Math.min(365, Math.max(1, days ?? 14)) * DAY).toISOString(), timeMax: new Date(now).toISOString(), singleEvents: 'true', maxResults: '250',
         fields: 'nextPageToken,items(id,status,summary,description,start,attachments,extendedProperties)', ...(page ? { pageToken: page } : {}) });
-      const r = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${q}`, { headers: { Authorization: `Bearer ${token}` } });
-      if (!r.ok) return NextResponse.json({ error: `Google Calendar said ${r.status}: ${(await r.text()).slice(0, 200)}` });
+      const r = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal)}/events?${q}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) { if (cal === 'primary' || cals[0] === cal) return NextResponse.json({ error: `Google Calendar said ${r.status}: ${(await r.text()).slice(0, 200)}` }); break; }
       const j = await r.json() as { items?: (CalEvent & { status?: string })[]; nextPageToken?: string };
       events.push(...(j.items ?? []).filter(e => e.status !== 'cancelled' && meetDocs(e).length));
       page = j.nextPageToken;
     } while (page && events.length < 1000);
+    }
+    // the same meeting can sit on two calendars: keep one
+    const uniq = new Map(events.map(e => [e.id, e])); events.length = 0; events.push(...uniq.values());
 
     const found = events.filter(e => pins[e.id] !== 'skip').map(e => ({ e, who: (pins[e.id] as Person | undefined) ?? matchEvent(e, people ?? []) }));
     const matched = found.filter(f => f.who);

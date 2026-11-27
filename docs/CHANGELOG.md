@@ -153,3 +153,4 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 | 2026-11-27 | Presentation coaching from Google Meet: transcripts on calendar events are matched to the contact and read by Claude (outcome, objections and answers, the close, why it didn't close). Coaching > Presentations, contact notes, weekly note, Ask the coach and the Playbook. |
 | 2026-11-27 | Meet presentations: the first check reads the last year of transcripts; recordings that match no contact are listed to pick a contact or skip; "Wrong contact?" moves a presentation; Coaching gets a Last year range. |
 | 2026-11-27 | Home: Recent feed ("11 new contacts delivered!", appointments booked, sales). Contacts: Assigned column (date a contact arrived on that Dispatch), sortable. |
+| 2026-11-27 | Meet presentations: reads every calendar the agent can edit (Gracie's APPOINTMENTS calendar), not just the main one. Needs the calendar.calendarlist.readonly permission. |
