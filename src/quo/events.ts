@@ -5,7 +5,7 @@ import { presNote, type PresTags } from '../meet/present';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
-export const QUO_TYPES = ['call.ringing', 'call.completed', 'call.recording.completed', 'call.transcript.completed', 'call.summary.completed', 'message.received'] as const;
+export const QUO_TYPES = ['call.ringing', 'call.completed', 'call.recording.completed', 'call.transcript.completed', 'call.summary.completed', 'message.received', 'message.delivered'] as const;
 
 export interface QuoParts { type: string; id: string; callId: string | null; ours: string; them: string; at: number }
 
@@ -65,6 +65,8 @@ export function quoNote(e: { type: string; payload: Any; ai_note?: string | null
       const answered = o.status ? o.status === 'answered' || secs > 0 : !!o.answeredAt || secs > 0;
       return `Quo ${out ? 'call' : 'call from them'}: ${answered ? `${Math.floor(secs / 60)}m ${String(secs % 60).padStart(2, '0')}s` : 'not answered'}`;
     }
+    // a text the agent sent from the Quo app (George, 2026-11-27); Dispatch's own sends are already in the notes
+    case 'message.delivered': { const t = String(o.text ?? o.body ?? o.content ?? '').trim(); return t ? `Texted (Quo): "${t.slice(0, 300)}"` : ''; }
     case 'message.received': return `Text from them: "${String(o.text ?? o.body ?? o.content ?? '').slice(0, 300)}"`;
     case 'call.recording.completed': {
       const url = [...(Array.isArray(o.recordings) ? o.recordings : []), ...(Array.isArray(o.media) ? o.media : [])].map((m: Any) => m?.url).find(Boolean) ?? o.recordingUrl ?? '';

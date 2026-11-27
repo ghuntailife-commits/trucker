@@ -285,6 +285,13 @@ export function setPhone(c: Contact, num: string, now: number): Result {
   return { contact: x, events: [], message: `${c.first} ${c.last}: number saved.` };
 }
 
+/** A note written by Dispatch itself (Quo calls and texts): saved word for word, never read as a callback time. */
+export function plainNote(c: Contact, text: string, now: number, cfg: Config = DEFAULT_CONFIG): Result {
+  const val = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!val) return { contact: c, events: [], message: '', ignored: true };
+  return { contact: { ...clone(c), notes: addNote(c.notes, `${md(now, cfg.tz)}: ${val}`) }, events: [], message: `${c.first} ${c.last}: note added.` };
+}
+
 // ---------- Quick note / callback box ----------
 // "left vm" -> dated note · "tomorrow 2pm" -> callback · "wife answered @ fri 10am" -> note + callback
 export function quickNote(c: Contact, text: string, now: number, cfg: Config = DEFAULT_CONFIG): Result {

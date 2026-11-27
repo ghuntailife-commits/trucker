@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Contact, LogEvent } from '../rules/types';
 import { DEFAULT_CONFIG, type Config } from '../rules/config';
-import { dialerAction, disposition, quickNote, quoDial, confirmAppt, toggleQual, type DialerKey, type DialerOpts } from '../rules/engine';
+import { dialerAction, disposition, quickNote, plainNote, quoDial, confirmAppt, toggleQual, type DialerKey, type DialerOpts } from '../rules/engine';
 import { learnFreshScores } from '../rules/score';
 import { realPresentations } from '../reports/presented';
 import { buildToday, buildAppointments, type TodayRow, type ApptRow } from '../rules/today';
@@ -277,7 +277,7 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
   }, []);
   /** A call's AI notes plus what it taught us about the person (the call brief's "What we know"). */
   const noteFacts = useCallback((id: string, text: string, facts: { topic: Topic; fact: string }[], at: number) => commit(id, 'note', (c, t) => {
-    const r = quickNote(c, text, t, CFG);
+    const r = plainNote(c, text, t, CFG);   // a client's text like "tomorrow 2pm" must not become a callback
     return facts.length ? { ...r, contact: { ...r.contact, profile: mergeFacts(r.contact.profile, facts, at) } } : r;
   }), [commit]);
   /** An outgoing Quo call counts as a dial (see quoDial). */

@@ -200,7 +200,8 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       if (stop || !evs.length) return;
       for (const e of evs) {
         const c = matchContact(dRef.current.contacts ?? [], e.phone);
-        if (c && e.note) dRef.current.noteFacts(c.id, e.note, e.facts, e.at);
+        // a text sent from Dispatch is already in the notes: Quo's delivered copy is not added again
+        if (c && e.note && !(/^Texted \(Quo\)/.test(e.note) && c.notes.includes(e.note.slice(0, -1)))) dRef.current.noteFacts(c.id, e.note, e.facts, e.at);
         if (c && /^Quo call: /.test(e.note)) { dRef.current.quoDialed(c.id, e.at); endRef.current(c.id); }   // an outgoing call counts as a dial (George, 2026-11-27)
         else if (e.note && /^Text from/.test(e.note)) dRef.current.say(`Quo: a text from ${e.phone}, who is not in your contacts.`, 'warn');
       }
@@ -912,7 +913,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       {todaySet && <TodaySettings d={d} onClose={() => setTodaySet(false)} />}
       {quo && d.byId.get(quo.id) && <QuoText key={`${quo.id}-${quo.first}`} c={d.byId.get(quo.id)!} agent={me} apptAt={quo.afterBook ? d.byId.get(quo.id)!.callAt : quo.apptAt} first={quo.first}
         mine={myTexts.texts} onEditTexts={() => setTextsOpen(true)} onClose={() => setQuo(null)}
-        onSent={body => { d.note(quo.id, `Texted (Quo): "${body}"`); setQuo(null); }} />}
+        onSent={body => { d.noteFacts(quo.id, `Texted (Quo): "${body.slice(0, 300)}"`, [], Date.now()); setQuo(null); }} />}
       {textsOpen && <MyTextsDialog agentName={me.name} texts={myTexts.texts} onSave={t => { myTexts.save(t); d0.say('Your texts are saved.'); }} onClose={() => setTextsOpen(false)} />}
       {keysOpen && <ShortcutsDialog onClose={() => setKeysOpen(false)} />}
       {catchOpen && isAdmin && <CatchUpDialog say={d0.say} onClose={() => setCatchOpen(false)} />}

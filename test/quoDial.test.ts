@@ -39,3 +39,17 @@ describe('incoming call ringing', () => {
     expect(p).toMatchObject({ type: 'call.ringing', callId: 'AC1', ours: '+17865550100', them: '+12145550142' });
   });
 });
+import { plainNote } from '../src/rules/engine';
+import { quoNote } from '../src/quo/events';
+describe('Quo text notes', () => {
+  it('saves a client text word for word, never as a callback', () => {
+    const c = contact({ tag: '' });
+    const r = plainNote(c, 'Text from them: "tomorrow 2pm @ fri 10am, email me at a@b.com"', et(27, 17));
+    expect(r.contact.tag).toBe('');
+    expect(r.contact.callAt).toBeNull();
+    expect(r.contact.notes).toContain('email me at a@b.com');
+  });
+  it('turns a text sent from the Quo app into a note', () => {
+    expect(quoNote({ type: 'message.delivered', payload: { data: { object: { text: 'See you at 7', direction: 'outgoing' } } } })).toBe('Texted (Quo): "See you at 7"');
+  });
+});
