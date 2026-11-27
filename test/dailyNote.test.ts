@@ -36,3 +36,24 @@ describe('daily note', () => {
       .toEqual({ callbacks: 1, followUps: 1, noShows: 0 });
   });
 });
+
+describe('message of the day', () => {
+  it('has a theme every day, Thanksgiving on Thanksgiving, and keeps the same line all day', async () => {
+    const { dayTheme } = await import('../src/home/dayTheme');
+    expect(dayTheme({ y: 2026, m: 11, d: 26, wd: 4 }, true).name).toBe('Happy Thanksgiving');
+    const a = dayTheme({ y: 2026, m: 11, d: 30, wd: 1 }, false);
+    expect(a.name).toBe('Fresh Start Monday');
+    expect(dayTheme({ y: 2026, m: 11, d: 30, wd: 1 }, false)).toEqual(a);
+  });
+});
+
+describe('quote of the day', () => {
+  it('changes daily, cycles through every quote, and differs by agent', async () => {
+    const { quoteOfDay, QUOTES } = await import('../src/home/quotes');
+    const seen = new Set<string>(), themes = new Set<string>();
+    for (let i = 0; i < QUOTES.length * 5; i++) { const q = quoteOfDay(2026, 12, 1 + i, 'George'); seen.add(q.text); themes.add(q.theme); }
+    expect(seen.size).toBe(QUOTES.length);
+    expect(themes.size).toBe(5);
+    expect(quoteOfDay(2026, 11, 26, 'George')).toEqual(quoteOfDay(2026, 11, 26, 'George'));
+  });
+});

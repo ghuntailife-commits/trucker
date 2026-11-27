@@ -124,14 +124,15 @@ function ApptList({ list, h }: { list: HomeAppt[]; h: HomeProps }) {
 
 export function HomePage(h: HomeProps) {
   const { note, stats: s } = h, m = note.month;
-  const wkDelta = note.week.alp - note.week.prevAlp;
   const g = Math.max(m.goal, 1), stdW = Math.min(100, (m.std / g) * 100), trialW = Math.min(100 - stdW, (m.trial / g) * 100);
   return (
     <div className="home">
       <section className="hcard note">
-        <div className="eyebrow">Daily note</div>
+        <div className={`ntheme ${note.theme.tone}`}><span className="tchip">{note.theme.name}</span><p>{note.theme.message}</p></div>
         <h1>{note.hello}</h1>
-        <p className="lead">{note.lines[0]}</p>
+        <figure className="nquote"><blockquote>&ldquo;{note.quote.text}&rdquo;</blockquote><figcaption>{note.quote.by}<span className="qtheme">{note.quote.theme}</span></figcaption></figure>
+        <div className="nhead"><b className={m.alp >= m.goal && m.goal ? 'green' : ''}>{money(m.alp)}</b>
+          <span>{m.label} so far · <em>{m.pct}%</em> of your {money(m.goal)} goal · {m.daysLeft} {m.daysLeft === 1 ? 'day' : 'days'} left</span></div>
         <div className="goalbar" role="img" aria-label={`${m.pct}% of the monthly goal: ${money(m.std)} standard and ${money(m.trial)} trial`}>
           <i className="std" style={{ width: stdW + '%' }} />
           {m.trial > 0 && <i className="trial" style={{ width: trialW + '%' }} />}
@@ -139,12 +140,8 @@ export function HomePage(h: HomeProps) {
         <div className="glegend"><span><i className="sw std" />Standard {money(m.std)}</span><span><i className="sw trial" />Trial {money(m.trial)}</span>
           <span className="gpct">{m.pct}% of {money(m.goal)}</span></div>
         <PaceChart days={h.monthDays} goal={m.goal} daysInMonth={h.daysInMonth} label={m.label} />
-        <div className="nlines">{note.lines.slice(1).map((l, i) => <p key={i}>{l}</p>)}</div>
-        <div className="nkpis">
-          <div><span>{m.label} ALP</span><b className="green">{money(m.alp)}</b></div>
-          <div><span>To goal</span><b>{m.toGo ? money(m.toGo) : 'Hit it'}</b></div>
-          <div><span>Needed a day</span><b>{m.toGo ? money(m.perDay) : '—'}</b></div>
-          <div><span>This week</span><b>{money(note.week.alp)}</b><small className={wkDelta >= 0 ? 'up' : 'down'}>{wkDelta >= 0 ? '▲' : '▼'} {money(Math.abs(wkDelta))} vs last week</small></div>
+        <div className="ntiles" style={{ gridTemplateColumns: `repeat(${note.tiles.length === 4 ? 2 : 3}, minmax(0, 1fr))` }}>
+          {note.tiles.map(t => <div key={t.key} className={`ntile ${t.tone ?? ''}`}><span>{t.label}</span><b>{t.big}</b><small>{t.sub}</small></div>)}
         </div>
         <div className="nbtns"><button className="btn primary" onClick={() => h.go('today')}>Start calling</button>
           <button className="btn" onClick={() => h.go('results')}>See results</button></div>

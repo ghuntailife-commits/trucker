@@ -1105,3 +1105,27 @@ tr.draggable { cursor: grab; }
 .tscroll::-webkit-scrollbar-track { background: transparent; }
 .showcount { display: inline-flex; align-items: center; gap: 6px; margin-right: 8px; }
 .showcount select { height: 26px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--text); padding: 0 6px; }
+/* Home note: theme of the day, headline number, tiles (George 2026-11-26: easier to read) */
+.ntheme { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: -2px 0 4px; }
+.ntheme .tchip { font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; background: var(--tbg); color: var(--tfg); }
+.ntheme p { margin: 0 !important; font: italic 500 16px/1.4 var(--serif) !important; color: var(--muted); max-width: none !important; }
+.ntheme.green { --tbg: rgba(34,160,90,.16); --tfg: #1f9a55; } .ntheme.blue { --tbg: rgba(47,111,222,.16); --tfg: #3f7fe6; }
+.ntheme.amber { --tbg: rgba(222,150,30,.18); --tfg: #c98a12; } .ntheme.violet { --tbg: rgba(130,90,220,.18); --tfg: #8f6ae0; } .ntheme.red { --tbg: rgba(220,70,70,.16); --tfg: #d9534f; }
+.hcard.note h1 { margin: 8px 0 4px; }
+.nhead { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 0 0 10px; }
+.nhead b { font: 600 34px var(--serif); font-variant-numeric: tabular-nums; }
+.nhead span { color: var(--muted); font-size: 14.5px; } .nhead em { font-style: normal; color: var(--text); font-weight: 600; }
+.ntiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 14px 0 16px; }
+.ntile { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 3px; background: color-mix(in srgb, var(--panel) 92%, var(--text) 3%); border-left: 3px solid var(--line); }
+.ntile span { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.ntile b { font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.ntile small { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+.ntile.green { border-left-color: #22a05a; } .ntile.green b { color: #22a05a; }
+.ntile.red { border-left-color: #d9534f; } .ntile.red b { color: #d9534f; }
+.ntile.amber { border-left-color: #de961e; } .ntile.blue { border-left-color: #2f6fde; }
+@media (max-width: 760px) { .ntiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .nhead b { font-size: 28px; } }
+.nquote { margin: 6px 0 14px; padding: 10px 14px; border-left: 3px solid var(--tfg, #8f6ae0); background: color-mix(in srgb, var(--panel) 90%, var(--text) 4%); border-radius: 0 10px 10px 0; }
+.nquote blockquote { margin: 0; font: italic 500 17px/1.45 var(--serif); }
+.nquote figcaption { margin-top: 4px; font-size: 12.5px; color: var(--muted); }
+.nquote figcaption::before { content: '— '; }
+.nquote .qtheme { margin-left: 10px; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--muted) 18%, transparent); }

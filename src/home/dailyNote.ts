@@ -3,6 +3,8 @@
 // warmer voice from the same numbers.
 import { saleAlp, type SaleRecord } from '../rules/results';
 import { addDays, parts, sameDay, startOfDay, zoned } from '../rules/time';
+import { dayTheme, type DayTheme } from './dayTheme';
+import { quoteOfDay, type Quote } from './quotes';
 
 export interface NoteInput {
   name: string; now: number; tz: string; goal: number;
@@ -15,8 +17,13 @@ export interface NoteInput {
   /** The first priority contact on Today (callback, follow-up or no-show), if any. */
   callFirst?: { name: string; why: string; at?: number | null };
 }
+/** One tile on the Home note: a label, one big value, one short line under it. */
+export interface NoteTile { key: string; label: string; big: string; sub: string; tone?: 'green' | 'red' | 'amber' | 'blue' | '' }
 export interface DailyNote {
   hello: string;
+  theme: DayTheme;
+  quote: Quote & { theme: string };
+  tiles: NoteTile[];
   lines: string[];
   month: { label: string; alp: number; std: number; trial: number; goal: number; pct: number; toGo: number; daysLeft: number; perDay: number;
     /** Last month's ALP by the same day of the month, or null when last month had no sales. */
@@ -83,7 +90,27 @@ export function dailyNote(x: NoteInput): DailyNote {
     lines.push(`Waiting on Today: ${list}.` + (f ? ` Call ${f.name} first (${f.why.toLowerCase()}${f.at && f.at > now && sameDay(f.at, now, tz) ? `, ${time(f.at, tz)}` : ''}).` : ''));
   }
   lines.push(week.sales || week.prevAlp ? `This week: ${money(week.alp)} from ${plural(week.sales, 'sale')}, against ${money(week.prevAlp)} by this point last week.` : 'No sales yet this week.');
-  return { hello, lines, month: { label, alp, std, trial, goal: x.goal, pct, toGo, daysLeft, perDay, lastMonth, avgSale, salesToGo }, week, todayAlp };
+  // tiles: the same facts as the lines, one idea each, easy to scan
+  const tiles: NoteTile[] = [];
+  if (alp >= x.goal && x.goal) tiles.push({ key: 'goal', label: 'Goal', big: 'Hit it', sub: `${money(alp - x.goal)} past ${money(x.goal)}`, tone: 'green' });
+  else tiles.push({ key: 'goal', label: 'To goal', big: money(toGo), sub: salesToGo ? `About ${plural(salesToGo, 'sale')} · ${money(perDay)} a day` : `${money(perDay)} a day · ${plural(daysLeft, 'day')} left` });
+  if (lastMonth != null) {
+    const diff = alp - lastMonth;
+    tiles.push({ key: 'vs', label: `Vs ${prevLabel}`, big: Math.abs(diff) < 1 ? 'Even' : `${diff > 0 ? '▲' : '▼'} ${money(Math.abs(diff))}`, sub: `${money(lastMonth)} by the ${ordinal(p.d)}`, tone: diff >= 0 ? 'green' : 'red' });
+  }
+  tiles.push({ key: 'today', label: 'Today', big: s.dials ? plural(s.dials, 'dial') : 'No dials yet',
+    sub: s.dials ? `${plural(s.connects, 'connect')} · ${s.scheduled} booked${s.sold ? ` · ${s.sold} sold` : ''}` : 'First dial sets the pace', tone: s.sold ? 'green' : '' });
+  tiles.push(next ? { key: 'appts', label: 'Appointments', big: `${x.apptsLeft.length} left today`, sub: `Next: ${next.name} at ${time(next.at, tz)}`, tone: 'blue' }
+    : { key: 'appts', label: 'Appointments', big: x.apptsTomorrow ? `${x.apptsTomorrow} tomorrow` : 'None left', sub: x.apptsTomorrow ? 'None left today' : 'Book some for tomorrow', tone: x.apptsTomorrow ? 'blue' : '' });
+  const waitN = w.callbacks + w.followUps + w.noShows;
+  if (waitN) tiles.push({ key: 'wait', label: 'Waiting on Today', big: `${waitN} to call`, sub: x.callFirst ? `First: ${x.callFirst.name}` : parts2.join(' · '), tone: 'amber' });
+  const wd = week.alp - week.prevAlp;
+  tiles.push({ key: 'week', label: 'This week', big: money(week.alp), sub: `${plural(week.sales, 'sale')} · ${wd >= 0 ? '▲' : '▼'} ${money(Math.abs(wd))} vs last week`, tone: week.sales ? (wd >= 0 ? 'green' : 'red') : '' });
+  const ahead = !x.goal ? null : lastMonth != null ? alp >= lastMonth : alp >= x.goal * (p.d / Math.max(1, Math.round((nextMonth - monthStart) / 86_400_000)));
+  const theme = dayTheme(p, ahead);
+
+  const quote = quoteOfDay(p.y, p.m, p.d, x.name);
+  return { hello, theme, quote, tiles, lines, month: { label, alp, std, trial, goal: x.goal, pct, toGo, daysLeft, perDay, lastMonth, avgSale, salesToGo }, week, todayAlp };
 }
 
 function ordinal(n: number) { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
