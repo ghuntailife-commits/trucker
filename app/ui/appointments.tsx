@@ -465,7 +465,8 @@ function GcalStatus({ cal }: { cal: GoogleCal }) {
   if (cal.status === 'checking') return <span className="gcal">Google Calendar…</span>;
   if (cal.status === 'connected') return <span className="gcal on" title={`Booked appointments and callbacks are kept on ${cal.email ?? 'your'} Google Calendar. Moves in Google Calendar come back here, and your other Google events show here as busy time.`}>
     <i />Google Calendar on{cal.lastSync ? ` · synced ${new Date(cal.lastSync).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}
-    <button className="linkish" onClick={() => void cal.sync()}>Sync now</button></span>;
+    <button className="linkish" onClick={() => void cal.sync()}>Sync now</button>
+    {cal.meet.status === 'reconnect' && <button className="linkish" title="So Dispatch can read your Google Meet transcripts for presentation coaching" onClick={() => void connectGoogleCalendar()}>Allow Meet transcripts</button>}</span>;
   return <span className="gcal">
     {cal.status === 'reconnect' ? 'Google Calendar needs reconnecting' : cal.status === 'error' ? <span className="warnline" title={cal.error}>Calendar: {cal.error}</span> : 'Google Calendar is off'}
     <button className="btn primary sm" onClick={() => void connectGoogleCalendar()}>{cal.status === 'reconnect' ? 'Reconnect' : 'Connect Google Calendar'}</button></span>;

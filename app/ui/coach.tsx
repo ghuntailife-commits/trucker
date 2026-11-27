@@ -13,12 +13,14 @@ import { Panel, Kpi, Rows, pctTxt } from './charts';
 import { TZ } from './shared';
 import { useSort } from './sort';
 import { PlaybookView } from './playbook';
+import { PresentationsView } from './presentations';
+import type { GoogleCal } from '../../src/live/useGoogleCalendar';
 
 const md = new Intl.DateTimeFormat('en-US', { timeZone: TZ, month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 const DAY = 86_400_000;
 const phoneTxt = (p: string) => { const d = p.replace(/\D/g, '').slice(-10); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : p; };
 
-export function CoachPage({ me, admin, agents, contacts, now }: { me: AgentSetting; admin: boolean; agents: AgentSetting[]; contacts: Contact[]; now: number }) {
+export function CoachPage({ me, admin, agents, contacts, now, cal }: { me: AgentSetting; admin: boolean; agents: AgentSetting[]; contacts: Contact[]; now: number; cal?: GoogleCal }) {
   const quoAgents = agents.filter(a => a.quo);
   const [who, setWho] = useState<string>(me.id);              // an agent id, or 'all' (admin)
   const [days, setDays] = useState<7 | 30>(7);
@@ -26,7 +28,7 @@ export function CoachPage({ me, admin, agents, contacts, now }: { me: AgentSetti
   const [weekly, setWeekly] = useState<WeeklyNote | null>(null);
   const [err, setErr] = useState(''); const [busy, setBusy] = useState<'' | 'week' | 'tag'>('');
   const [reload, setReload] = useState(0);
-  const [tab, setTab] = useState<'book' | 'calls'>('book');
+  const [tab, setTab] = useState<'book' | 'calls' | 'pres'>('book');
   const since = now - days * DAY;
 
   useEffect(() => {
@@ -62,26 +64,28 @@ export function CoachPage({ me, admin, agents, contacts, now }: { me: AgentSetti
     <div className="respage">
       <section className="hero">
         <div className="title">
-          <div className="eyebrow">{tab === 'book' ? 'The whole team · learns from every transcribed call' : `${who === 'all' ? 'Everyone with Quo' : name(who)} · from Claude’s call notes`}</div>
+          <div className="eyebrow">{tab === 'book' ? 'The whole team · learns from every transcribed call' : tab === 'pres' ? `${who === 'all' ? 'Everyone' : name(who)} · Google Meet presentations read by Claude` : `${who === 'all' ? 'Everyone with Quo' : name(who)} · from Claude’s call notes`}</div>
           <h1>Coaching</h1>
         </div>
         <div className="rtools">
-          {admin && tab === 'calls' && <select className="coachwho" value={who} onChange={e => setWho(e.target.value)} aria-label="Whose coaching">
-            {quoAgents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          {admin && tab !== 'book' && <select className="coachwho" value={who} onChange={e => setWho(e.target.value)} aria-label="Whose coaching">
+            {(tab === 'pres' ? agents : quoAgents).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             <option value="all">Everyone</option>
           </select>}
           <div className="seg mini" role="group" aria-label="Coaching view">
             <button className={tab === 'book' ? 'on' : ''} onClick={() => setTab('book')}>Team Playbook</button>
             <button className={tab === 'calls' ? 'on' : ''} onClick={() => setTab('calls')}>{admin ? 'Calls' : 'My calls'}</button>
+            <button className={tab === 'pres' ? 'on' : ''} onClick={() => setTab('pres')}>Presentations</button>
           </div>
-          {tab === 'calls' && <div className="seg mini" role="group" aria-label="Date range">
+          {tab !== 'book' && <div className="seg mini" role="group" aria-label="Date range">
             {([[7, 'Last 7 days'], [30, 'Last 30 days']] as [7 | 30, string][]).map(([k, l]) => <button key={k} className={days === k ? 'on' : ''} onClick={() => setDays(k)}>{l}</button>)}
           </div>}
         </div>
       </section>
-      {!LIVE && <p className="hint coachdemo">Demo: made-up calls, to show what the Coaching tab looks like once Quo calls come in.</p>}
+      {!LIVE && tab !== 'pres' && <p className="hint coachdemo">Demo: made-up calls, to show what the Coaching tab looks like once Quo calls come in.</p>}
       {err && <p className="warnline coachdemo">{err}</p>}
-      {tab === 'book' ? <PlaybookView agent={me.id} admin={admin} now={now} /> : calls === null ? <div className="empty">Loading calls…</div> : (
+      {tab === 'book' ? <PlaybookView agent={me.id} admin={admin} now={now} />
+        : tab === 'pres' ? <PresentationsView me={me} who={who} admin={admin} agents={agents} contacts={contacts} now={now} days={days} cal={cal} /> : calls === null ? <div className="empty">Loading calls…</div> : (
         <div className="rgrid">
           <div className="span4 kgrid k4">
             <Kpi label="Calls analyzed" value={s.calls} sub={`${calls.length - s.calls ? `${calls.length - s.calls} not tagged yet · ` : ''}last ${days} days`} />

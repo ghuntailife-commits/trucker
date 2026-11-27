@@ -149,4 +149,5 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 | 2026-11-27 | A follow-up call (still no sale, or sold on the follow-up) no longer counts as a new presentation, unless they were booked again; follow-up no-sales show as Follow-up on Today | George |
 | 2026-11-27 | More no-sale reasons: Uninsurable (health), Not eligible, No bank account / payment method, Lost job / income change, Wants to shop around, Bad past experience, Not interested | George |
 | 2026-11-27 | Home: clicking an appointment opens its card on the Appointments page (Sold / Presented / No-show / Move), not the dialer | George |
-| 2026-11-27 | Local match for texts: Quo texts go out from the agent's number in the contact's state, then time zone, then main; an ongoing conversation stays on its line. |
+| 2026-11-27 | Local match for calls: when an agent has several Quo numbers, the Call button says which line is closest to the contact (same state, then time zone, then main). Texts stay on the main number (Quo plan limit). |
+| 2026-11-27 | Presentation coaching from Google Meet: transcripts on calendar events are matched to the contact and read by Claude (outcome, objections and answers, the close, why it didn't close). Coaching > Presentations, contact notes, weekly note, Ask the coach and the Playbook. |

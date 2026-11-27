@@ -1,6 +1,7 @@
 // Reading Quo webhook events, and the notes they leave on a contact. Shapes follow Quo's (OpenPhone's) webhooks:
 // { type, createdAt, data: { object } }. Unknown events are ignored. Tested in test/quoEvents.test.ts.
 import { digits10 } from '../contacts/phones';
+import { presNote, type PresTags } from '../meet/present';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
@@ -70,6 +71,7 @@ export function quoNote(e: { type: string; payload: Any; ai_note?: string | null
       return url ? `Call recording: ${url}` : '';
     }
     case 'call.transcript.completed': return e.ai_note ? `Call notes (AI): ${e.ai_note.replace(/\s+/g, ' ')}` : '';
+    case 'meet.presentation': return presNote(e.ai_note ?? '', (e as { ai_tags?: PresTags | null }).ai_tags);
     case 'call.summary.completed': return '';   // George 2026-11-26: Claude's call notes only, not Quo's summary too
   }
   return '';

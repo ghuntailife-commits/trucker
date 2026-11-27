@@ -5,7 +5,6 @@ import { sendQuoText } from '../../src/live/quoClient';
 import { useState } from 'react';
 import type { Contact } from '../../src/rules/types';
 import { quoNumbers, type AgentSetting } from '../../src/team/agents';
-import { pickFrom } from '../../src/quo/localMatch';
 import { textFor, textParts, checkText, e164, TEXT_LABEL, type TextKey } from '../../src/quo/quo';
 import { Dialog, TZ, timeOnly } from './shared';
 
@@ -19,9 +18,7 @@ export function QuoText({ c, agent, apptAt, first = 'missed', onClose, onSent }:
   const [kind, setKind] = useState<TextKey>(keys.includes(first) ? first : keys[0]);
   const [body, setBody] = useState(() => textFor(keys.includes(first) ? first : keys[0], c, fill));
   const to = c.phone || c.backup;
-  const mine = quoNumbers(agent.quoNumber);
-  const local = pickFrom(mine, to);                                   // local match; the server keeps an ongoing conversation on its line
-  const from = local.from || '+10000000000';     // the demo has no Quo number yet
+  const from = quoNumbers(agent.quoNumber)[0] || '+10000000000';     // the demo has no Quo number yet
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState('');
   const problem = checkText({ from, to, content: body });
@@ -30,7 +27,7 @@ export function QuoText({ c, agent, apptAt, first = 'missed', onClose, onSent }:
     <Dialog title={`Text ${c.first} with Quo`} onClose={onClose}>
       <div className="quotext">
         <div className="qrow"><span>To</span><b>{c.first} {c.last} · {fmt(e164(to)) || to || 'no number'}</b></div>
-        <div className="qrow"><span>From</span><b>{agent.quoNumber ? fmt(e164(local.from)) : `${agent.name}'s Quo number`}{mine.length > 1 && <span className="hint"> · {local.why}{' '}(or the line you last texted them on)</span>}</b></div>
+        <div className="qrow"><span>From</span><b>{agent.quoNumber ? fmt(e164(quoNumbers(agent.quoNumber)[0])) : `${agent.name}'s Quo number`}</b></div>
         <div className="chips">{keys.map(k => <button key={k} className={kind === k ? 'on' : ''} onClick={() => pick(k)}>{TEXT_LABEL[k]}</button>)}</div>
         <textarea rows={4} value={body} onChange={e => setBody(e.target.value)} aria-label="Text message" />
         <div className="qmeta"><span>{body.length} characters · {textParts(body)} part{textParts(body) === 1 ? '' : 's'}</span>{problem && <span className="warnline">{problem}</span>}</div>

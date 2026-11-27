@@ -25,7 +25,8 @@ async function learn(): Promise<Record<string, unknown>> {
   const pb: Playbook = { ...emptyPlaybook(), ...(pbRow?.value as Playbook | undefined) };
   const teach = ((tRow?.value as { items?: { title: string; text: string }[] } | undefined)?.items ?? []);
 
-  const { data, error } = await db.from('quo_events').select('id,agent_id,at,ai_note,ai_tags').eq('type', 'call.transcript.completed')
+  const { data, error } = await db.from('quo_events').select('id,agent_id,type,at,ai_note,ai_tags').in('type', ['call.transcript.completed', 'meet.presentation'])   // Meet presentations too (George, 2026-11-27)
+   
     .gt('at', new Date(pb.watermark).toISOString()).order('at', { ascending: true }).limit(BATCH);
   if (error) return { error: /ai_tags/.test(error.message) ? 'Run the coaching line in Supabase first (see Dispatch setup).' : error.message };
   const rows = data ?? [];
@@ -53,7 +54,7 @@ async function learn(): Promise<Record<string, unknown>> {
   const batch = firstStuck < 0 ? ready : ready.slice(0, firstStuck);
   const more = batch.length < rows.length || rows.length === BATCH;
   const calls: StudyCall[] = batch.map(r => { const t = r.ai_tags as CallTags; return { id: r.id, at: Date.parse(r.at), agent: r.agent_id ?? '', outcome: t.outcome,
-    stage: t.stage, opener: NO_TALK.includes(t.outcome) ? '' : t.opener, exchanges: t.exchanges ?? [], note: r.ai_note ?? '' }; });
+    stage: t.stage, opener: NO_TALK.includes(t.outcome) ? '' : t.opener, exchanges: t.exchanges ?? [], note: r.type === 'meet.presentation' ? `Video presentation, not a phone call. ${r.ai_note ?? ''}` : r.ai_note ?? '' }; });
   if (!calls.length) return { ok: true, studied: 0, retagged, more, message: rows.length ? 'Tagging older calls first. Run again to keep going.' : 'No new calls since the last run.' };
 
   const talk = calls.filter(c => c.exchanges.length || c.opener);

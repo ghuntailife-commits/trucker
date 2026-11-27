@@ -3,6 +3,7 @@ import { db } from './supabase';
 import type { CallTags, CoachCall } from '../quo/coach';
 import type { Playbook } from '../quo/playbook';
 import { saveState } from '../app-store/store';
+import { PRES_TYPE, type PresRow, type PresTags } from '../meet/present';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
@@ -32,6 +33,17 @@ export async function loadCoachCalls(agent: string | null, since: number): Promi
   }
   return rows.map(r => ({ id: r.id, agentId: r.agent_id ?? '', callId: r.call_id, at: Date.parse(r.at), phone: r.phone ?? '', note: r.ai_note ?? '',
     tags: (r.ai_tags as CallTags | null) ?? null, recording: r.call_id ? rec.get(r.call_id) : undefined }));
+}
+
+/** Google Meet presentations Claude has read (George, 2026-11-27), for one agent or (admin) everyone. */
+export async function loadPresentations(agent: string | null, since: number): Promise<(PresRow & { agentId: string })[]> {
+  let q = db().from('quo_events').select('id,agent_id,at,phone,ai_note,ai_tags,payload').eq('type', PRES_TYPE)
+    .gte('at', new Date(since).toISOString()).order('at', { ascending: false }).limit(500);
+  if (agent) q = q.eq('agent_id', agent);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as Any[]).filter(r => r.ai_tags).map(r => ({ id: r.id, agentId: r.agent_id ?? '', at: Date.parse(r.at), phone: r.phone ?? '',
+    title: r.payload?.title ?? '', note: r.ai_note ?? '', tags: r.ai_tags as PresTags, doc: r.payload?.doc || undefined }));
 }
 
 export interface WeeklyNote { at: number; text: string; calls: number }

@@ -11,6 +11,14 @@ import { WEEKLY_PROMPT, weekForClaude, coachSums, type CallTags, type CoachCall 
 import { transcriptText } from '../../../src/quo/events';
 import { tagTranscript } from '../../../src/quo/tagCall';
 import { ASK_PROMPT, rebuttalsFor, type Playbook } from '../../../src/quo/playbook';
+import { PRES_TYPE, presForClaude, type PresRow, type PresTags } from '../../../src/meet/present';
+
+/** The agent's Google Meet presentations Claude has read since a time, as lines for Claude. */
+async function presLines(db: ReturnType<typeof adminDb>, agent: string, since: number) {
+  const { data } = await db.from('quo_events').select('id,at,phone,ai_note,ai_tags').eq('agent_id', agent).eq('type', PRES_TYPE).gte('at', new Date(since).toISOString()).order('at', { ascending: true });
+  const rows: PresRow[] = (data ?? []).map(e => ({ id: e.id, at: Date.parse(e.at), phone: e.phone ?? '', title: '', note: e.ai_note ?? '', tags: (e.ai_tags as PresTags | null) ?? null }));
+  return presForClaude(rows);
+}
 
 const WEEK = 7 * 86_400_000;
 
@@ -45,12 +53,13 @@ export async function POST(req: Request) {
         `Openers: ${pb.openers.map(o => `"${o.line}" tried ${o.tried}, ended well ${o.good}`).join('; ')}`,
         `Tips: ${pb.tips.join(' / ')}`, `Trends: ${pb.trends.join(' / ')}`].join('\n') : '(The Playbook has not been built yet.)';
       const mineText = `This agent's last 30 days: ${sm.calls} calls analyzed, ${sm.talked} real conversations, ${sm.good} ended well. Objections: ${sm.objections.map(o => `${o.label} ${o.count} (saved ${o.savedAnyway})`).join(', ') || 'none'}.`;
+      const pres = await presLines(db, agent, Date.now() - 30 * 86_400_000);
       const teachText = teach.map(t => `## ${t.title}\n${t.text.slice(0, 8000)}`).join('\n\n') || '(none)';
       const msgs: { role: 'user' | 'assistant'; content: string }[] = [];
       for (const h of (history ?? []).slice(-6)) { msgs.push({ role: 'user', content: String(h.q).slice(0, 2000) }, { role: 'assistant', content: String(h.a).slice(0, 4000) }); }
       msgs.push({ role: 'user', content: q });
       const r = await client.messages.create({ model: 'claude-opus-5-5', max_tokens: 2000,
-        system: `${ASK_PROMPT}\n\n# Team Playbook\n${book}\n\n# George's teachings\n${teachText}\n\n# ${mineText}`, messages: msgs });
+        system: `${ASK_PROMPT}\n\n# Team Playbook\n${book}\n\n# George's teachings\n${teachText}\n\n# ${mineText}${pres ? `\n\n# This agent's ${pres}` : ''}`, messages: msgs });
       const text = r.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('\n').trim();
       return NextResponse.json({ ok: true, text });
     }
@@ -94,9 +103,11 @@ export async function POST(req: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     const calls: CoachCall[] = (data ?? []).map(e => ({ id: e.id, agentId: e.agent_id, callId: e.call_id, at: Date.parse(e.at), phone: e.phone ?? '',
       note: e.ai_note ?? '', tags: (e.ai_tags as CallTags | null) ?? null }));
-    if (!calls.some(c => c.tags)) return NextResponse.json({ error: 'No tagged calls in the last 7 days yet.' }, { status: 400 });
-    const r = await client.messages.create({ model: 'claude-opus-5-5', max_tokens: 800, system: WEEKLY_PROMPT,
-      messages: [{ role: 'user', content: weekForClaude(calls) }] });
+    const pres = await presLines(db, agent, Date.now() - WEEK);
+    if (!calls.some(c => c.tags) && !pres) return NextResponse.json({ error: 'No tagged calls or presentations in the last 7 days yet.' }, { status: 400 });
+    const r = await client.messages.create({ model: 'claude-opus-5-5', max_tokens: 800,
+      system: `${WEEKLY_PROMPT}\nIf video presentations are included, also give one line on their presentations: the most common reason they didn't close and what to do about it.`,
+      messages: [{ role: 'user', content: `${weekForClaude(calls)}${pres ? `\n\n${pres}` : ''}` }] });
     const text = r.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('\n').trim();
     const value = { at: Date.now(), text, calls: calls.length };
     await db.from('kv').upsert({ key: `dispatch-coach-${agent}`, part: 'all', owner: agent, value, updated_at: new Date().toISOString() });
