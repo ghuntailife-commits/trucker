@@ -605,7 +605,7 @@ th.sortable[aria-sort="ascending"], th.sortable[aria-sort="descending"] { color:
 .goalkey { font-size: 12px; color: var(--muted); }
 
 /* tables */
-.tscroll { overflow-x: auto; margin: 0 -16px; padding: 0 16px; }
+.tscroll { overflow-x: auto; }
 .rt { width: 100%; border-collapse: collapse; font-size: 13px; }
 .rt th { text-align: left; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); font-weight: 600; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .rt td { padding: 8px 10px; border-bottom: 1px solid var(--line2); vertical-align: top; }
@@ -1100,10 +1100,14 @@ kbd { font: 600 12px var(--mono); background: var(--panel2); border: 1px solid v
 tr.draggable { cursor: grab; }
 .skipwhy { margin: 0 0 10px; padding-left: 18px; color: var(--muted); font-size: 13px; }
 /* Long lists: always-visible scrollbars and a "Show" picker */
-.tscroll { scrollbar-width: auto; scrollbar-color: var(--muted) transparent; }
-.tscroll::-webkit-scrollbar { width: 12px; height: 12px; }
-.tscroll::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 55%, transparent); border-radius: 8px; border: 3px solid var(--panel); }
-.tscroll::-webkit-scrollbar-track { background: transparent; }
+/* George 2026-11-27: a real side scrollbar you can see, grab and click on every long list (also on Macs that hide them) */
+.tscroll, .nelist, .scrolly, .plan, .dlist, .gsheet, .stgrid, .wgrid .wg-body, .askbox { scrollbar-gutter: stable; }
+.tscroll::-webkit-scrollbar, .nelist::-webkit-scrollbar, .scrolly::-webkit-scrollbar, .plan::-webkit-scrollbar, .dlist::-webkit-scrollbar, .gsheet::-webkit-scrollbar, .stgrid::-webkit-scrollbar, .wg-body::-webkit-scrollbar, .askbox::-webkit-scrollbar { width: 16px; height: 16px; -webkit-appearance: none; }
+.tscroll::-webkit-scrollbar-track, .nelist::-webkit-scrollbar-track, .scrolly::-webkit-scrollbar-track, .plan::-webkit-scrollbar-track, .dlist::-webkit-scrollbar-track, .gsheet::-webkit-scrollbar-track, .stgrid::-webkit-scrollbar-track, .wg-body::-webkit-scrollbar-track, .askbox::-webkit-scrollbar-track { background: var(--panel2); border-left: 1px solid var(--line2); }
+.tscroll::-webkit-scrollbar-thumb, .nelist::-webkit-scrollbar-thumb, .scrolly::-webkit-scrollbar-thumb, .plan::-webkit-scrollbar-thumb, .dlist::-webkit-scrollbar-thumb, .gsheet::-webkit-scrollbar-thumb, .stgrid::-webkit-scrollbar-thumb, .wg-body::-webkit-scrollbar-thumb, .askbox::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 70%, transparent); border-radius: 10px; border: 3px solid var(--panel2); min-height: 48px; }
+.tscroll::-webkit-scrollbar-thumb:hover, .nelist::-webkit-scrollbar-thumb:hover, .scrolly::-webkit-scrollbar-thumb:hover, .plan::-webkit-scrollbar-thumb:hover, .dlist::-webkit-scrollbar-thumb:hover, .gsheet::-webkit-scrollbar-thumb:hover, .stgrid::-webkit-scrollbar-thumb:hover, .wg-body::-webkit-scrollbar-thumb:hover, .askbox::-webkit-scrollbar-thumb:hover { background: var(--link); }
+.tscroll::-webkit-scrollbar-corner { background: var(--panel2); }
+@supports (-moz-appearance: none) { .tscroll, .nelist, .scrolly, .plan, .dlist, .gsheet, .stgrid, .wgrid .wg-body, .askbox { scrollbar-width: auto; scrollbar-color: var(--muted) var(--panel2); } }
 .showcount { display: inline-flex; align-items: center; gap: 6px; margin-right: 8px; }
 .showcount select { height: 26px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--text); padding: 0 6px; }
 /* Home note: theme of the day, headline number, tiles (George 2026-11-26: easier to read) */

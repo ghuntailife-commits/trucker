@@ -135,3 +135,5 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 | 2026-11-27 | Dialer: Call backup / Call main button dials the other number right away (ends the current call timer) | George |
 | 2026-11-27 | Appointments calendar shows the agent's own Google Calendar events as busy time (read only), and openings and double-booking warnings count them | George |
 | 2026-11-27 | Google Calendar: the agent's own events (lunch, meetings, repeats over the next five weeks) go to Google too, not only appointments and callbacks | George |
+| 2026-11-27 | Needs Number: new Find today tab. Tick contacts, Add to Find today, then send just that list to the number sheet | George |
+| 2026-11-27 | Wide, clickable scrollbars on the long tables and lists (Needs Number, Contacts, Today, library, calendar) | George |

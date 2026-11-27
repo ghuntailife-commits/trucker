@@ -512,7 +512,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
         go={setPage} openHealth={() => setHealthOpen(true)} onDial={id => { setPicked(id); setPage('today'); }} timeOnly={timeOnly} md={x => md(x, TZ)} />}
       {!switching && page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onText={textContact} agentName={me.name} />}
       {!switching && page === 'coach' && <CoachPage me={me} admin={t.role === 'admin'} agents={t.team.agents} contacts={d.contacts} now={d.now} />}
-      {!switching && page === 'needs' && <NeedsPage d={d} ns={ns} states={me.states} />}
+      {!switching && page === 'needs' && <NeedsPage d={d} ns={ns} states={me.states} agent={agent} />}
       {!switching && page === 'team' && <TeamPage t={t} now={d.now} live={{ id: agent, data: { contacts: d.contacts, log: d.log, sales: d.sales, noSales: d.noSales } }}
         onViewAs={id => t.setViewer(id)} onDial={id => { setPicked(id); setPage('today'); }} />}
       {!switching && page === 'library' && <LibraryPage t={t} lib={lib} now={d.now} say={d.say} onLicenses={() => setLicOpen(true)} mine={d.contacts} />}

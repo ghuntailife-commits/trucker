@@ -1,6 +1,7 @@
 'use client';
 // Needs Number: type the numbers you found, review what will be saved, then save them all at once.
 import { useEffect, useMemo, useState } from 'react';
+import { loadState, saveState } from '../../src/app-store/store';
 import type { useDialer } from '../../src/app-store/useDialer';
 import type { Contact } from '../../src/rules/types';
 import { notesNewestFirst } from '../../src/rules/notes';
@@ -17,8 +18,9 @@ import { useSort } from './sort';
 import { useRangePick } from './rangePick';
 
 type D = ReturnType<typeof useDialer>;
-type Tab = NeedsGroup | 'sheet';
+type Tab = NeedsGroup | 'sheet' | 'today';
 const TABS: [Tab, string, string][] = [
+  ['today', 'Find today', 'Your list for today: pick contacts on the other tabs and add them here, then send just this list to your number sheet.'],
   ['needs', 'Needs a number', 'No phone number yet. Type the number you found, or mark Cannot find.'],
   ['newNumber', 'Needs a new number', 'The number on file was marked bad. Type a new one to put them back in the lists.'],
   ['cannotFind', 'Cannot find', 'Nobody could find a number. Send them back to Needs Number to search again.'],
@@ -28,8 +30,13 @@ const DRAFT = 'trucker-needs-draft';
 const blank = (id: string): NeedsEntry => ({ id, phone: '', backup: '', note: '', cannotFind: false });
 const typed = (e: NeedsEntry) => !!(e.phone.trim() || e.backup.trim() || e.note.trim() || e.cannotFind);
 
-export function NeedsPage({ d, ns, states = [] }: { d: D; ns: NumberSheet; states?: string[] }) {
+export function NeedsPage({ d, ns, states = [], agent = 'george' }: { d: D; ns: NumberSheet; states?: string[]; agent?: string }) {
   const [tab, setTab] = useState<Tab>('needs');
+  // Find today (George, 2026-11-27): a hand-picked list to work today, saved with the agent's account.
+  const ftKey = `dispatch-findtoday-${agent}`;
+  const [findToday, setFindToday0] = useState<string[]>([]);
+  useEffect(() => { let live = true; loadState<string[]>(ftKey).then(v => { if (live && Array.isArray(v)) setFindToday0(v); }).catch(() => {}); return () => { live = false; }; }, [ftKey]);
+  const setFindToday = (f: (x: string[]) => string[]) => setFindToday0(x => { const n = f(x); saveState(ftKey, n); return n; });
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [sendPlan, setSendPlan] = useState<SendPlan | null>(null);
   const sheetRows = ns.sheet?.rows ?? [];
@@ -49,12 +56,17 @@ export function NeedsPage({ d, ns, states = [] }: { d: D; ns: NumberSheet; state
     return (c: Contact) => { let p = memo.get(c.id); if (!p) { p = f(c); memo.set(c.id, p); } return p; };
   }, [states, d.log, d.sales, d.noSales, d.contacts]);
   const groups = useMemo(() => {
-    const m: Record<NeedsGroup, Contact[]> = { needs: [], newNumber: [], cannotFind: [] };
+    const m: Record<NeedsGroup | 'today', Contact[]> = { needs: [], newNumber: [], cannotFind: [], today: [] };
     for (const c of d.contacts) { const g = needsGroup(c); if (g) m[g].push(c); }
     // best first: licensed state, talked before, companies that buy, easy to find (src/contacts/priority.ts)
-    for (const k of Object.keys(m) as NeedsGroup[]) m[k] = mixOrder(m[k], c => score(c).score, c => c.company, (a, b) => a.list.localeCompare(b.list) || a.seq - b.seq);
+    for (const k of ['needs', 'newNumber', 'cannotFind'] as NeedsGroup[]) m[k] = mixOrder(m[k], c => score(c).score, c => c.company, (a, b) => a.list.localeCompare(b.list) || a.seq - b.seq);
+    // Find today keeps the order they were added; anyone who got a number since drops off on their own
+    m.today = findToday.map(id => d.byId.get(id)).filter((c): c is Contact => !!c && (needsGroup(c) === 'needs' || needsGroup(c) === 'newNumber'));
     return m;
-  }, [d.contacts, score]);
+  }, [d.contacts, d.byId, score, findToday]);
+  const inToday = useMemo(() => new Set(findToday), [findToday]);
+  const addToday = () => { const ids = [...picked].filter(id => !inToday.has(id)); setFindToday(x => [...x, ...ids]); setPicked(new Set()); d.say(`Added ${ids.length} to Find today (${findToday.length + ids.length} on the list).`); };
+  const removeToday = () => { const n = picked.size; setFindToday(x => x.filter(id => !picked.has(id))); setPicked(new Set()); d.say(`Took ${n} off Find today.`); };
   const entries = Object.values(draft).filter(typed);
   const set = (id: string, patch: Partial<NeedsEntry>) => setDraft(x => ({ ...x, [id]: { ...(x[id] ?? blank(id)), ...patch } }));
 
@@ -117,6 +129,10 @@ export function NeedsPage({ d, ns, states = [] }: { d: D; ns: NumberSheet; state
                   <input className="libq" type="search" placeholder="Search name, company, city, state" value={q} onChange={e => setQ(e.target.value)} aria-label="Search Needs Number" />
                   <button className="btn" disabled={!rows.length} onClick={exportCsv} title="Ticked contacts, or everyone shown if none are ticked">Export CSV{picked.size ? ` (${picked.size})` : ''}</button>
                   <label className="btn" title="A CSV with numbers filled in. They go into the boxes below for you to review and save.">Import numbers<input type="file" accept=".csv,.tsv,.txt,text/csv" hidden onChange={e => { const f = e.target.files?.[0]; if (f) importCsv(f); e.target.value = ''; }} /></label>
+                  {tab === 'today' ? <>
+                    <button className="btn" disabled={!picked.size} onClick={removeToday}>Take {picked.size || ''} off the list</button>
+                    <button className="btn" disabled={!rows.some(c => !onSheet.has(c.id))} onClick={() => setSendPlan(planSend(rows.filter(c => !onSheet.has(c.id)).map(c => c.id), d.contacts, sheetRows, d.now, TZ))}>Send the whole list to number sheet</button>
+                  </> : <button className="btn" disabled={!picked.size} onClick={addToday}>Add {picked.size || ''} to Find today</button>}
                   <button className="btn" disabled={!picked.size} onClick={() => setSendPlan(planSend([...picked], d.contacts, sheetRows, d.now, TZ))}>Send {picked.size || ''} to number sheet</button>
                   <button className="btn" disabled={!entries.length} onClick={() => setDraft({})}>Clear typed</button>
                   <button className="btn primary" disabled={!entries.length} onClick={openReview}>Review and save {entries.length || ''}</button>
@@ -129,7 +145,7 @@ export function NeedsPage({ d, ns, states = [] }: { d: D; ns: NumberSheet; state
                 {tab !== 'cannotFind' && <th className="pickc"><input type="checkbox" aria-label="Pick all for the number sheet" checked={!!pickable.length && pickable.every(c => picked.has(c.id))}
                   onChange={e => setPicked(x => { const n = new Set(x); for (const c of pickable) { if (e.target.checked) n.add(c.id); else n.delete(c.id); } return n; })} /></th>}
                 {th('best', 'Priority', 'num')}{th('name', 'Contact')}<th>Why</th>{th('company', 'Company — Role')}{th('loc', 'Location')}{th('dials', 'Dials', 'num')}{th('note', 'Notes (newest)')}
-                {tab === 'cannotFind' ? <th /> : <><th>{tab === 'newNumber' ? 'New number' : 'Phone'}</th>{tab === 'needs' && <th>Backup</th>}<th>Note</th><th>Cannot find</th></>}
+                {tab === 'cannotFind' ? <th /> : <><th>{tab === 'newNumber' ? 'New number' : 'Phone'}</th>{(tab === 'needs' || tab === 'today') && <th>Backup</th>}<th>Note</th><th>Cannot find</th></>}
               </tr></thead>
               <tbody>
                 {rows.slice(0, limit).map(c => {
@@ -139,7 +155,7 @@ export function NeedsPage({ d, ns, states = [] }: { d: D; ns: NumberSheet; state
                       {tab !== 'cannotFind' && <td className="pickc">{onSheet.has(c.id) ? <span className="onsheet" title="Waiting on the number sheet">✓</span>
                         : <input type="checkbox" aria-label={`Send ${c.first} ${c.last} to the number sheet`} checked={picked.has(c.id)} onChange={ev => pick(c.id, ev.target.checked, ev)} />}</td>}
                       <td className="num score" title={p.why.join(' · ')}>{p.score}</td>
-                      <td className="strong">{c.first} {c.last}{onSheet.has(c.id) && <span className="spill green mini">On sheet</span>}{c.linkedin && /^https:\/\//.test(c.linkedin) && <> <a href={c.linkedin} target="_blank" rel="noopener noreferrer" className="li">in</a></>}</td>
+                      <td className="strong">{c.first} {c.last}{onSheet.has(c.id) && <span className="spill green mini">On sheet</span>}{tab !== 'today' && inToday.has(c.id) && <span className="spill blue mini">Find today</span>}{c.linkedin && /^https:\/\//.test(c.linkedin) && <> <a href={c.linkedin} target="_blank" rel="noopener noreferrer" className="li">in</a></>}</td>
                       <td><div className="why" title={p.why.join(' · ')}>{p.why.filter(w => w !== 'LinkedIn').slice(0, 2).map(w => <span key={w} className={/^Not licensed|^Missing|^No state/.test(w) ? 'bad' : ''}>{w}</span>)}</div></td>
                       <td>{c.company}{c.job ? ` — ${c.job}` : ''}</td>
                       <td>{c.city}{c.city ? ', ' : ''}{c.state}</td>
@@ -149,7 +165,7 @@ export function NeedsPage({ d, ns, states = [] }: { d: D; ns: NumberSheet; state
                         ? <td className="num"><button className="btn sm" onClick={() => setConfirmReturn([c])}>Return</button></td>
                         : <>
                           <td className="in"><input inputMode="tel" placeholder="Number" disabled={e.cannotFind} value={e.phone} onChange={ev => set(c.id, { phone: ev.target.value })} /></td>
-                          {tab === 'needs' && <td className="in"><input inputMode="tel" placeholder="Backup" disabled={e.cannotFind} value={e.backup} onChange={ev => set(c.id, { backup: ev.target.value })} /></td>}
+                          {(tab === 'needs' || tab === 'today') && <td className="in"><input inputMode="tel" placeholder="Backup" disabled={e.cannotFind} value={e.backup} onChange={ev => set(c.id, { backup: ev.target.value })} /></td>}
                           <td className="in wide"><input placeholder="Where you found it" value={e.note} onChange={ev => set(c.id, { note: ev.target.value })} /></td>
                           <td className="in"><label className="check"><input type="checkbox" aria-label={`No number found for ${c.first} ${c.last}`} checked={e.cannotFind} onChange={ev => set(c.id, { cannotFind: ev.target.checked, phone: '', backup: '' })} /></label></td>
                         </>}
@@ -157,7 +173,7 @@ export function NeedsPage({ d, ns, states = [] }: { d: D; ns: NumberSheet; state
                   );
                 })}
                 {rows.length > limit && <tr><td colSpan={11} className="emptyrow"><button className="btn sm" onClick={() => setLimit(l => l + 500)}>Show 500 more ({(rows.length - limit).toLocaleString('en-US')} not shown)</button> <button className="btn sm" onClick={() => setLimit(Number.MAX_SAFE_INTEGER)}>Show all</button></td></tr>}
-                {!rows.length && <tr><td colSpan={11} className="emptyrow">{tab === 'needs' ? 'Every contact has a number.' : tab === 'newNumber' ? 'No bad numbers waiting.' : 'Nobody is on the Cannot Find list.'}</td></tr>}
+                {!rows.length && <tr><td colSpan={11} className="emptyrow">{tab === 'today' ? 'Nothing on Find today yet. Tick contacts on Needs a number or Needs a new number, then Add to Find today.' : tab === 'needs' ? 'Every contact has a number.' : tab === 'newNumber' ? 'No bad numbers waiting.' : 'Nobody is on the Cannot Find list.'}</td></tr>}
               </tbody>
             </table>
           </div>}
