@@ -117,6 +117,9 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const ns = useNumberSheet(agent, d0.contacts ?? [], d0.now, TZ, d0.batch, d0.say, !!d0.ready);
   const lib = useLibrary(agent, { contacts: d0.contacts ?? [], batch: d0.batch }, TZ);
   const [licOpen, setLicOpen] = useState(false);
+  // admin "View as" (George, 2026-11-26): any agent's Dispatch, from the top bar
+  const selfId = (t.person?.agent_id ?? 'george') as AgentId;
+  const canViewAs = !LIVE || t.person?.role === 'admin';
   const pages = pagesFor(t.role).filter(p => p !== 'coach' || t.role === 'admin' || me.quo);
   const quoOn = me.quo;
   const [quo, setQuo] = useState<QuoModal>(null);
@@ -426,6 +429,11 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
               </div>
             )}
           </div>
+          {canViewAs && <label className="viewas" title="See any agent's Dispatch as they see it">
+            <select aria-label="View as" value={t.viewer} onChange={e => t.setViewer(e.target.value as ViewerId)}>
+              {viewers(t.team).filter(v => !LIVE || v.id !== 'boss').map(v => <option key={v.id} value={v.id}>{v.id === selfId ? `View as: ${v.name} (me)` : `View as: ${v.name}`}</option>)}
+            </select>
+          </label>}
           <button className={`healthbtn ${hc.fix ? 'h-fix' : hc.check ? 'h-check' : 'h-ok'}`} onClick={() => setHealthOpen(true)}
             title="Daily health check: things in your contacts to fix or look at">
             <i />{hc.fix || hc.check ? `${hc.fix + hc.check} to check` : 'All clear'}
@@ -443,6 +451,10 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
           ]} />
         </div>
       </header>
+      {canViewAs && t.viewer !== selfId && <div className="viewasbar">
+        <span>You&rsquo;re viewing <b>{me.name}&rsquo;s</b> Dispatch as {me.name} sees it. Anything you change here changes {me.name}&rsquo;s lists.</span>
+        <button className="btn sm" onClick={() => t.setViewer(selfId)}>Back to mine</button>
+      </div>}
 
       {switching && <SwitchPage onDone={() => location.reload()} />}
       {!switching && page === 'home' && <HomePage note={note} stats={s} appts={homeAppts} nextAppts={nextAppts} nextLabel={nextLabel} waiting={{ ...waiting, newNumbers: newNums }} coach={coach}

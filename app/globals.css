@@ -1154,3 +1154,8 @@ tr.draggable { cursor: grab; }
 .movebar label { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
 .movebar select, .movebar .libq { padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); font: inherit; }
 .movebar .libq { flex: 1; min-width: 180px; }
+
+.viewas { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.viewas select { padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); font: inherit; font-size: 13px; }
+.viewasbar { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 16px; background: color-mix(in srgb, #de961e 18%, var(--panel)); border-bottom: 1px solid color-mix(in srgb, #de961e 45%, transparent); font-size: 13.5px; }
+@media (max-width: 760px) { .viewas span { display: none; } .viewasbar { flex-wrap: wrap; text-align: center; } }
