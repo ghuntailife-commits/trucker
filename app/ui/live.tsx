@@ -164,6 +164,7 @@ export function SwitchPage({ onDone }: { onDone: () => void }) {
           <button className="btn primary" disabled={busy} onClick={readAll}>1. Read all sheets</button>
           <button className="btn go" disabled={busy || !ready.length} onClick={confirm}>2. Confirm and save {ready.length ? `${ready.length} agents` : ''}</button>
           {done > 0 && !busy && <button className="btn" onClick={onDone}>Done</button>}
+          <button className="btn" disabled={busy} onClick={() => signInGoogle(true)} title="Asks Google again for read-only access to your spreadsheets">Reconnect Google Sheets</button>
         </div>
       )}
       {err && <p className="warnline">{err}</p>}
