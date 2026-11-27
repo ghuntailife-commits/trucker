@@ -1118,6 +1118,13 @@ tr.draggable { cursor: grab; }
 .nhead span { color: var(--muted); font-size: 14.5px; } .nhead em { font-style: normal; color: var(--text); font-weight: 600; }
 .ntiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 14px 0 16px; }
 .ntile { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 3px; background: color-mix(in srgb, var(--panel) 92%, var(--text) 3%); border-left: 3px solid var(--line); }
+.ntile { font: inherit; color: inherit; text-align: left; cursor: pointer; transition: border-color .15s, background .15s, transform .1s; }
+.ntile:hover { border-color: var(--faint); background: var(--panel2); }
+.ntile:active { transform: translateY(1px); }
+.ntile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ntile span { display: flex; justify-content: space-between; }
+.ntile span i { font-style: normal; font-size: 15px; line-height: 1; opacity: .45; transition: opacity .15s, transform .15s; }
+.ntile:hover span i { opacity: .9; transform: translateX(2px); }
 .ntile span { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .ntile b { font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.2; }
 .ntile small { font-size: 12.5px; color: var(--muted); line-height: 1.35; }

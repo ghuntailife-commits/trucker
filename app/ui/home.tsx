@@ -141,7 +141,8 @@ export function HomePage(h: HomeProps) {
           <span className="gpct">{m.pct}% of {money(m.goal)}</span></div>
         <PaceChart days={h.monthDays} goal={m.goal} daysInMonth={h.daysInMonth} label={m.label} />
         <div className="ntiles" style={{ gridTemplateColumns: `repeat(${note.tiles.length === 4 ? 2 : 3}, minmax(0, 1fr))` }}>
-          {note.tiles.map(t => <div key={t.key} className={`ntile ${t.tone ?? ''}`}><span>{t.label}</span><b>{t.big}</b><small>{t.sub}</small></div>)}
+          {note.tiles.map(t => <button key={t.key} type="button" className={`ntile ${t.tone ?? ''}`} title={`Open ${TILE_PAGE[t.key]?.[1] ?? 'Results'}`}
+            onClick={() => h.go(TILE_PAGE[t.key]?.[0] ?? 'results')}><span>{t.label}<i aria-hidden>›</i></span><b>{t.big}</b><small>{t.sub}</small></button>)}
         </div>
         <div className="nbtns"><button className="btn primary" onClick={() => h.go('today')}>Start calling</button>
           <button className="btn" onClick={() => h.go('results')}>See results</button></div>
@@ -223,3 +224,9 @@ function MorningWisdom({ w }: { w: DailyNote['quote'] }) {
     </div> : <button className="linkish mwbtn" onClick={() => fold(true)}>Read the reflection</button>}
   </figure>;
 }
+
+/** Where each Home tile opens (George, 2026-11-26: the tiles should be clickable). */
+const TILE_PAGE: Record<string, [Page, string]> = {
+  goal: ['results', 'Results'], vs: ['results', 'Results'], week: ['results', 'Results'],
+  today: ['today', 'Today'], wait: ['today', 'Today'], appts: ['appts', 'Appointments'],
+};
