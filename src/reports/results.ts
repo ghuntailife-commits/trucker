@@ -1,5 +1,6 @@
 // Results and Sales reports (the old Results, Sales, No Sales, Best Times and Daily Summary tabs), computed from the
 // Activity Log and the sale / no-sale records. Pure functions: the same code runs in the browser and on the server.
+import { realPresentations } from './presented';
 import type { LogEvent } from '../rules/types';
 import { tagKind, type TagKind } from '../rules/tags';
 import { addDays, dayKey, parts, startOfDay, zoned, DAY_MS } from '../rules/time';
@@ -31,7 +32,7 @@ export function funnel(log: LogEvent[], sales: SaleRecord[], r: Range): Funnel {
     dials: sum(ev.filter(isDial).map(e => e.count)),
     connects: ev.filter(e => e.kind === 'Tag' && e.reach).length,
     scheduled: ev.filter(e => isTag(e, 'scheduled')).length,
-    presented: ev.filter(e => isTag(e, 'presented', 'sold')).length,
+    presented: (() => { const real = realPresentations(log); return ev.filter(e => real.has(e)).length; })(),
     sold: sales.filter(s => inR(s.at, r)).length,
     noShows: ev.filter(e => isTag(e, 'noshow')).length,
     calledInto: ev.filter(e => isTag(e, 'calledInto')).length,
@@ -121,6 +122,7 @@ export function daily(log: LogEvent[], sales: SaleRecord[], r: Range, tz: string
     const row: DayRow = { day: d, dials: 0, connects: 0, scheduled: 0, presented: 0, sold: 0, alp: 0, monthly: 0, callbacks: 0, noShows: 0, hungUp: 0, bad: 0, dnc: 0, imported: 0 };
     rows.push(row); idx.set(dayKey(d, tz), row);
   }
+  const real = realPresentations(log);
   for (const e of log) {
     const row = idx.get(dayKey(e.at, tz)); if (!row || !inR(e.at, r)) continue;
     if (isDial(e)) row.dials += e.count;
@@ -129,7 +131,7 @@ export function daily(log: LogEvent[], sales: SaleRecord[], r: Range, tz: string
       if (e.reach) row.connects++;
       const k = tagKind(e.tag);
       if (k === 'scheduled') row.scheduled++;
-      else if (k === 'presented' || k === 'sold') row.presented++;
+      else if (k === 'presented' || k === 'sold') { if (real.has(e)) row.presented++; }
       else if (k === 'callback') row.callbacks++;
       else if (k === 'noshow') row.noShows++;
       else if (k === 'notInterested') row.hungUp++;
@@ -209,9 +211,10 @@ export function salesBySource(sales: SaleRecord[], who: (id: string) => Who) {
 export function presentedByWeek(log: LogEvent[], sales: SaleRecord[], r: Range, tz: string) {
   const out: { from: number; to: number; presented: number; sold: number }[] = [];
   let w = addDays(startOfDay(r.from, tz), -wdIdx(r.from, tz), tz);
+  const real = realPresentations(log);
   while (w < r.to) {
     const to = addDays(w, 7, tz), wr: Range = { from: Math.max(w, r.from), to: Math.min(to, r.to), label: '' };
-    out.push({ from: wr.from, to: wr.to, presented: log.filter(e => inR(e.at, wr) && isTag(e, 'presented', 'sold')).length, sold: sales.filter(s => inR(s.at, wr)).length });
+    out.push({ from: wr.from, to: wr.to, presented: log.filter(e => inR(e.at, wr) && real.has(e)).length, sold: sales.filter(s => inR(s.at, wr)).length });
     w = to;
   }
   return out;

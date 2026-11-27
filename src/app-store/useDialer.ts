@@ -7,8 +7,9 @@ import type { Contact, LogEvent } from '../rules/types';
 import { DEFAULT_CONFIG, type Config } from '../rules/config';
 import { dialerAction, disposition, quickNote, confirmAppt, toggleQual, type DialerKey, type DialerOpts } from '../rules/engine';
 import { learnFreshScores } from '../rules/score';
+import { realPresentations } from '../reports/presented';
 import { buildToday, buildAppointments, type TodayRow, type ApptRow } from '../rules/today';
-import { TAGS } from '../rules/tags';
+import { TAGS, tagKind } from '../rules/tags';
 import { mergeFacts, type Topic } from '../brief/profile';
 import { sameDay, zoned } from '../rules/time';
 import { addNote } from '../rules/engine';
@@ -220,7 +221,8 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
   const stats: Stats = useMemo(() => {
     const ev = (s?.log ?? []).filter(e => sameDay(e.at, now, CFG.tz));
     const tags = ev.filter(e => e.kind === 'Tag');
-    const presented = new Set(tags.filter(e => /^(PRESENTED|SOLD)/.test(e.tag)).map(e => e.contactId));
+    const real = realPresentations(s?.log ?? []);   // a follow-up call is not a new presentation (George, 2026-11-27)
+    const presented = new Set(tags.filter(e => real.has(e)).map(e => e.contactId));
     const sold = (s?.sales ?? []).filter(x => sameDay(x.at, now, CFG.tz)).length;
     const done = today.filter(r => r.done).length;
     const calls = (s?.calls ?? []).filter(x => sameDay(x.at, now, CFG.tz));
@@ -306,7 +308,8 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
       const at = Date.now();
       const who = before ? { first: before.first, last: before.last, phone: before.phone || before.backup, company: before.company, list: before.list } : undefined;
       if (key === 'sold' && form?.sale) return { sales: [...st.sales, { ...form.sale, at: saleDate(apptAt, at), contactId: id, calledInto: ci, who }] };
-      if (key === 'presented' && form?.noSale) return { noSales: [...st.noSales, { ...form.noSale, at, contactId: id, calledInto: ci, who }] };
+      const again = before ? ['presented', 'sold'].includes(tagKind(before.tag)) : false;   // a follow-up call
+      if (key === 'presented' && form?.noSale) return { noSales: [...st.noSales, { ...form.noSale, at, contactId: id, calledInto: ci, who, ...(again ? { again: true } : {}) }] };
       return {};
     });
   }, [commit, byId]);

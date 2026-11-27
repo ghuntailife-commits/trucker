@@ -21,6 +21,7 @@ import { ResultForm, type ResultKind, type ResultInitial } from './ui/forms';
 import type { AmendTarget } from '../src/rules/amend';
 import { saleAlp } from '../src/rules/results';
 import { AllSearch } from './ui/allSearch';
+import { realPresentations } from '../src/reports/presented';
 import { StatusPage } from './ui/status';
 import { useUpdateCheck } from '../src/live/useUpdateCheck';
 import { MoveContacts } from './ui/transfer';
@@ -342,8 +343,9 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
     return d.sales.filter(x => new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit' }).format(x.at) === p).reduce((a, x) => a + saleAlp(x), 0); }, [d.sales, d.now]);
   // the agent's own no-show rate over the last 30 days, for the no-show brief
   const noShowRate = useMemo(() => { const from = d.now - 30 * 86_400_000;
-    const tags = d.log.filter(e => e.kind === 'Tag' && e.at >= from).map(e => tagKind(e.tag));
-    const ns = tags.filter(k => k === 'noshow').length, shown = tags.filter(k => k === 'presented' || k === 'sold').length;
+    const real = realPresentations(d.log);
+    const recent = d.log.filter(e => e.kind === 'Tag' && e.at >= from);
+    const ns = recent.filter(e => tagKind(e.tag) === 'noshow').length, shown = recent.filter(e => real.has(e)).length;
     return ns + shown ? ns / (ns + shown) : 0; }, [d.log, d.now]);
   const hours = useMemo(() => {
     const h: { h: number; dials: number; connects: number }[] = [];
@@ -455,7 +457,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
         tomorrow: a.status.includes('tomorrow') };
     }),
     ...salesToday.map(x => { const c = d.byId.get(x.contactId); return { id: x.contactId, at: x.at, name: c ? `${c.first} ${c.last}` : '', company: c?.company ?? '', pill: 'Sold', tone: 'green', open: false, ci: false }; }),
-    ...d.noSales.filter(x => sameDay(x.at, d.now, TZ)).map(x => { const c = d.byId.get(x.contactId); return { id: x.contactId, at: x.at, name: c ? `${c.first} ${c.last}` : '', company: c?.company ?? '', pill: 'Presented', tone: 'violet', open: false, ci: false }; }),
+    ...d.noSales.filter(x => sameDay(x.at, d.now, TZ)).map(x => { const c = d.byId.get(x.contactId); return { id: x.contactId, at: x.at, name: c ? `${c.first} ${c.last}` : '', company: c?.company ?? '', pill: x.again ? 'Follow-up' : 'Presented', tone: 'violet', open: false, ci: false }; }),
   ];
 
   const homeAppts = apptLines.filter(a => a.at != null && sameDay(a.at, d.now, TZ)).sort((a, b) => (a.at ?? 0) - (b.at ?? 0));

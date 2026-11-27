@@ -33,6 +33,8 @@ export interface NoSaleForm { objections: string[]; reason: string; followUp: st
 export interface NoSaleRecord {
   at: number; contactId: string; objections: string[]; reason: string; followUp: string; followUpNote: string; calledInto: boolean;
   who?: { first: string; last: string; phone: string; company: string; list: string };
+  /** Saved on a follow-up call after the presentation, not a new presentation (George, 2026-11-27). */
+  again?: boolean;
 }
 
 /** "$1,200.50" → 1200.5. null when it isn't a plain dollar amount (at most 2 decimals). */
