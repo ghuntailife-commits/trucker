@@ -1,5 +1,7 @@
 // "Text with Quo": pick a message, edit it, see exactly what goes out, then send from the agent's Quo number.
 'use client';
+import { LIVE } from '../../src/live/supabase';
+import { sendQuoText } from '../../src/live/quoClient';
 import { useState } from 'react';
 import type { Contact } from '../../src/rules/types';
 import type { AgentSetting } from '../../src/team/agents';
@@ -17,6 +19,8 @@ export function QuoText({ c, agent, apptAt, first = 'missed', onClose, onSent }:
   const [body, setBody] = useState(() => textFor(keys.includes(first) ? first : keys[0], c, fill));
   const to = c.phone || c.backup;
   const from = agent.quoNumber || '+10000000000';     // the demo has no Quo number yet
+  const [sending, setSending] = useState(false);
+  const [err, setErr] = useState('');
   const problem = checkText({ from, to, content: body });
   const pick = (k: TextKey) => { setKind(k); setBody(textFor(k, c, fill)); };
   return (
@@ -29,11 +33,18 @@ export function QuoText({ c, agent, apptAt, first = 'missed', onClose, onSent }:
         <div className="qmeta"><span>{body.length} characters · {textParts(body)} part{textParts(body) === 1 ? '' : 's'}</span>{problem && <span className="warnline">{problem}</span>}</div>
         <div className="eyebrow">What {c.first} will see</div>
         <div className="bubble">{body}</div>
-        <p className="hint">Demo: nothing is sent. At go-live this goes out from your Quo number, and their reply shows up in {c.first}&rsquo;s notes.</p>
+        <p className="hint">{LIVE ? <>Sends from your Quo number. Their reply shows up in {c.first}&rsquo;s notes.</> : <>Demo: nothing is sent. At go-live this goes out from your Quo number, and their reply shows up in {c.first}&rsquo;s notes.</>}</p>
+        {err && <p className="warnline">{err}</p>}
       </div>
       <div className="bar">
         <button className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn primary" disabled={!!problem} onClick={() => onSent(body.trim(), kind)}>Send with Quo</button>
+        <button className="btn primary" disabled={!!problem || sending} onClick={async () => {
+          if (!LIVE) return onSent(body.trim(), kind);
+          setSending(true); setErr('');
+          const e = await sendQuoText(to, body.trim());
+          setSending(false);
+          if (e) setErr(e); else onSent(body.trim(), kind);
+        }}>{sending ? 'Sending…' : 'Send with Quo'}</button>
       </div>
     </Dialog>
   );

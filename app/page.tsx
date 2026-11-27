@@ -40,6 +40,8 @@ import { healthCheck, healthCount } from '../src/team/health';
 import type { TextKey } from '../src/quo/quo';
 import { LIVE, signOut, type Person } from '../src/live/supabase';
 import { LiveGate, SwitchPage, useSaveStatus } from './ui/live';
+import { newQuoEvents, markQuoApplied } from '../src/live/quoClient';
+import { matchContact } from '../src/quo/quo';
 
 const PAGE_LABEL: Record<Page, string> = { home: 'Home', today: 'Today', appts: 'Appointments', contacts: 'Contacts', needs: 'Needs Number', results: 'Results', team: 'Team', library: 'Contact library', settings: 'Settings', integrations: 'Integrations' };
 const ROLE_LABEL = { admin: 'admin', lead: 'team lead', agent: 'agent', boss: 'results only' } as const;
@@ -119,6 +121,25 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const [healthOpen, setHealthOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
   const saveSt = useSaveStatus();
+  // live Quo: calls, texts, recordings and AI call notes land on the contact's notes (checked every 30 seconds)
+  const dRef = useRef(d0); dRef.current = d0;
+  useEffect(() => {
+    if (!LIVE || !quoOn || !d0.ready) return;
+    let stop = false;
+    const pull = async () => {
+      const evs = await newQuoEvents(agent);
+      if (stop || !evs.length) return;
+      for (const e of evs) {
+        const c = matchContact(dRef.current.contacts ?? [], e.phone);
+        if (c && e.note) dRef.current.note(c.id, e.note);
+        else if (e.note && /^Text from/.test(e.note)) dRef.current.say(`Quo: a text from ${e.phone}, who is not in your contacts.`, 'warn');
+      }
+      await markQuoApplied(evs.map(e => e.id));
+    };
+    pull();
+    const id = setInterval(pull, 30_000);
+    return () => { stop = true; clearInterval(id); };
+  }, [agent, quoOn, d0.ready]);
   const [keysOpen, setKeysOpen] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
   const [pending, setPending] = useState<null | 'callback' | 'appt'>(null);
