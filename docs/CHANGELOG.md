@@ -151,3 +151,4 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 | 2026-11-27 | Home: clicking an appointment opens its card on the Appointments page (Sold / Presented / No-show / Move), not the dialer | George |
 | 2026-11-27 | Local match for calls: when an agent has several Quo numbers, the Call button says which line is closest to the contact (same state, then time zone, then main). Texts stay on the main number (Quo plan limit). |
 | 2026-11-27 | Presentation coaching from Google Meet: transcripts on calendar events are matched to the contact and read by Claude (outcome, objections and answers, the close, why it didn't close). Coaching > Presentations, contact notes, weekly note, Ask the coach and the Playbook. |
+| 2026-11-27 | Meet presentations: the first check reads the last year of transcripts; recordings that match no contact are listed to pick a contact or skip; "Wrong contact?" moves a presentation; Coaching gets a Last year range. |

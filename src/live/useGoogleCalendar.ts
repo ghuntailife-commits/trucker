@@ -17,7 +17,7 @@ import type { WantedEvent, Move, OtherEvent } from '../calendar/google';
 
 export type CalState = { status: 'off' | 'checking' | 'connected' | 'reconnect' | 'error'; email?: string | null; error?: string; lastSync?: number; others?: OtherEvent[] };
 /** Google Meet presentations (George, 2026-11-27): 'reconnect' = Google hasn't given permission to read Meet transcripts yet. */
-export type MeetState = { status: 'idle' | 'reconnect' | 'error'; error?: string; saved?: number; at?: number };
+export type MeetState = { status: 'idle' | 'busy' | 'reconnect' | 'error'; error?: string; saved?: number; at?: number; unmatched?: { eventId: string; title: string; at: number }[] };
 
 async function call(path: string, init: RequestInit = {}) {
   const { data } = await db().auth.getSession();
@@ -115,30 +115,42 @@ export function useGoogleCalendar(agent: string, contacts: Contact[], tz: string
   // transcripts on the calendar into presentation coaching (app/api/meet/sync). Only contacts with an appointment history are sent.
   const [meet, setMeet] = useState<MeetState>({ status: 'idle' });
   const meetBusy = useRef(false);
-  const meetSync = useCallback(async () => {
-    if (!LIVE || meetBusy.current || !readyRef.current || signedInAs() !== agent) return;
+  // The first run on a screen goes back a year, so every past transcript is read (George, 2026-11-27); after that, 14 days.
+  const meetSync = useCallback(async (manual = false) => {
+    if (!LIVE || meetBusy.current || !readyRef.current || (!manual && signedInAs() !== agent)) return;
     meetBusy.current = true;
+    const flag = `dispatch-meet-backfill-v1-${agent}`;
+    let back = false; try { back = !localStorage.getItem(flag); } catch { /* */ }
     try {
-      const people = latest.current.filter(c => c.phone && ['scheduled', 'presented', 'sold', 'noshow', 'calledInto', 'callback'].includes(tagKind(c.tag)))
-        .map(c => ({ id: c.id, n: `${c.first} ${c.last}`.trim(), p: c.phone }));
-      for (let round = 0; round < 5; round++) {
-        const j = await call('/api/meet/sync', { method: 'POST', body: JSON.stringify({ agent, people }) });
-        if (j.error) { setMeet({ status: 'error', error: j.error }); break; }
-        if (j.reconnect) { setMeet({ status: 'reconnect' }); break; }
-        setMeet(m => ({ status: 'idle', saved: (round ? m.saved ?? 0 : 0) + (j.saved ?? 0), at: Date.now() }));
-        if (!j.more) break;
+      const people = latest.current.filter(c => c.phone).map(c => ({ id: c.id, n: `${c.first} ${c.last}`.trim(), p: c.phone }));
+      let total = 0;
+      setMeet(m => ({ ...m, status: 'busy' }));
+      for (let round = 0; round < (back ? 60 : 5); round++) {
+        const j = await call('/api/meet/sync', { method: 'POST', body: JSON.stringify({ agent, people, days: back ? 365 : 14 }) });
+        if (j.error) { setMeet({ status: 'error', error: j.error }); return; }
+        if (j.reconnect) { setMeet({ status: 'reconnect' }); return; }
+        total += j.saved ?? 0;
+        setMeet({ status: j.more ? 'busy' : 'idle', saved: total, at: Date.now(), unmatched: j.unmatched ?? [] });
+        if (!j.more) { if (back) try { localStorage.setItem(flag, String(Date.now())); } catch { /* */ } break; }
       }
     } catch (e) { setMeet({ status: 'error', error: (e as Error).message }); }
-    finally { meetBusy.current = false; }
+    finally { meetBusy.current = false; setMeet(m => (m.status === 'busy' ? { ...m, status: 'idle' } : m)); }
   }, [agent]);
+  /** Says which contact a Meet event is for (or that it isn't a presentation), then reads it. */
+  const meetAssign = useCallback(async (eventId: string, contact: { id: string; n: string; p: string } | 'skip') => {
+    const j = await call('/api/meet/sync', { method: 'POST', body: JSON.stringify({ agent, people: [], assign: { eventId, contact } }) });
+    if (j.error) { setMeet(m => ({ ...m, status: 'error', error: j.error })); return; }
+    setMeet(m => ({ ...m, unmatched: (m.unmatched ?? []).filter(u => u.eventId !== eventId) }));
+    if (contact !== 'skip') void meetSync(true);
+  }, [agent, meetSync]);
   useEffect(() => {
     if (st.status !== 'connected') return;
-    const first = setTimeout(() => void meetSync(), 60_000);
+    const first = setTimeout(() => void meetSync(), 15_000);
     const t = setInterval(() => void meetSync(), 15 * 60_000);
     return () => { clearTimeout(first); clearInterval(t); };
   }, [st.status, meetSync]);
 
   const disconnect = useCallback(async () => { await call('/api/calendar/connect', { method: 'POST', body: JSON.stringify({ disconnect: true }) }); setSt({ status: 'off' }); }, []);
-  return { ...st, sync, disconnect, meet, meetSync };
+  return { ...st, sync, disconnect, meet, meetSync, meetAssign };
 }
 export type GoogleCal = ReturnType<typeof useGoogleCalendar>;

@@ -23,7 +23,7 @@ const phoneTxt = (p: string) => { const d = p.replace(/\D/g, '').slice(-10); ret
 export function CoachPage({ me, admin, agents, contacts, now, cal }: { me: AgentSetting; admin: boolean; agents: AgentSetting[]; contacts: Contact[]; now: number; cal?: GoogleCal }) {
   const quoAgents = agents.filter(a => a.quo);
   const [who, setWho] = useState<string>(me.id);              // an agent id, or 'all' (admin)
-  const [days, setDays] = useState<7 | 30>(7);
+  const [days, setDays] = useState<7 | 30 | 365>(7);
   const [calls, setCalls] = useState<CoachCall[] | null>(null);
   const [weekly, setWeekly] = useState<WeeklyNote | null>(null);
   const [err, setErr] = useState(''); const [busy, setBusy] = useState<'' | 'week' | 'tag'>('');
@@ -78,7 +78,7 @@ export function CoachPage({ me, admin, agents, contacts, now, cal }: { me: Agent
             <button className={tab === 'pres' ? 'on' : ''} onClick={() => setTab('pres')}>Presentations</button>
           </div>
           {tab !== 'book' && <div className="seg mini" role="group" aria-label="Date range">
-            {([[7, 'Last 7 days'], [30, 'Last 30 days']] as [7 | 30, string][]).map(([k, l]) => <button key={k} className={days === k ? 'on' : ''} onClick={() => setDays(k)}>{l}</button>)}
+            {([[7, 'Last 7 days'], [30, 'Last 30 days'], [365, 'Last year']] as [7 | 30 | 365, string][]).map(([k, l]) => <button key={k} className={days === k ? 'on' : ''} onClick={() => setDays(k)}>{l}</button>)}
           </div>}
         </div>
       </section>
