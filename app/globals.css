@@ -1309,3 +1309,8 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 .brief .bknown dd { margin: 0; }
 .brief .bknown small { color: var(--faint); }
 .prep { margin-top: 12px; }
+/* End call on the live call button (George, 2026-11-27) */
+.callbtn.live { cursor: pointer; }
+.callbtn.live .endcall { font-size: 13px; font-weight: 600; background: var(--red, #c0392b); color: #fff; border-radius: 6px; padding: 3px 10px; margin-left: 4px; }
+.callbtn.live:hover .endcall { filter: brightness(1.1); }
+.callbtn.live > span, .callbtn.live small { white-space: nowrap; }

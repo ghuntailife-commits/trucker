@@ -129,3 +129,4 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 | 2026-11-27 | Booked appointments and callbacks carry prep notes: a Prep box on Appointments (Claude's brief, last call, What we know), and the same notes on the calendar event. Never on an invite the client receives | George |
 | 2026-11-27 | Quo works for an agent with their own Quo account (Gracie): per-agent keys QUO_API_KEY_<ID> and QUO_SIGNING_KEY_<ID> on Vercel; their calls, texts, recordings and AI notes land in their Dispatch | George |
 | 2026-11-27 | Settings: sign-in email per agent (iCloud, Outlook, Gmail), with a confirm before saving | George |
+| 2026-11-27 | Dialer: click the green call button (or C / Enter) to end the call and pick the result; the timer also stops by itself when Quo reports the call ended | George |

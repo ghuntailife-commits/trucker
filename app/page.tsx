@@ -138,6 +138,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const saveSt = useSaveStatus();
   // live Quo: calls, texts, recordings and AI call notes land on the contact's notes (checked every 30 seconds)
   const dRef = useRef(d0); dRef.current = d0;
+  const endRef = useRef<(id: string) => void>(() => {});   // stops the call timer when Quo says the call ended
   useEffect(() => {
     if (!LIVE || !quoOn || !d0.ready) return;
     let stop = false;
@@ -147,6 +148,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       for (const e of evs) {
         const c = matchContact(dRef.current.contacts ?? [], e.phone);
         if (c && e.note) dRef.current.noteFacts(c.id, e.note, e.facts, e.at);
+        if (c && /^Quo call: /.test(e.note)) endRef.current(c.id);
         else if (e.note && /^Text from/.test(e.note)) dRef.current.say(`Quo: a text from ${e.phone}, who is not in your contacts.`, 'warn');
       }
       await markQuoApplied(evs.map(e => e.id));
@@ -222,6 +224,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const endCall = (id: string) => {
     if (call && call.id === id) { d.logCall(id, Math.round((Date.now() - call.at) / 1000)); setCall(null); }
   };
+  endRef.current = endCall;
 
   const act = (key: DialerKey) => {
     if (!current) return;
@@ -266,6 +269,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       else if (k === 'r') d.reSort();
       else if (k === 's' && current) { d.skip(current.id); setPicked(null); }
       else if ((e.key === 'Enter' || k === 'c') && current && !call) { e.preventDefault(); startCall(current, backupMode); }
+      else if ((e.key === 'Enter' || k === 'c') && current && call?.id === current.id) { e.preventDefault(); endCall(current.id); }
       else if (e.key === 'Escape') setCountdown(null);
       else if (k === 'b' && current?.backup) setBackupMode(b => !b);
       else if (e.key === '/') { e.preventDefault(); searchRef.current?.focus(); }
@@ -690,11 +694,12 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
                 </div>
               )}
               {call?.id === current.id ? (
-                <div className="callbtn live">
+                <button className="callbtn live" title="Hung up? Click to end the call here, then pick how it went" onClick={() => endCall(current.id)}>
                   <span className="wave"><i /><i /><i /><i /></span>
                   <span>{dialNum}</span>
                   <small>{fmtSecs(Math.round((Date.now() - call.at) / 1000))}</small>
-                </div>
+                  <span className="endcall">End call</span>
+                </button>
               ) : (
                 <button className="callbtn" disabled={!dialNum} onClick={() => startCall(current, backupMode)}>
                   <Ico d={IC.phone} size={20} /><span>{dialNum || 'No number'}</span>{quoOn && dialNum && <small className="via">Quo</small>}
@@ -790,7 +795,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
         {LIVE ? <span><i className={saveSt?.state === 'failed' ? 'dotbad' : 'dotok'} />{saveSt?.state === 'failed' ? `Not saved yet, trying again (${saveSt.error})` : saveSt?.state === 'saving' ? 'Saving…' : `All changes saved${saveSt ? ` · ${timeOnly(saveSt.at)}` : ''}`}</span>
           : <span><i className="dotok" />All changes saved in this browser{lastSave ? ` · last save ${timeOnly(lastSave)}` : ''}</span>}
         {d.canUndo && <button className="linkish undo" onClick={d.undo}>Undo {UNDO_LABEL[d.undoLabel ?? ''] ?? d.undoLabel}</button>}
-        {page === 'today' && <span className="keyshelp">1–6 result · C call · N note · / search · U undo · R re-sort · S skip</span>}
+        {page === 'today' && <span className="keyshelp">1–6 result · C call / end call · N note · / search · U undo · R re-sort · S skip</span>}
       </footer>
       </div></div>
 
