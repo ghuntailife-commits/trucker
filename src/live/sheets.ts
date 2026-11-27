@@ -14,7 +14,13 @@ async function get<T>(token: string, url: string): Promise<T> {
     if ((r.status === 429 || r.status >= 500) && i < 4) { await new Promise(res => setTimeout(res, 1500 * 2 ** i)); continue; }
     const body = await r.text().catch(() => '');
     if (r.status === 401) throw new Error('Google sign-in expired. Click "Connect Google Sheets" again.');
-    if (r.status === 403) throw new Error('No access to this sheet with your Google account.');
+    if (r.status === 403) {
+      let why = '';
+      try { why = JSON.parse(body).error?.message ?? ''; } catch { why = body.slice(0, 200); }
+      if (/has not been used|is disabled|SERVICE_DISABLED/i.test(why)) throw new Error('The Google Sheets API is not turned on in your Google Cloud project (APIs & Services > Library > Google Sheets API > Enable).');
+      if (/insufficient|scope/i.test(why)) throw new Error('Google did not give permission to read spreadsheets. Click "Connect Google Sheets" again and tick the box to see your spreadsheets.');
+      throw new Error(`Google refused: ${why || 'no access to this sheet'}`);
+    }
     throw new Error(`Google Sheets said ${r.status}: ${body.slice(0, 200)}`);
   }
 }
