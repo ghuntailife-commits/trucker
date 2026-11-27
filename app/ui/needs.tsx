@@ -14,6 +14,7 @@ import { mdTime } from '../../src/rules/time';
 import { Toggle } from './settings';
 import { priorityScorer, mixOrder, type Priority } from '../../src/contacts/priority';
 import { useSort } from './sort';
+import { useRangePick } from './rangePick';
 
 type D = ReturnType<typeof useDialer>;
 type Tab = NeedsGroup | 'sheet';
@@ -85,7 +86,7 @@ export function NeedsPage({ d, ns, states = [] }: { d: D; ns: NumberSheet; state
     d.say(`${m.matched.toLocaleString('en-US')} number${m.matched === 1 ? '' : 's'} filled in from ${f.name}.${m.noNumber ? ` ${m.noNumber} rows had no number.` : ''}${m.unmatched.length ? ` ${m.unmatched.length} rows didn't match anyone waiting.` : ''} Check them, then Review and save.`, m.matched ? 'ok' : 'warn');
   };
   const pickable = rows.slice(0, limit).filter(c => !onSheet.has(c.id));
-  const pick = (id: string, on: boolean) => setPicked(x => { const n = new Set(x); if (on) n.add(id); else n.delete(id); return n; });
+  const pick = useRangePick(setPicked, pickable.map(c => c.id));
 
   return (
     <>
@@ -136,7 +137,7 @@ export function NeedsPage({ d, ns, states = [] }: { d: D; ns: NumberSheet; state
                   return (
                     <tr key={c.id} className={typed(e) ? 'typed' : ''}>
                       {tab !== 'cannotFind' && <td className="pickc">{onSheet.has(c.id) ? <span className="onsheet" title="Waiting on the number sheet">✓</span>
-                        : <input type="checkbox" aria-label={`Send ${c.first} ${c.last} to the number sheet`} checked={picked.has(c.id)} onChange={ev => pick(c.id, ev.target.checked)} />}</td>}
+                        : <input type="checkbox" aria-label={`Send ${c.first} ${c.last} to the number sheet`} checked={picked.has(c.id)} onChange={ev => pick(c.id, ev.target.checked, ev)} />}</td>}
                       <td className="num score" title={p.why.join(' · ')}>{p.score}</td>
                       <td className="strong">{c.first} {c.last}{onSheet.has(c.id) && <span className="spill green mini">On sheet</span>}{c.linkedin && /^https:\/\//.test(c.linkedin) && <> <a href={c.linkedin} target="_blank" rel="noopener noreferrer" className="li">in</a></>}</td>
                       <td><div className="why" title={p.why.join(' · ')}>{p.why.filter(w => w !== 'LinkedIn').slice(0, 2).map(w => <span key={w} className={/^Not licensed|^Missing|^No state/.test(w) ? 'bad' : ''}>{w}</span>)}</div></td>

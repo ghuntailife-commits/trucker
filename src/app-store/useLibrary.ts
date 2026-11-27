@@ -73,10 +73,29 @@ export function useLibrary(me: AgentId, mine: { contacts: Contact[]; batch: (lab
     return { back: h.items.length - u.kept.length, kept: u.kept };
   }, [st, me, mine, contactsOf]);
 
+  /** Moves contacts from one agent to another (planTransfer). Removes them from the first, adds them to the second. */
+  const transfer = useCallback(async (from: AgentId, to: AgentId, toName: string, lines: { id: string; ok: boolean; contact?: Contact }[]) => {
+    const ok = lines.filter(l => l.ok && l.contact);
+    if (!ok.length) return 0;
+    const ids = ok.map(l => l.id), add = ok.map(l => l.contact!);
+    if (from === me) mine.batch('Moved to another agent', { removed: ids }, `${ids.length} contacts moved to ${toName}.`);
+    else {
+      const inbox = (await loadState<Inbox>(inboxKey(from))) ?? { contacts: [], removed: [] };
+      const rm = new Set(ids);
+      await saveState(inboxKey(from), { contacts: inbox.contacts.filter(c => !rm.has(c.id)), removed: [...inbox.removed, ...ids] });
+    }
+    if (to === me) mine.batch('Moved from another agent', { added: add }, `${add.length} contacts added.`);
+    else {
+      const inbox = (await loadState<Inbox>(inboxKey(to))) ?? { contacts: [], removed: [] };
+      await saveState(inboxKey(to), { ...inbox, contacts: [...inbox.contacts, ...add] });
+    }
+    return ok.length;
+  }, [me, mine]);
+
   /** Adds contacts to the library (after a previewed CSV import or the Lead Library move). */
   const addToLibrary = useCallback((cs: LibraryContact[]) => setSt(x => x ? { ...x, contacts: [...x.contacts, ...cs] } : x), []);
 
-  return { ready: !!st, lib: st?.contacts ?? [], handouts: st?.handouts ?? [], send, undo, contactsOf, addToLibrary,
+  return { ready: !!st, lib: st?.contacts ?? [], handouts: st?.handouts ?? [], send, undo, contactsOf, addToLibrary, transfer,
     resetLibrary: () => setSt({ v: 1, contacts: demoLibrary(tz), handouts: [] }) };
 }
 export type Library = ReturnType<typeof useLibrary>;

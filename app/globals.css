@@ -1143,3 +1143,7 @@ tr.draggable { cursor: grab; }
 .mwmore b { font-weight: 600; }
 .mwbtn { margin-top: 6px; font-size: 12.5px; }
 .nquote .qtheme { margin-left: 10px; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--muted) 18%, transparent); }
+.movebar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 4px 0 10px; }
+.movebar label { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+.movebar select, .movebar .libq { padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); font: inherit; }
+.movebar .libq { flex: 1; min-width: 180px; }

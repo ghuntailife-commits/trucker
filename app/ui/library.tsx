@@ -14,6 +14,8 @@ import { readLeadLibrary } from '../../src/live/sheets';
 import { parseState, STATES } from '../../src/contacts/states';
 import { mdTime } from '../../src/rules/time';
 import { Dialog, TZ, ShowCount } from './shared';
+import { MoveContacts } from './transfer';
+import { useRangePick } from './rangePick';
 
 type Show = 'open' | 'given' | 'all';
 let seq = 0;
@@ -35,6 +37,7 @@ export function LibraryPage({ t, lib, now, say, onLicenses, mine = [] }: { t: Te
   const [reading, setReading] = useState('');
   const [over, setOver] = useState<string | null>(null);
   const [limit, setLimit] = useState(400);
+  const [moving, setMoving] = useState(false);
 
   const counts = useMemo(() => stateCounts(lib.lib), [lib.lib]);
   const given = useMemo(() => givenCounts(lib.lib), [lib.lib]);
@@ -48,7 +51,8 @@ export function LibraryPage({ t, lib, now, say, onLicenses, mine = [] }: { t: Te
     phone: c => c.phone, given: c => c.givenTo, at: c => c.givenAt });
   const canPick = (c: typeof rows[number]) => !c.givenTo && (!agent || licensed(agent.states, c.state));
   const pickable = sortedRows.filter(canPick);
-  const pick = (id: string, on: boolean) => setPicked(x => { const s = new Set(x); if (on) s.add(id); else s.delete(id); return s; });
+  const shownRows = sortedRows.slice(0, limit);
+  const pick = useRangePick(setPicked, shownRows.map(c => c.id), id => { const c = shownRows.find(x => x.id === id); return !!c && canPick(c); });
   const pickFirst = () => setPicked(new Set(pickable.slice(0, firstN).map(c => c.id)));
   const choose = (id: AgentId | '') => {
     setTo(id);
@@ -181,6 +185,7 @@ export function LibraryPage({ t, lib, now, say, onLicenses, mine = [] }: { t: Te
               <span className="firstn">First <input type="number" min={1} max={500} value={firstN} onChange={e => setFirstN(Math.max(1, +e.target.value || 1))} />
                 <button className="btn" disabled={!pickable.length} onClick={pickFirst}>Pick</button></span>
               <label className="btn">Import CSV<input type="file" accept=".csv,.tsv,.txt,text/csv" hidden onChange={e => { const f = e.target.files?.[0]; if (f) importCsv(f); e.target.value = ''; }} /></label>
+              <button className="btn" onClick={() => setMoving(true)} title="Open an agent's contacts and move some to another agent">Move between agents</button>
               {LIVE && <button className="btn" disabled={!!reading} onClick={() => readSheet()} title="Reads your Lead Library sheet once, read only. Contacts already given out are left out.">{reading ? 'Reading…' : 'Bring over Lead Library'}</button>}
               <button className="btn primary" disabled={!agent || !picked.size} onClick={() => review()}>Review {picked.size || ''}{agent ? ` for ${agent.name}` : ''}</button>
             </div>
@@ -198,7 +203,7 @@ export function LibraryPage({ t, lib, now, say, onLicenses, mine = [] }: { t: Te
                   const ok = canPick(c), noLic = !c.givenTo && agent && !licensed(agent.states, c.state);
                   return <tr key={c.id} className={`${picked.has(c.id) ? 'typed' : ''} ${noLic ? 'nolic' : ''} ${!c.givenTo ? 'draggable' : ''}`}
                     draggable={!c.givenTo} onDragStart={e => { e.dataTransfer.setData('text/plain', dragIds(c.id).join(',')); e.dataTransfer.effectAllowed = 'copy'; }}>
-                    <td className="pickc"><input type="checkbox" disabled={!ok} aria-label={`Pick ${c.first} ${c.last}`} checked={picked.has(c.id)} onChange={e => pick(c.id, e.target.checked)} /></td>
+                    <td className="pickc"><input type="checkbox" disabled={!ok} aria-label={`Pick ${c.first} ${c.last}`} checked={picked.has(c.id)} onChange={e => pick(c.id, e.target.checked, e)} /></td>
                     <td className="strong">{c.first} {c.last}{c.linkedin && /^https:\/\//.test(c.linkedin) && <> <a href={c.linkedin} target="_blank" rel="noopener noreferrer" className="li">in</a></>}</td>
                     <td>{c.company}{c.job ? ` — ${c.job}` : ''}</td>
                     <td className="strong">{c.state}{noLic && <span className="spill grey mini">Not licensed</span>}</td>
@@ -236,6 +241,7 @@ export function LibraryPage({ t, lib, now, say, onLicenses, mine = [] }: { t: Te
             <button className="btn primary" disabled={!adding.add.length} onClick={addNow}>Add {adding.add.length.toLocaleString('en-US')} to library</button></div>
         </Dialog>
       )}
+      {moving && <MoveContacts t={t} lib={lib} now={now} say={say} onClose={() => setMoving(false)} />}
       {plan && agent && (
         <Dialog title={`Send to ${agent.name}?`} onClose={() => setPlan(null)} wide>
           <p><b>{plan.filter(l => l.ok).length}</b> will go into {agent.name}&rsquo;s lists and be marked given to {agent.name} today{plan.some(l => !l.ok) ? <>, <b>{plan.filter(l => !l.ok).length}</b> won&rsquo;t</> : ''}. Same duplicate and Do Not Call check as Import.</p>
