@@ -133,7 +133,8 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const lib = useLibrary(agent, { contacts: d0.contacts ?? [], batch: d0.batch }, TZ, !LIVE || t.person?.role === 'admin', t.team.agents.map(a => a.id));
   const [licOpen, setLicOpen] = useState(false);
   const [tzOpen, setTzOpen] = useState(false);
-  const [moveIds, setMoveIds] = useState<string[] | null>(null);   // admin: Contacts tab > Move to another agent
+  const [moveIds, setMoveIds] = useState<string[] | null>(null);
+  const [openAppt, setOpenAppt] = useState<{ id: string; at: number | null } | null>(null);   // Home > appointment > its card   // admin: Contacts tab > Move to another agent
   const [allOpen, setAllOpen] = useState<string | null>(null);   // admin: search every agent
   const [pendingPick, setPendingPick0] = useState<{ agent: string; id: string } | null>(() => PENDING.pick);
   const setPendingPick = (v: { agent: string; id: string } | null) => { PENDING.pick = v; setPendingPick0(v); };
@@ -536,7 +537,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       {switching && <SwitchPage onDone={() => location.reload()} />}
       {!switching && page === 'home' && <HomePage note={note} stats={s} appts={homeAppts} nextAppts={nextAppts} nextLabel={nextLabel} waiting={{ ...waiting, newNumbers: newNums }} coach={coach}
         health={hc} sheet={{ waiting: sheetWaitN, look: sheetLookN, needs: needsN }} wins={wins} monthDays={monthDays} daysInMonth={daysInMonth}
-        go={setPage} openHealth={() => setHealthOpen(true)} onDial={id => { setPicked(id); setPage('today'); }} timeOnly={timeOnly} md={x => md(x, TZ)} />}
+        go={setPage} openHealth={() => setHealthOpen(true)} onDial={id => { setPicked(id); setPage('today'); }} onAppt={(id, at) => { setOpenAppt({ id, at }); setPage('appts'); }} timeOnly={timeOnly} md={x => md(x, TZ)} />}
       {!switching && page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onText={textContact} agentName={me.name}
         allAgents={isAdmin ? t.team.agents.map(a => ({ id: a.id, name: a.name })) : undefined} onMove={isAdmin ? ids => setMoveIds(ids) : undefined} />}
       {!switching && page === 'coach' && <CoachPage me={me} admin={t.role === 'admin'} agents={t.team.agents} contacts={d.contacts} now={d.now} />}
@@ -548,7 +549,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       {!switching && page === 'integrations' && <IntegrationsPage t={t} />}
       {!switching && page === 'status' && <StatusPage t={t} />}
       {!switching && page === 'results' && <ResultsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} onText={textContact} />}
-      {!switching && page === 'appts' && <AppointmentsPage agent={agent} agentName={me.name} d={d} cal={cal} onText={textContact} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} 
+      {!switching && page === 'appts' && <AppointmentsPage agent={agent} agentName={me.name} d={d} cal={cal} open={openAppt} onOpened={() => setOpenAppt(null)} onText={textContact} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} 
         onQuoText={quoOn ? (id, at, tomorrow) => setQuo({ id, apptAt: at, first: tomorrow ? 'confirmTomorrow' : 'confirmToday' }) : undefined} />}
       {!switching && page === 'today' && <>
       <section className="hero">

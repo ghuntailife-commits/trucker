@@ -50,7 +50,8 @@ const TONE: Record<CalItem['kind'], string> = { appt: 'blue', callback: 'amber',
 const pillTone = (it: CalItem) => it.kind === 'appt' ? (it.label === 'Confirmed' ? 'teal' : it.label === 'Booked' ? 'blue' : 'amber') : TONE[it.kind];
 
 /** onQuoText: when the agent has Quo, reminders open the Quo text box instead of the computer's own texting app. */
-export function AppointmentsPage({ agent, agentName = '', d, cal, onDial, onResult, onQuoText, onText }: { agent: string; agentName?: string; d: D; cal?: GoogleCal; onDial: (id: string) => void; onResult: OnResult; onQuoText?: (id: string, at: number, tomorrow: boolean) => void; onText?: (id: string) => void }) {
+export function AppointmentsPage({ agent, agentName = '', d, cal, onDial, onResult, onQuoText, onText, open, onOpened }: { agent: string; agentName?: string; d: D; cal?: GoogleCal; onDial: (id: string) => void; onResult: OnResult; onQuoText?: (id: string, at: number, tomorrow: boolean) => void; onText?: (id: string) => void;
+  /** from Home: open this contact's appointment card (George, 2026-11-27) */ open?: { id: string; at: number | null } | null; onOpened?: () => void }) {
   const [offset, setOffset] = useState(0);
   const [sel, setSel] = useState<string | null>(null);
   const mine = useMyEvents(agent);
@@ -66,6 +67,17 @@ export function AppointmentsPage({ agent, agentName = '', d, cal, onDial, onResu
 
   const items = useMemo(() => calendarItems(d.contacts, d.sales, d.noSales, d.log, start, end, d.now, TZ),
     [d.contacts, d.sales, d.noSales, d.log, start, end, d.now]);
+  // opened from Home: go to that week and pick the contact's appointment (or whatever they have that week)
+  useEffect(() => {
+    if (!open) return;
+    const at = open.at ?? d.now;
+    const want = Math.round((weekStart(at, TZ) - weekStart(d.now, TZ)) / (7 * 86_400_000));
+    if (want !== offset) { setOffset(want); return; }
+    const mineHere = items.filter(it => it.contactId === open.id);
+    const it = mineHere.find(x => x.kind === 'appt') ?? mineHere.sort((a, b) => Math.abs(a.at - at) - Math.abs(b.at - at))[0];
+    if (it) setSel(it.key);
+    onOpened?.();
+  }, [open, offset, items]); // eslint-disable-line react-hooks/exhaustive-deps
   const byDay = days.map(t => items.filter(it => it.at >= t && it.at < addDays(t, 1, TZ)));
   const picked = items.find(it => it.key === sel) ?? null;
   const c = picked ? contactFor(d, picked) : undefined;

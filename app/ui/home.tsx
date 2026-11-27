@@ -27,6 +27,8 @@ export interface HomeProps {
   go: (p: Page) => void;
   openHealth: () => void;
   onDial: (id: string) => void;
+  /** appointments open their card on the Appointments page (George, 2026-11-27) */
+  onAppt?: (id: string, at: number | null) => void;
   timeOnly: (ms: number) => string;
   md: (ms: number) => string;
 }
@@ -117,7 +119,7 @@ function PaceChart({ days, goal, daysInMonth, label }: { days: MonthDay[]; goal:
 
 function ApptList({ list, h }: { list: HomeAppt[]; h: HomeProps }) {
   return <ul className="hlist">{list.slice(0, 6).map((a, i) => (
-    <li key={a.id + i}><button onClick={() => h.onDial(a.id)}><span className="t">{a.at ? h.timeOnly(a.at) : '—'}</span><b>{a.name}</b><small>{a.company}</small>
+    <li key={a.id + i}><button onClick={() => (h.onAppt ? h.onAppt(a.id, a.at ?? null) : h.onDial(a.id))}><span className="t">{a.at ? h.timeOnly(a.at) : '—'}</span><b>{a.name}</b><small>{a.company}</small>
       <span className={`spill ${a.tone}`}>{a.pill}</span></button></li>))}
     {list.length > 6 && <li className="more">and {list.length - 6} more</li>}</ul>;
 }

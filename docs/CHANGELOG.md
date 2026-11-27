@@ -148,3 +148,4 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 | 2026-11-27 | System status page (admin, profile menu): per agent saving, open screens and versions, waiting changes, Quo events, AI notes, Google Calendar sync; red/amber/green; refreshes every minute | George |
 | 2026-11-27 | A follow-up call (still no sale, or sold on the follow-up) no longer counts as a new presentation, unless they were booked again; follow-up no-sales show as Follow-up on Today | George |
 | 2026-11-27 | More no-sale reasons: Uninsurable (health), Not eligible, No bank account / payment method, Lost job / income change, Wants to shop around, Bad past experience, Not interested | George |
+| 2026-11-27 | Home: clicking an appointment opens its card on the Appointments page (Sold / Presented / No-show / Move), not the dialer | George |
