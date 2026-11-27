@@ -20,6 +20,7 @@ import { REAL_SEED } from '../src/app-store/realSeed';
 import { ResultForm, type ResultKind, type ResultInitial } from './ui/forms';
 import type { AmendTarget } from '../src/rules/amend';
 import { saleAlp } from '../src/rules/results';
+import { AllSearch } from './ui/allSearch';
 import { Dialog, TZ, TZ_ABBR, TZ_NAME, ZONE_TZ, chipClass, localTime, Ico, IC, fmtSecs, ZONE_NAME, timeOnly, saveText, NoteText } from './ui/shared';
 import { useTeam, type Team } from '../src/app-store/useTeam';
 import { pagesFor, viewers, type AgentId, type Page, type ViewerId } from '../src/team/agents';
@@ -125,6 +126,8 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const lib = useLibrary(agent, { contacts: d0.contacts ?? [], batch: d0.batch }, TZ, !LIVE || t.person?.role === 'admin', t.team.agents.map(a => a.id));
   const [licOpen, setLicOpen] = useState(false);
   const [tzOpen, setTzOpen] = useState(false);
+  const [allOpen, setAllOpen] = useState<string | null>(null);   // admin: search every agent
+  const [pendingPick, setPendingPick] = useState<{ agent: string; id: string } | null>(null);
   // The agent's time zone follows them to other computers (kv dispatch-tz-<id>); a change reloads so every screen uses it.
   const tzKey = `dispatch-tz-${t.person?.agent_id ?? agent}`;
   useEffect(() => { loadState<string>(tzKey).then(v => { if (v && v !== TZ && saveMyTz(v)) location.reload(); }).catch(() => {}); }, [tzKey]);
@@ -134,6 +137,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   // admin "View as" (George, 2026-11-26): any agent's Dispatch, from the top bar
   const selfId = (t.person?.agent_id ?? 'george') as AgentId;
   const canViewAs = !LIVE || t.person?.role === 'admin';
+  const isAdmin = canViewAs;   // search every agent: admin only
   const pages = pagesFor(t.role).filter(p => p !== 'coach' || t.role === 'admin' || me.quo);
   const quoOn = me.quo;
   const [quo, setQuo] = useState<QuoModal>(null);
@@ -181,6 +185,11 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   }, [agent, quoOn, d0.ready]);
   const [keysOpen, setKeysOpen] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
+  // from Search every agent: once that agent's contacts have loaded, open the contact on Today
+  useEffect(() => {
+    if (!pendingPick || !d.ready || d.agent !== pendingPick.agent || !d.contacts.some(c => c.id === pendingPick.id)) return;
+    setPicked(pendingPick.id); setPage('today'); setPendingPick(null);
+  }, [pendingPick, d.ready, d.agent, d.contacts]);
   const [pending, setPending] = useState<null | 'callback' | 'appt'>(null);
   const [when, setWhen] = useState('');
   const [email, setEmail] = useState('');
@@ -468,16 +477,18 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
             <input ref={searchRef} placeholder="Name, phone or company" value={q} onChange={e => setQ(e.target.value)}
                    onKeyDown={e => { if (e.key === 'Escape') { setQ(''); (e.target as HTMLInputElement).blur(); } }} />
             <span className="kc">/</span>
-            {results.length > 0 && (
+            {(results.length > 0 || (isAdmin && q.trim().length >= 2)) && (
               <div className="results">
                 {results.map(c => (
                   <button key={c.id} onClick={() => { setPicked(c.id); setQ(''); setPage('today'); }}>
                     <b>{c.first} {c.last}</b> <span className="hint">· {c.company} · {c.list}{c.tag ? ' · ' + tagShort(c.tag) : ''}</span>
                   </button>
                 ))}
+                {isAdmin && <button className="allrow" onClick={() => { setAllOpen(q); setQ(''); }}>Search every agent for &ldquo;{q.trim()}&rdquo;</button>}
               </div>
             )}
           </div>
+          {isAdmin && <button className="btn allbtn" onClick={() => setAllOpen('')} title="Search every agent's contacts (only you can)">All agents</button>}
           {canViewAs && <label className="viewas" title="See any agent's Dispatch as they see it">
             <select aria-label="View as" value={t.viewer} onChange={e => t.setViewer(e.target.value as ViewerId)}>
               {viewers(t.team).filter(v => !LIVE || v.id !== 'boss').map(v => <option key={v.id} value={v.id}>{v.id === selfId ? `View as: ${v.name} (me)` : `View as: ${v.name}`}</option>)}
@@ -830,6 +841,8 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       {quo && d.byId.get(quo.id) && <QuoText c={d.byId.get(quo.id)!} agent={me} apptAt={quo.apptAt} first={quo.first} onClose={() => setQuo(null)}
         onSent={body => { d.note(quo.id, `Texted (Quo): "${body}"`); setQuo(null); }} />}
       {keysOpen && <ShortcutsDialog onClose={() => setKeysOpen(false)} />}
+      {allOpen !== null && <AllSearch agents={t.team.agents.map(a => ({ id: a.id, name: a.name }))} start={allOpen} onClose={() => setAllOpen(null)}
+        onOpen={(who, id) => { setAllOpen(null); if (who !== agent) t.setViewer(who as ViewerId); setPendingPick({ agent: who, id }); }} />}
       {tzOpen && <Dialog title="My time zone" onClose={() => setTzOpen(false)}>
         <div className="newev">
           <p className="hint">Every time on your screens shows in this zone, and your day starts at your midnight. Contacts are still only called inside their own hours.</p>

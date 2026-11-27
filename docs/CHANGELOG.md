@@ -138,3 +138,4 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 | 2026-11-27 | Needs Number: new Find today tab. Tick contacts, Add to Find today, then send just that list to the number sheet | George |
 | 2026-11-27 | Wide, clickable scrollbars on the long tables and lists (Needs Number, Contacts, Today, library, calendar) | George |
 | 2026-11-27 | Google Calendar: Dispatch takes over the events your old sheet already made (same person, same time) and removes its own extra copies, so nothing shows twice | George |
+| 2026-11-27 | Admin only: Search every agent. All agents button (or the search box's last row) looks through every agent's contacts; click one to open that agent's Dispatch on the contact | George |

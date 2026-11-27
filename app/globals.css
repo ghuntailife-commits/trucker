@@ -1323,3 +1323,16 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 .numline .callalt { display: inline-flex; align-items: center; gap: 6px; color: var(--green-ink); border-color: var(--green-ink); }
 /* the agent's own Google Calendar events: busy, read only */
 .wgrid .wg-ev.gcal { background: repeating-linear-gradient(135deg, var(--panel2) 0 6px, var(--panel) 6px 12px); border-left-color: var(--muted); color: var(--muted); }
+
+/* admin: search every agent (George, 2026-11-27) */
+.modal.xwide { width: min(1240px, 100%); }
+.allsearch-bar { display: flex; gap: 8px; margin: 10px 0 6px; flex-wrap: wrap; }
+.allsearch-bar .libq:first-child { flex: 1 1 260px; }
+.tscroll.allsearch { max-height: calc(100vh - 300px); }
+.rt tr.clickrow { cursor: pointer; }
+.rt tr.clickrow:hover td, .rt tr.clickrow:focus td { background: var(--panel2); }
+.results .allrow { border-top: 1px solid var(--line); color: var(--link); font-weight: 500; }
+.allbtn { white-space: nowrap; }
+.allsearch-bar .libq { width: auto; flex: 0 1 200px; }
+.allsearch-bar .libq:first-child { flex: 1 1 320px; }
+.allsearch td.nowrap, td.nowrap { white-space: nowrap; }

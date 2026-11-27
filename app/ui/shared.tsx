@@ -60,10 +60,10 @@ export function saveText(filename: string, text: string, type = 'text/csv') {
 }
 
 /** A dialog box. Click outside or press Esc to close. */
-export function Dialog({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
+export function Dialog({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean | 'x' }) {
   return (
     <div className="modal-bg" onClick={onClose} onKeyDown={e => { if (e.key === 'Escape') onClose(); }}>
-      <div className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-label={title} onClick={e => e.stopPropagation()}>
+      <div className={`modal ${wide === 'x' ? 'xwide' : wide ? 'wide' : ''}`} role="dialog" aria-label={title} onClick={e => e.stopPropagation()}>
         <h2>{title}</h2>
         {children}
       </div>
