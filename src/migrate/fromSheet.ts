@@ -15,16 +15,16 @@ export function sheetDate(v: Cell): number | null {
     if (!isFinite(v) || v <= 0) return null;
     const days = Math.floor(v), frac = v - days;
     const base = new Date(Date.UTC(1899, 11, 30) + days * 86_400_000);
-    const mins = Math.round(frac * 1440);
-    return zoned(base.getUTCFullYear(), base.getUTCMonth() + 1, base.getUTCDate(), Math.floor(mins / 60), mins % 60, TZ);
+    const secs = Math.round(frac * 86400);
+    return zoned(base.getUTCFullYear(), base.getUTCMonth() + 1, base.getUTCDate(), Math.floor(secs / 3600), Math.floor(secs / 60) % 60, TZ) + (secs % 60) * 1000;
   }
   const s = String(v).trim();
-  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::\d{2})?\s*([AaPp][Mm])?)?$/);
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AaPp][Mm])?)?$/);
   if (m) {
     let y = +m[3]; if (y < 100) y += 2000;
     let h = m[4] ? +m[4] : 0;
-    if (m[6]) h = (h % 12) + (/p/i.test(m[6]) ? 12 : 0);
-    return zoned(y, +m[1], +m[2], h, m[5] ? +m[5] : 0, TZ);
+    if (m[7]) h = (h % 12) + (/p/i.test(m[7]) ? 12 : 0);
+    return zoned(y, +m[1], +m[2], h, m[5] ? +m[5] : 0, TZ) + (m[6] ? +m[6] * 1000 : 0);
   }
   const t = Date.parse(s);
   return isNaN(t) ? null : t;

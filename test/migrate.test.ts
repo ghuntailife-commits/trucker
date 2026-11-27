@@ -82,3 +82,13 @@ describe('Callback try count from the log', () => {
     expect(deriveTries(c, log).callbackTries).toBe(1);
   });
 });
+
+describe('times keep seconds', () => {
+  it('serial and text dates keep the second', async () => {
+    const { sheetDate } = await import('../src/migrate/fromSheet');
+    const a = sheetDate('11/20/2026 2:05:37 PM')!, b = sheetDate('11/20/2026 2:05 PM')!;
+    expect(a - b).toBe(37_000);
+    const serial = 46346 + (14 * 3600 + 5 * 60 + 37) / 86400;
+    expect(sheetDate(serial)! % 60_000).toBe(a % 60_000);
+  });
+});
