@@ -12,3 +12,11 @@ describe('local match', () => {
     expect(lineIn({ data: { object: { from: '+19315550199', to: ['+15155550102'] } } }, mine)).toBe('+15155550102');
   });
 });
+
+describe('pickFrom: exact area code first', () => {
+  it('prefers a number with the same area code over another in the same state', () => {
+    const r = pickFrom(['+13055550100', '+17865550100'], '(786) 555-0199');
+    expect(r.from).toBe('+17865550100');
+    expect(r.why).toContain('786');
+  });
+});
