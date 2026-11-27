@@ -317,6 +317,17 @@ export const DIALER_TAG: Partial<Record<DialerKey, string>> = {
   hungup: TAGS.notInterested, calledinto: TAGS.calledInto, dnc: TAGS.dnc,
 };
 
+export const NON_ENGLISH = 'Non-English';
+const LANGS = ['Spanish', 'Español', 'Espanol', 'Portuguese', 'Russian', 'Ukrainian', 'Polish', 'Creole', 'Haitian', 'French', 'Vietnamese', 'Chinese', 'Mandarin',
+  'Cantonese', 'Korean', 'Arabic', 'Somali', 'Hindi', 'Punjabi', 'Urdu', 'Bosnian', 'Serbian', 'Romanian', 'Tagalog', 'Amharic', 'Swahili', 'Burmese', 'Nepali', 'Karen'];
+/** The language a call note says the contact speaks instead of English, or null. "Spanish", "only speaks russian", "no english". */
+export function nonEnglish(note: string): string | null {
+  const t = note.toLowerCase();
+  const hit = LANGS.find(l => new RegExp(`(^|[^a-zñ])${l.toLowerCase()}([^a-zñ]|$)`).test(t));
+  if (hit) return hit === 'Español' || hit === 'Espanol' ? 'Spanish' : hit;
+  return /\b(no|doesn'?t speak|does not speak|didn'?t speak|can'?t speak|cannot speak|little|limited|broken) english\b|\bnon[- ]?english\b|\blanguage barrier\b/.test(t) ? 'not English' : null;
+}
+
 export interface DialerOpts { when?: string; note?: string; email?: string; backupMode?: boolean; lastBackupTryAt?: number | null }
 
 export function dialerAction(c: Contact, key: DialerKey, now: number, cfg: Config = DEFAULT_CONFIG,
@@ -358,7 +369,11 @@ export function dialerAction(c: Contact, key: DialerKey, now: number, cfg: Confi
     if (key === 'dnc') parts.push('Asked to be put on the Do Not Call list');
     if (opts.backupMode) r.message += ' Backup number is now the main number.';
   }
-  if (note) parts.push(note);
+  // George 2026-11-27: a hang-up (or not interested) whose note says they speak Spanish or another language goes to the Non-English list
+  const lang = (key === 'hungup' || key === 'notint') && c.list !== NON_ENGLISH ? nonEnglish(note) : null;
+  if (lang) parts.push(`Moved to ${NON_ENGLISH} list (was ${c.list})`);
+  if (note) parts.splice(parts.length - (lang ? 1 : 0), 0, note);
+  if (lang) { r.contact = { ...r.contact, list: NON_ENGLISH }; r.message = `${r.message} Moved to the ${NON_ENGLISH} list (${lang}).`.trim(); }
   if (parts.length) r.contact = { ...r.contact, notes: addNote(r.contact.notes, `${md(now, tz)}: ${parts.join(' - ')}`) };
   if (email && (key === 'appt' || key === 'callback')) r.contact = { ...r.contact, email };
   return r;
