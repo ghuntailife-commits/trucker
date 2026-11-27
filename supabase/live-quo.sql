@@ -21,3 +21,4 @@ drop policy if exists quo_mark on quo_events;
 create policy quo_mark on quo_events for update to authenticated using (agent_id = my_agent() or my_role() = 'admin')
   with check (agent_id = my_agent() or my_role() = 'admin');
 grant select, update on quo_events to authenticated;
+grant select, insert, update, delete on quo_events to service_role;

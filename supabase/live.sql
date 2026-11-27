@@ -58,3 +58,6 @@ grant execute on function my_agent(), my_role(), on_my_team(text) to authenticat
 -- George is the admin. Everyone else is added by the switch-over screen.
 insert into people (agent_id, name, email, role) values ('george', 'George', 'GEORGE_EMAIL', 'admin')
   on conflict (agent_id) do update set role = 'admin';
+
+-- the website's server (Quo webhook, sending texts) uses the secret key, which needs its own grant
+grant select, insert, update, delete on people, kv to service_role;
