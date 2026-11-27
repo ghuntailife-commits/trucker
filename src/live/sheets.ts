@@ -24,7 +24,7 @@ async function get<T>(token: string, url: string): Promise<T> {
       let why = '';
       try { why = JSON.parse(body).error?.message ?? ''; } catch { why = body.slice(0, 200); }
       if (/has not been used|is disabled|SERVICE_DISABLED/i.test(why)) throw new Error('The Google Sheets API is not turned on in your Google Cloud project (APIs & Services > Library > Google Sheets API > Enable).');
-      if (/insufficient|scope/i.test(why)) throw new Error('Google did not give permission to read spreadsheets. Click "Connect Google Sheets" again and tick the box to see your spreadsheets.');
+      if (/insufficient|scope/i.test(why)) throw new Error('Google did not give permission to read spreadsheets. Click the button again, and on Google’s screen tick the box that lets Dispatch see your spreadsheets.');
       throw new Error(`Google refused: ${why || 'no access to this sheet'}`);
     }
     throw new Error(`Google Sheets said ${r.status}: ${body.slice(0, 200)}`);

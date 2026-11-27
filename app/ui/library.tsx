@@ -2,7 +2,7 @@
 // Contact library (admin, George 2026-11-26): the Lead Library sheet, living in the app. Pick contacts, pick the agent,
 // see what will happen, send. Only agents licensed in a contact's state can get it.
 import { useSort } from './sort';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { AgentId } from '../../src/team/agents';
 import type { Team } from '../../src/app-store/useTeam';
 import type { Library } from '../../src/app-store/useLibrary';
@@ -74,18 +74,32 @@ export function LibraryPage({ t, lib, now, say, onLicenses, mine = [] }: { t: Te
     const rows = parseTable(await f.text());
     setAdding({ ...planLibraryAdd(libraryFromTable(rows, i => `${newId()}-${i}`), lib.lib, mine), from: f.name });
   };
-  const readSheet = async () => {
+  const readSheet = async (resume = false) => {
+    if (!resume) try { sessionStorage.removeItem('dispatch-read-library-tried'); } catch {}
     setReading('Reading your Lead Library sheet (read only)…');
     try {
       const { data } = await db().auth.getSession();
       const token = data.session?.provider_token;
-      if (!token) { setReading(''); return signInGoogle(true); }
-      const tabs = await readLeadLibrary(token);
+      // No Google token, or one from the plain sign-in without spreadsheet access: ask Google once (read only),
+      // then pick up the read automatically when Google sends George back here.
+      const askGoogle = () => { try { sessionStorage.setItem('dispatch-read-library', '1'); } catch {} setReading(''); return signInGoogle(true); };
+      if (!token) return askGoogle();
+      let tabs;
+      try { tabs = await readLeadLibrary(token); }
+      catch (e) { if (/permission|sign-in expired/i.test((e as Error).message) && !sessionStorage.getItem('dispatch-read-library-tried')) { sessionStorage.setItem('dispatch-read-library-tried', '1'); return askGoogle(); } throw e; }
+      try { sessionStorage.removeItem('dispatch-read-library-tried'); } catch {}
       const all = tabs.flatMap(x => fromSheet(x.tab, x.rows, i => `${newId()}-${i}`));
       setReading('');
       setAdding({ ...planLibraryAdd(all, lib.lib, mine), from: `Lead Library sheet (${tabs.length} tabs)` });
     } catch (e) { setReading(''); say((e as Error).message, 'warn'); }
   };
+  // back from Google's permission screen: carry on reading the sheet
+  useEffect(() => {
+    if (!LIVE) return;
+    let go = false; try { go = sessionStorage.getItem('dispatch-read-library') === '1'; sessionStorage.removeItem('dispatch-read-library'); } catch {}
+    if (go) void readSheet(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const addNow = () => {
     if (!adding) return;
     lib.addToLibrary(adding.add);
@@ -158,7 +172,7 @@ export function LibraryPage({ t, lib, now, say, onLicenses, mine = [] }: { t: Te
               <span className="firstn">First <input type="number" min={1} max={500} value={firstN} onChange={e => setFirstN(Math.max(1, +e.target.value || 1))} />
                 <button className="btn" disabled={!pickable.length} onClick={pickFirst}>Pick</button></span>
               <label className="btn">Import CSV<input type="file" accept=".csv,.tsv,.txt,text/csv" hidden onChange={e => { const f = e.target.files?.[0]; if (f) importCsv(f); e.target.value = ''; }} /></label>
-              {LIVE && <button className="btn" disabled={!!reading} onClick={readSheet} title="Reads your Lead Library sheet once, read only. Contacts already given out are left out.">{reading ? 'Reading…' : 'Bring over Lead Library'}</button>}
+              {LIVE && <button className="btn" disabled={!!reading} onClick={() => readSheet()} title="Reads your Lead Library sheet once, read only. Contacts already given out are left out.">{reading ? 'Reading…' : 'Bring over Lead Library'}</button>}
               <button className="btn primary" disabled={!agent || !picked.size} onClick={() => review()}>Review {picked.size || ''}{agent ? ` for ${agent.name}` : ''}</button>
             </div>
           </div>
