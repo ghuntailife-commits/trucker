@@ -18,6 +18,7 @@ import type { AgentId } from '../team/agents';
 import { amendResult, type AmendTarget, type AmendTo, type AmendForm } from '../rules/amend';
 import { REAL_SEED } from './realSeed';
 import { loadState, saveState } from './store';
+import { signedInAs } from '../live/kvStore';
 import { withZone } from '../contacts/zones';
 import { hold as holdContact, resume as resumeContact, isHeld } from '../rules/hold';
 import { startOfDay } from '../rules/time';
@@ -71,6 +72,15 @@ export function withPrefs(CFG: Config, p?: TodayPrefs): Config {
   return { ...CFG, ...(p.listSize ? { listSize: p.listSize } : {}), ...(p.freshShare != null ? { freshShare: p.freshShare, freshShareByBlock: null } : {}) };
 }
 const feeds = (s: Saved) => { const off = new Set(s.prefs?.offLists ?? []); return s.contacts.filter(c => c.list !== 'Hardcards' && !off.has(c.list)); };
+
+type Inbox = { contacts: Contact[]; removed: string[] };
+/** Adds contacts waiting in the agent's inbox (sent from the library, or imported by the admin) and drops the removed ones. */
+function fromInbox(s: Saved, inbox: Inbox): Saved {
+  const have = new Set(s.contacts.map(c => c.id)), gone = new Set(inbox.removed ?? []);
+  const add = (inbox.contacts ?? []).filter(c => !have.has(c.id) && !gone.has(c.id)).map(withZone);
+  if (!add.length && !gone.size) return s;
+  return { ...s, contacts: [...s.contacts.filter(c => !gone.has(c.id)), ...add], savedOrder: [...s.savedOrder.filter(id => !gone.has(id)), ...add.map(c => c.id)] };
+}
 
 function fresh(now: number, agent: AgentId, tz: string): Saved {
   const r = agentSeed(agent, now, tz);
@@ -127,10 +137,9 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
       loaded = normalize(loaded);
       // contacts the admin sent from the library while this screen was closed (useLibrary)
       if (inbox && (inbox.contacts.length || inbox.removed.length)) {
-        const have = new Set(loaded.contacts.map(c => c.id)), gone = new Set(inbox.removed);
-        const add = inbox.contacts.filter(c => !have.has(c.id) && !gone.has(c.id)).map(withZone);
-        loaded = { ...loaded, contacts: [...loaded.contacts.filter(c => !gone.has(c.id)), ...add], savedOrder: [...loaded.savedOrder.filter(id => !gone.has(id)), ...add.map(c => c.id)] };
-        saveState(`dispatch-inbox-${agent}`, { contacts: [], removed: [] });
+        loaded = fromInbox(loaded, inbox);
+        const me = signedInAs();
+        if (!me || me === agent) saveState(`dispatch-inbox-${agent}`, { contacts: [], removed: [] });
       }
       if (!sameDay(loaded.snap, t, CFG.tz)) loaded = resort(loaded, t, CFG);
       setS(loaded);
@@ -138,6 +147,24 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
     const id = setInterval(() => setNow(Date.now()), 30_000);   // the list clock (was Order!H2)
     return () => { live = false; clearInterval(id); };
   }, []);
+  // George (2026-11-27): contacts imported for an agent didn't show until they reloaded. Check the inbox every minute,
+  // when the window comes back into view, and on Re-sort, so new contacts arrive while Dispatch is open.
+  const pullInbox = useCallback(async () => {
+    const me = signedInAs();
+    if (me && me !== agent) return 0;
+    const box = await loadState<Inbox>(`dispatch-inbox-${agent}`).catch(() => null);
+    if (!box || !(box.contacts?.length || box.removed?.length)) return 0;
+    setS(p => (p ? fromInbox(p, box) : p));
+    saveState(`dispatch-inbox-${agent}`, { contacts: [], removed: [] });
+    return box.contacts?.length ?? 0;
+  }, [agent]);
+  useEffect(() => {
+    if (!s) return;
+    const id = setInterval(() => void pullInbox(), 60_000);
+    const vis = () => { if (document.visibilityState === 'visible') void pullInbox(); };
+    document.addEventListener('visibilitychange', vis); window.addEventListener('focus', vis);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', vis); window.removeEventListener('focus', vis); };
+  }, [!!s, pullInbox]); // eslint-disable-line react-hooks/exhaustive-deps
   // nothing is saved for someone who has no contacts and no history yet (live: their data arrives at switch-over)
   useEffect(() => { if (s && (s.contacts.length || s.log.length || s.sales.length)) saveState(KEY, s); }, [s]);
 
@@ -347,9 +374,18 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
       const savedOrder = change.added?.length ? [...prev.savedOrder, ...change.added.map(c => c.id)] : prev.savedOrder;
       return { ...prev, contacts, savedOrder, log: [...prev.log, ...(change.events ?? [])], undo: [...prev.undo.slice(-19), snap] };
     });
+    // George (2026-11-27): the admin imported into Ivan's Dispatch while Ivan had it open, and Ivan's next save wiped
+    // the import. Contacts the admin adds for someone else also go in that agent's inbox, which their own screen picks up.
+    const me = signedInAs();
+    if (change.added?.length && me && me !== agent) {
+      const add = change.added;
+      void loadState<Inbox>(`dispatch-inbox-${agent}`).catch(() => null).then(box => {
+        saveState(`dispatch-inbox-${agent}`, { contacts: [...(box?.contacts ?? []), ...add], removed: box?.removed ?? [] });
+      });
+    }
     say(message);
     setNow(Date.now());
-  }, [say]);
+  }, [say, agent]);
 
   /** A sale from a company lead, referral or other source: no contact behind it, one Undo step. */
   const addOutsideSale = useCallback((rec: Sale) => {
@@ -365,7 +401,12 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
     say(`Monthly goal set to $${g.toLocaleString('en-US')}.`);
   }, [say]);
 
-  const reSort = useCallback(() => { setS(p => (p ? resort(p, Date.now(), CFG) : p)); setNow(Date.now()); say('Today re-sorted: a fresh pass.'); }, [say]);
+  const reSort = useCallback(() => {
+    void pullInbox().then(n => {
+      setS(p => (p ? resort(p, Date.now(), CFG) : p)); setNow(Date.now());
+      say(n ? `Today re-sorted with ${n} new contact${n === 1 ? '' : 's'}.` : 'Today re-sorted: a fresh pass.');
+    });
+  }, [say, pullInbox]);
   /** Takes contacts off this agent's list and sends them back to the contact library with notes and history. */
   const removeToLibrary = useCallback(async (ids: string[], reason: string, agentName: string) => {
     const cs = ids.map(id => byId.get(id)).filter((c): c is Contact => !!c);

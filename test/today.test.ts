@@ -68,6 +68,10 @@ describe('Order', () => {
     const after2 = { ...c, dials: 5 };
     expect(buildToday([after2], ctx, V27)[0]?.why).not.toBe('New number');
   });
+  it('a number found for someone never dialed is Fresh, not New number (George, 2026-11-27)', () => {
+    const c = contact({ dials: 0, lastDialed: null, newNumberMark: 0 });
+    expect(buildToday([c], ctx, V27)[0].why).toBe('Fresh');
+  });
   it('the backup in the main spot is labeled New Number-backup', () => {
     const c = contact({ dials: 7, lastDialed: et(8, 9), status: 'Backup', newNumberMark: 7, backup: '(214) 555-0909' });
     expect(buildToday([c], ctx, V27)[0].why).toBe('New Number-backup');

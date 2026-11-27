@@ -98,7 +98,8 @@ export function buildToday(contacts: Contact[], ctx: TodayContext, cfg: Config =
 
     const dco = fu ? 2.5 : callOrder(c, cfg) ?? 5;   // follow-ups go right after callbacks
     const dwv = c.newNumberMark ?? -1;
-    const newn = untagged && dwv >= 0 && Number.isInteger(dwv) && c.dials < dwv + cfg.newNumberPriorityDials;
+    // George (2026-11-27): a number found for someone never dialed (mark 0) is Fresh, not New number
+    const newn = untagged && dwv > 0 && Number.isInteger(dwv) && c.dials < dwv + cfg.newNumberPriorityDials;
     const dpm = pmr;
     const ccu = untagged && c.dials >= 1 && na != null && na > today && lstd < snap && !dpm;
     const dph = untagged && c.dials > 0 && c.lastDialed == null;

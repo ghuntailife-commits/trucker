@@ -58,6 +58,8 @@ export async function writeNow(key: string, value: unknown, owner = ownerOf(key)
 let me: { id: string; admin: boolean } | null = null;
 /** Who is signed in: saves to someone else's data are skipped unless the admin is signed in. */
 export function setMe(id: string, admin: boolean) { me = { id, admin }; }
+/** The signed-in person's agent id (live), or null in the demo. */
+export const signedInAs = () => me?.id ?? null;
 
 export function liveSave(key: string, value: unknown) {
   if (!me || (!me.admin && ownerOf(key) !== me.id)) return;

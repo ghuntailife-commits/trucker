@@ -139,3 +139,5 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 | 2026-11-27 | Wide, clickable scrollbars on the long tables and lists (Needs Number, Contacts, Today, library, calendar) | George |
 | 2026-11-27 | Google Calendar: Dispatch takes over the events your old sheet already made (same person, same time) and removes its own extra copies, so nothing shows twice | George |
 | 2026-11-27 | Admin only: Search every agent. All agents button (or the search box's last row) looks through every agent's contacts; click one to open that agent's Dispatch on the contact | George |
+| 2026-11-27 | Today: a number found for someone never dialed shows as Fresh, not New number | George |
+| 2026-11-27 | Contacts the admin imports for another agent also go to that agent's inbox, so the agent's open Dispatch can't wipe them; Dispatch checks the inbox every minute, on focus and on Re-sort | George |
