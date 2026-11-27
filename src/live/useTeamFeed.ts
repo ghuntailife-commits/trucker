@@ -27,6 +27,7 @@ export function useTeamFeed(agent: { id: string; name: string }, snap: Snap, rea
   const [toasts, setToasts] = useState<FeedItem[]>([]);
   const seen = useRef<Seen | null>(null);
   const seenFor = useRef('');
+  const me = useRef(agent.id); me.current = agent.id;
 
   // notice this agent's new results
   useEffect(() => {
@@ -54,6 +55,8 @@ export function useTeamFeed(agent: { id: string; name: string }, snap: Snap, rea
       const { data } = await db().from('kv').select('value').eq('key', KEY);
       all = ((data ?? []) as { value: FeedItem[] }[]).flatMap(r => r.value ?? []);
     } else all = [...local];
+    // leads assigned show only to the agent who got them (George, 2026-11-27)
+    all = all.filter(f => f.kind !== 'leads' || f.agent === me.current);
     all.sort((a, b) => b.at - a.at);
     setItems(all);
     const last = Number(get(LS_SEEN)) || 0;
@@ -66,7 +69,7 @@ export function useTeamFeed(agent: { id: string; name: string }, snap: Snap, rea
     void pull();
     const t = setInterval(() => void pull(), 45_000);
     return () => clearInterval(t);
-  }, [pull]);
+  }, [pull, agent.id]);
 
   const dismiss = useCallback((id: string) => setToasts(t => t.filter(x => x.id !== id)), []);
   return { items, toasts, dismiss };
