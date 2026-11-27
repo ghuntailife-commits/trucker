@@ -114,6 +114,33 @@ export function AppointmentsPage({ agent, d, cal, onDial, onResult, onQuoText, o
   };
   const pickedMine = sel?.startsWith('m') ? mine.events.find(e => 'm' + e.id === sel) : undefined;
 
+  // Delete (George, 2026-11-26): your own events go away (with Undo); a contact's appointment or callback is
+  // cancelled, which puts them back in the calling list with a note. Undo for those is the usual Undo at the bottom.
+  const [undoMine, setUndoMine] = useState<MyEvent | null>(null);
+  const [menu, setMenu] = useState<{ key: string; x: number; y: number } | null>(null);
+  const deleteMine = (e: MyEvent) => { mine.remove(e.id); setSel(null); setUndoMine(e); d.say(`Deleted “${e.title}”.`); };
+  const cancelItem = (it: CalItem) => {
+    const x = d.byId.get(it.contactId); if (!x || !canMove(it)) return;
+    const what = it.kind === 'appt' ? 'Appointment' : 'Callback';
+    d.batch(`Cancel ${what.toLowerCase()}`, { changed: [{ ...x, tag: '', callAt: null, confirmedAt: null,
+      notes: addNote(x.notes, `${fmt({ month: 'numeric', day: 'numeric' }).format(d.now)}: ${what} for ${whenFull.format(it.at)} cancelled`) }] },
+      `${x.first} ${x.last}: ${what.toLowerCase()} cancelled. They're back in your calling list.`);
+    setSel(null);
+  };
+  // Delete or Backspace removes whatever is picked on the calendar (not while typing)
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setMenu(null); return; }
+      if ((e.key !== 'Delete' && e.key !== 'Backspace') || creating || !sel) return;
+      const tag = (e.target as HTMLElement)?.tagName; if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (pickedMine) { e.preventDefault(); deleteMine(pickedMine); return; }
+      const it = items.find(x => x.key === sel);
+      if (it && canMove(it)) { e.preventDefault(); cancelItem(it); }
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  });
+
   const downloadWeek = () => {
     const evs = d.contacts.filter(x => x.callAt != null && x.callAt >= Math.max(start, d.now) && x.callAt < end
       && (tagKind(x.tag) === 'scheduled' || tagKind(x.tag) === 'callback'))
@@ -152,6 +179,7 @@ export function AppointmentsPage({ agent, d, cal, onDial, onResult, onQuoText, o
 
       <main className="apptwork">
         {view === 'grid' ? <WeekGrid days={days} items={items} mine={mine.events} onMoveMine={(id, at) => { mine.move(id, at); setSel('m' + id); d.say(`Moved to ${whenFull.format(at)}.`); }}
+          onMenu={(key, x, y) => setMenu({ key, x, y })}
           onSlot={at => at < d.now - BLOCK_MS ? d.say('That time has passed. Pick a time still ahead.', 'warn') : setCreating({ at })} today={today} now={d.now} sel={sel} onPick={setSel} canMove={canMove} onMove={moveTo}
           tone={pillTone} nameOf={it => { const x = contactFor(d, it); return { name: x ? `${x.first} ${x.last}` : 'Deleted contact', company: x?.company ?? '' }; }} /> :
         <section className="panel week">
@@ -180,9 +208,9 @@ export function AppointmentsPage({ agent, d, cal, onDial, onResult, onQuoText, o
         <aside className="apptside">
           <section className="panel adetail">
             {pickedMine ? <MineDetail e={pickedMine} onEdit={() => setCreating({ at: pickedMine.start, edit: pickedMine })}
-                onDelete={() => { mine.remove(pickedMine.id); setSel(null); d.say(`Deleted “${pickedMine.title}”.`); }} />
-              : picked && c ? <Detail it={picked} c={c} d={d} onDial={onDial} onResult={onResult} onQuoText={onQuoText} onText={onText} />
-              : <div className="pad16"><div className="eyebrow">Details</div><p className="hint">Pick anything on the week to see the contact, confirm it, or record how it went.{view === 'grid' ? ' Drag a block to a new time. Click open time to book a contact there or block it off for yourself.' : ''}</p></div>}
+                onDelete={() => deleteMine(pickedMine)} />
+              : picked && c ? <Detail it={picked} c={c} d={d} onDial={onDial} onResult={onResult} onQuoText={onQuoText} onText={onText} onCancel={canMove(picked) ? () => cancelItem(picked) : undefined} />
+              : <div className="pad16">{undoMine && <p className="undoline">Deleted “{undoMine.title}”. <button className="linkish" onClick={() => { mine.add(undoMine); setUndoMine(null); }}>Undo</button></p>}<div className="eyebrow">Details</div><p className="hint">Pick anything on the week to see the contact, confirm it, or record how it went.{view === 'grid' ? ' Drag a block to a new time. Click open time to book a contact there or block it off for yourself.' : ''}</p></div>}
           </section>
           <section className="panel needs2">
             <div className="ph"><h2>Needs a result</h2><span>{needs.length}</span></div>
@@ -206,11 +234,47 @@ export function AppointmentsPage({ agent, d, cal, onDial, onResult, onQuoText, o
           </section>
         </aside>
       </main>
+      {menu && <BlockMenu at={menu} onClose={() => setMenu(null)} entries={(() => {
+        const ev = mine.events.find(e => 'm' + e.id === menu.key), it = items.find(x => x.key === menu.key), x = it ? d.byId.get(it.contactId) : undefined;
+        const phone = x ? (x.phone || x.backup).replace(/[^\d+]/g, '') : '';
+        if (ev) return [['Edit', () => setCreating({ at: ev.start, edit: ev })], ['Delete', () => deleteMine(ev), 'danger']];
+        if (!it || !x) return [];
+        const open = canMove(it);
+        return [
+          ...(phone ? [['Call', () => { location.href = `tel:${phone}`; }], ['Text', () => onText ? onText(x.id) : (location.href = `sms:${phone}`)]] : []),
+          ...(it.kind === 'appt' && open && it.at >= d.now && it.label !== 'Confirmed' ? [['Mark confirmed', () => d.confirm(x.id)]] : []),
+          ...(open ? [['Move…', () => onResult('reschedule', x.id)]] : []),
+          ['Open in dialer', () => onDial(x.id)],
+          ...(open ? [[it.kind === 'appt' ? 'Cancel appointment' : 'Remove callback', () => cancelItem(it), 'danger']] : []),
+        ] as [string, () => void, string?][];
+      })()} />}
       {creating && <NewEvent at={creating.at} edit={creating.edit} contacts={d.contacts} onClose={() => setCreating(null)}
         onBook={(id, kind, at, email) => { d.book(id, kind, at, email); setSel((kind === 'appt' ? 'a' : 'c') + id); }}
         onSave={e => { if (creating.edit) { mine.update(creating.edit.id, e); d.say(`Saved “${e.title}”.`); } else { mine.add(e); d.say(`Added “${e.title}” on ${whenFull.format(e.start)}.`); } }} />}
     </div>
   );
+}
+
+/** Right-click menu on a calendar block. Closes on any click elsewhere or Escape. */
+function BlockMenu({ at, entries, onClose }: { at: { x: number; y: number }; entries: [string, () => void, string?][]; onClose: () => void }) {
+  useEffect(() => {
+    const off = () => onClose();
+    window.addEventListener('pointerdown', off); window.addEventListener('scroll', off, true); window.addEventListener('resize', off);
+    return () => { window.removeEventListener('pointerdown', off); window.removeEventListener('scroll', off, true); window.removeEventListener('resize', off); };
+  }, [onClose]);
+  if (!entries.length) return null;
+  const x = Math.min(at.x, window.innerWidth - 200), y = Math.min(at.y, window.innerHeight - entries.length * 34 - 16);
+  return <div className="ctxmenu" style={{ left: x, top: y }} role="menu" onPointerDown={e => e.stopPropagation()} onContextMenu={e => e.preventDefault()}>
+    {entries.map(([label, run, tone]) => <button key={label} role="menuitem" className={tone ?? ''} onClick={() => { onClose(); run(); }}>{label}</button>)}
+  </div>;
+}
+
+/** A delete link that asks once, inline (no pop-up). */
+function ConfirmDelete({ label, onYes }: { label: string; onYes: () => void }) {
+  const [ask, setAsk] = useState(false);
+  return ask ? <span className="confdel">Sure? <button className="linkish danger" onClick={() => { setAsk(false); onYes(); }}>Yes, {label.toLowerCase()}</button>
+    <button className="linkish" onClick={() => setAsk(false)}>Keep it</button></span>
+    : <button className="linkish danger" onClick={() => setAsk(true)}>{label}</button>;
 }
 
 function MineDetail({ e, onEdit, onDelete }: { e: MyEvent; onEdit: () => void; onDelete: () => void }) {
@@ -221,12 +285,12 @@ function MineDetail({ e, onEdit, onDelete }: { e: MyEvent; onEdit: () => void; o
       <dt>When</dt><dd>{whenFull.format(e.start)} – {timeOnly(e.start + e.mins * 60_000)} ET</dd>
       {e.note && <><dt>Note</dt><dd>{e.note}</dd></>}
     </dl>
-    <div className="dacts"><button className="btn" onClick={onEdit}>Edit</button><button className="btn" onClick={onDelete}>Delete</button></div>
-    <p className="hint">Drag it on the calendar to move it.</p>
+    <div className="dacts"><button className="btn" onClick={onEdit}>Edit</button><button className="btn danger" onClick={onDelete}>Delete</button></div>
+    <p className="hint">Drag it on the calendar to move it. Delete key works too.</p>
   </div>;
 }
 
-function Detail({ it, c, d, onDial, onResult, onQuoText, onText }: { it: CalItem; c: Contact; d: D; onDial: (id: string) => void; onResult: OnResult; onQuoText?: (id: string, at: number, tomorrow: boolean) => void; onText?: (id: string) => void }) {
+function Detail({ it, c, d, onDial, onResult, onQuoText, onText, onCancel }: { it: CalItem; c: Contact; d: D; onDial: (id: string) => void; onResult: OnResult; onQuoText?: (id: string, at: number, tomorrow: boolean) => void; onText?: (id: string) => void; onCancel?: () => void }) {
   const phone = c.phone || c.backup;
   const open = tagKind(c.tag) === 'scheduled' && it.kind === 'appt';
   const soon = open && it.at >= d.now && it.at < startOfDay(d.now, TZ) + 2 * DAY_MS;
@@ -272,6 +336,7 @@ function Detail({ it, c, d, onDial, onResult, onQuoText, onText }: { it: CalItem
       <div className="dacts sub2">
         {d.byId.has(c.id) && <button className="linkish" onClick={() => onDial(c.id)}>Open in dialer</button>}
         {(it.kind === 'appt' || it.kind === 'callback') && it.at >= d.now && <button className="linkish" onClick={ics}>Add to my calendar</button>}
+        {onCancel && <ConfirmDelete label={it.kind === 'appt' ? 'Cancel appointment' : 'Remove callback'} onYes={onCancel} />}
       </div>
       {notes.length > 0 && <div className="hist"><div className="eyebrow">History</div>
         {notes.map((l, i) => { const m = l.match(/^(\d{1,2}\/\d{1,2}):\s*(.*)$/); return <div className="hl" key={i}><span>{m ? m[1] : ''}</span><p><NoteText text={m ? m[2] : l} /></p></div>; })}</div>}

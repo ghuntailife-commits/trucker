@@ -9,7 +9,7 @@ const month = (t: number) => new Date(t).toISOString().slice(0, 7);
 export function ownerOf(key: string, admin = 'george'): string {
   const m = key.match(/^(?:dispatch-agent|dispatch-inbox|dispatch-lic|dispatch-coach|dispatch-events|trucker-numsheet)-(.+?)(?:-v\d+)?$/);
   if (m) return m[1];
-  if (key === 'trucker-team-v1') return 'shared';
+  if (key === 'trucker-team-v1' || key === 'dispatch-team-playbook' || key === 'dispatch-team-teach') return 'shared';
   return admin;
 }
 

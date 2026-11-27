@@ -5,8 +5,9 @@ import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { adminDb, teamSettings, agentByNumber } from '../../../../src/live/server';
 import { verifySignature, verifyStandard } from '../../../../src/quo/quo';
-import { quoParts, quoNumberId, transcriptText, NOTE_PROMPT } from '../../../../src/quo/events';
-import { CALL_TOOL, readCallTool, type CallTags } from '../../../../src/quo/coach';
+import { quoParts, quoNumberId, transcriptText } from '../../../../src/quo/events';
+import { type CallTags } from '../../../../src/quo/coach';
+import { tagTranscript } from '../../../../src/quo/tagCall';
 
 /** The agent's Quo number from Quo's id for it (PN...), asked from Quo once per server start. */
 const numberIds = new Map<string, string>();
@@ -57,13 +58,7 @@ export async function POST(req: Request) {
     const text = transcriptText(body, ev.ours);
     if (text.length > 40) {
       try {
-        const client = new Anthropic();
-        const r = await client.messages.create({ model: 'claude-opus-5-5', max_tokens: 1000,
-          system: `${NOTE_PROMPT}\nAlso tag the call for the agent's coaching. Save everything with the save_call tool.`,
-          tools: [CALL_TOOL], tool_choice: { type: 'tool', name: CALL_TOOL.name },
-          messages: [{ role: 'user', content: `Call transcript:\n\n${text.slice(0, 60_000)}` }] });
-        const use = r.content.find(b => b.type === 'tool_use') as { input: unknown } | undefined;
-        const got = readCallTool(use?.input);
+        const got = await tagTranscript(new Anthropic(), text);
         ai = got?.note || null; tags = got?.tags ?? null;
       } catch (e) { ai = null; console.error('call notes failed', (e as Error).message); }
     }

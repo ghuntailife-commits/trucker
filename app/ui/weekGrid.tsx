@@ -18,10 +18,10 @@ type Drag = { key: string; x0: number; y0: number; grab: number; moved: boolean;
 /** One block on the grid: a contact's appointment/callback/result, or one of the agent's own events. */
 type Block = { key: string; at: number; len: number; name: string; company: string; label: string; kind: string; tone: string; movable: boolean };
 
-export function WeekGrid({ days, items, mine, today, now, sel, onPick, canMove, onMove, onMoveMine, onSlot, nameOf, tone }: {
+export function WeekGrid({ days, items, mine, today, now, sel, onPick, canMove, onMove, onMoveMine, onSlot, onMenu, nameOf, tone }: {
   days: number[]; items: CalItem[]; mine: MyEvent[]; today: number; now: number; sel: string | null;
   onPick: (key: string) => void; canMove: (it: CalItem) => boolean; onMove: (it: CalItem, at: number) => void;
-  onMoveMine: (id: string, at: number) => void; onSlot: (at: number) => void;
+  onMoveMine: (id: string, at: number) => void; onSlot: (at: number) => void; onMenu: (key: string, x: number, y: number) => void;
   nameOf: (it: CalItem) => { name: string; company: string }; tone: (it: CalItem) => string;
 }) {
   const dayOf = (at: number) => days.findIndex((t, i) => at >= t && at < (days[i + 1] ?? t + 86_400_000));
@@ -106,7 +106,7 @@ export function WeekGrid({ days, items, mine, today, now, sel, onPick, canMove, 
         <div className="wg-gut"><span>Any time</span></div>
         {days.map((t, i) => <div key={t} className="wg-allday">
           {allDay.filter(it => dayOf(it.at) === i).map(it => { const n = nameOf(it); return (
-            <button key={it.key} className={`wg-chip ${it.kind} ${sel === it.key ? 'on' : ''}`} onClick={() => onPick(it.key)} title={`${n.name} · ${it.label}`}>
+            <button key={it.key} className={`wg-chip ${it.kind} ${sel === it.key ? 'on' : ''}`} onClick={() => onPick(it.key)} onContextMenu={e => { e.preventDefault(); onPick(it.key); onMenu(it.key, e.clientX, e.clientY); }} title={`${n.name} · ${it.label}`}>
               {n.name} <i className={`spill ${tone(it)}`}>{it.label}</i></button>); })}
         </div>)}
       </div>}
@@ -142,6 +142,7 @@ export function WeekGrid({ days, items, mine, today, now, sel, onPick, canMove, 
                     style={{ top: top + 1, height: h - 2, left: `calc(${(100 / l.of) * l.lane}% + 2px)`, width: `calc(${100 / l.of}% - 4px)` }}
                     title={`${timeOnly(b.at)}${b.len > BLOCK_MS ? '–' + timeOnly(b.at + b.len) : ''} · ${b.name}${b.company ? ' · ' + b.company : ''} · ${b.label}${b.movable ? '\nDrag to move' : ''}`}
                     onPointerDown={e => startDrag(e, b)}
+                    onContextMenu={e => { e.preventDefault(); onPick(b.key); onMenu(b.key, e.clientX, e.clientY); }}
                     onClick={() => { if (!b.movable) onPick(b.key); }}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onPick(b.key); }}>
                     <b>{short(b.at)}</b> <span>{b.name}</span>

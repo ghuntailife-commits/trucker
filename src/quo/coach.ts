@@ -2,13 +2,15 @@
 // the objections heard, what went well and one thing to try. This file holds the tag shape, the instructions
 // Claude gets, and the sums the Coaching tab shows. Pure, tested in test/coach.test.ts.
 
+import { PLAYBOOK_FIELDS, readExchanges, readStage, type Exchange, type Stage } from './playbook';
+
 export const OUTCOMES = ['Booked', 'Callback set', 'Presented', 'Sold', 'Not interested', 'Hung up', 'Voicemail', 'No answer', 'Wrong number', 'Other'] as const;
 export type Outcome = typeof OUTCOMES[number];
 /** The objections Dispatch counts. Claude picks from these; anything else goes in as its own short label. */
 export const OBJECTIONS = ['Not interested', 'Already has coverage', 'Too busy / bad time', 'Need to talk to spouse', 'Money is tight', 'Suspicious / is this a scam',
   'Send me info instead', 'Union already covers me', 'Health concerns', 'Other'] as const;
 
-export interface CallTags { outcome: Outcome; objections: string[]; wentWell: string; tryNext: string }
+export interface CallTags { outcome: Outcome; objections: string[]; wentWell: string; tryNext: string; opener?: string; stage?: Stage; exchanges?: Exchange[] }
 
 /** The tool Claude must call for each transcript: the note for the contact plus the coaching tags. */
 export const CALL_TOOL = {
@@ -22,8 +24,9 @@ export const CALL_TOOL = {
       objections: { type: 'array', items: { type: 'string' }, description: `Objections the contact raised, using these labels when they fit: ${OBJECTIONS.join('; ')}. Empty if none.` },
       went_well: { type: 'string', description: 'One short sentence: the best thing the agent did on this call. Empty for voicemail or no talk.' },
       try_next: { type: 'string', description: 'One short, specific sentence: what the agent could try next time on a call like this. Empty for voicemail or no talk.' },
+      ...PLAYBOOK_FIELDS,
     },
-    required: ['note', 'outcome', 'objections', 'went_well', 'try_next'],
+    required: ['note', 'outcome', 'objections', 'went_well', 'try_next', 'opener', 'stage', 'exchanges'],
   },
 };
 
@@ -33,7 +36,8 @@ export function readCallTool(input: unknown): { note: string; tags: CallTags } |
   if (!x || typeof x.note !== 'string') return null;
   const outcome = (OUTCOMES as readonly string[]).includes(String(x.outcome)) ? x.outcome as Outcome : 'Other';
   const objections = Array.isArray(x.objections) ? x.objections.map(String).map(s => s.trim()).filter(Boolean).slice(0, 6) : [];
-  return { note: x.note.trim(), tags: { outcome, objections, wentWell: String(x.went_well ?? '').trim(), tryNext: String(x.try_next ?? '').trim() } };
+  return { note: x.note.trim(), tags: { outcome, objections, wentWell: String(x.went_well ?? '').trim(), tryNext: String(x.try_next ?? '').trim(),
+    opener: String(x.opener ?? '').trim().slice(0, 240), stage: readStage(x.stage), exchanges: readExchanges(x.exchanges) } };
 }
 
 export interface CoachCall { id: string; agentId: string; callId: string | null; at: number; phone: string; note: string; tags: CallTags | null; recording?: string }

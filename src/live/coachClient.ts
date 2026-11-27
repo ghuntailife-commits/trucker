@@ -1,6 +1,8 @@
 // The Coaching tab's side of the database, live only. The database itself limits an agent to their own calls (admin: all).
 import { db } from './supabase';
 import type { CallTags, CoachCall } from '../quo/coach';
+import type { Playbook } from '../quo/playbook';
+import { saveState } from '../app-store/store';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
@@ -50,3 +52,30 @@ export async function askCoach(agent: string, action: 'week' | 'tag'): Promise<{
     return r.ok ? j : { error: j.error ?? `Could not reach coaching (${r.status})` };
   } catch (e) { return { error: (e as Error).message }; }
 }
+
+// ---------- team Playbook (everyone reads; George teaches and can run the learning by hand) ----------
+export interface TeachItem { id: string; title: string; text: string; at: number }
+
+export async function loadPlaybook(): Promise<Playbook | null> {
+  const { data } = await db().from('kv').select('value').eq('key', 'dispatch-team-playbook').eq('part', 'all').maybeSingle();
+  return (data?.value as Playbook) ?? null;
+}
+export async function loadTeach(): Promise<TeachItem[]> {
+  const { data } = await db().from('kv').select('value').eq('key', 'dispatch-team-teach').eq('part', 'all').maybeSingle();
+  return ((data?.value as { items?: TeachItem[] } | null)?.items) ?? [];
+}
+export const saveTeach = (items: TeachItem[]) => saveState('dispatch-team-teach', { items });
+
+async function post(path: string, body: unknown): Promise<Record<string, unknown> & { error?: string }> {
+  const { data } = await db().auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) return { error: 'Your sign-in ran out. Sign out and back in, then try again.' };
+  try {
+    const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+    const j = await r.json().catch(() => ({}));
+    return r.ok ? j : { error: j.error ?? `Could not reach the coach (${r.status})` };
+  } catch (e) { return { error: (e as Error).message }; }
+}
+export const learnNow = () => post('/api/coach/learn', {}) as Promise<{ error?: string; studied?: number; retagged?: number; more?: boolean; message?: string }>;
+export const askTheCoach = (agent: string, question: string, history: { q: string; a: string }[]) =>
+  post('/api/coach', { agent, action: 'ask', question, history }) as Promise<{ error?: string; text?: string }>;

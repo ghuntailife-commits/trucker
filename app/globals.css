@@ -1236,3 +1236,11 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 .newho .nefull { grid-column: 1 / -1; }
 .newev .bar { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
 .newev .bar .muted { margin-right: auto; font-size: 13px; }
+/* Right-click menu on calendar blocks, delete confirm, undo line (2026-11-26) */
+.ctxmenu { position: fixed; z-index: 60; min-width: 180px; padding: 5px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line);
+  box-shadow: 0 10px 30px rgba(10, 20, 40, .18); display: grid; }
+.ctxmenu button { text-align: left; padding: 7px 10px; border-radius: 6px; font-size: 13.5px; background: none; border: 0; color: var(--text); }
+.ctxmenu button:hover, .ctxmenu button:focus-visible { background: var(--panel2); }
+.ctxmenu button.danger { color: var(--red); border-top: 1px solid var(--line2); border-radius: 0 0 6px 6px; margin-top: 3px; }
+.confdel { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+.undoline { font-size: 13px; color: var(--muted); margin: 0 0 10px; }

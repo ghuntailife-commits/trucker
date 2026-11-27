@@ -1,23 +1,57 @@
 // Coaching for one agent (George, 2026-11-26): an agent may ask only about themselves; the admin about anyone.
 // action "week": Claude writes this week's coaching note from the tagged calls and saves it (kv dispatch-coach-<agent>).
+// action "ask": Ask the coach - answers from the team Playbook, George's teachings and the agent's own numbers.
 // action "tag": tags up to 15 older transcribed calls that have notes but no coaching tags yet.
 import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { adminDb, whoIsCalling } from '../../../src/live/server';
-import { CALL_TOOL, readCallTool, WEEKLY_PROMPT, weekForClaude, type CallTags, type CoachCall } from '../../../src/quo/coach';
-import { transcriptText, NOTE_PROMPT } from '../../../src/quo/events';
+import { WEEKLY_PROMPT, weekForClaude, coachSums, type CallTags, type CoachCall } from '../../../src/quo/coach';
+import { transcriptText } from '../../../src/quo/events';
+import { tagTranscript } from '../../../src/quo/tagCall';
+import { ASK_PROMPT, rebuttalsFor, type Playbook } from '../../../src/quo/playbook';
 
 const WEEK = 7 * 86_400_000;
+
+export const maxDuration = 120;
 
 export async function POST(req: Request) {
   try {
     const db = adminDb();
     const me = await whoIsCalling(db, req.headers.get('authorization'));
     if ('error' in me) return NextResponse.json({ error: me.error }, { status: 401 });
-    const { agent, action } = await req.json() as { agent: string; action: 'week' | 'tag' };
+    const { agent, action, question, history } = await req.json() as { agent: string; action: 'week' | 'tag' | 'ask'; question?: string; history?: { q: string; a: string }[] };
     if (agent !== me.agentId && me.role !== 'admin') return NextResponse.json({ error: 'You can only see your own coaching.' }, { status: 403 });
     if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: 'ANTHROPIC_API_KEY is not set on Vercel.' }, { status: 500 });
     const client = new Anthropic();
+
+    if (action === 'ask') {
+      const q = String(question ?? '').trim().slice(0, 2000);
+      if (!q) return NextResponse.json({ error: 'Ask a question first.' }, { status: 400 });
+      const [{ data: pbRow }, { data: tRow }, { data: mine }] = await Promise.all([
+        db.from('kv').select('value').eq('key', 'dispatch-team-playbook').eq('part', 'all').maybeSingle(),
+        db.from('kv').select('value').eq('key', 'dispatch-team-teach').eq('part', 'all').maybeSingle(),
+        db.from('quo_events').select('id,agent_id,call_id,at,phone,ai_note,ai_tags').eq('agent_id', agent).eq('type', 'call.transcript.completed')
+          .gte('at', new Date(Date.now() - 30 * 86_400_000).toISOString()),
+      ]);
+      const pb = pbRow?.value as Playbook | undefined;
+      const teach = ((tRow?.value as { items?: { title: string; text: string }[] } | undefined)?.items ?? []);
+      const calls: CoachCall[] = (mine ?? []).map(e => ({ id: e.id, agentId: e.agent_id, callId: e.call_id, at: Date.parse(e.at), phone: '', note: e.ai_note ?? '', tags: (e.ai_tags as CallTags | null) ?? null }));
+      const sm = coachSums(calls);
+      const book = pb ? [`Team summary: ${pb.summary}`, `Calls studied: ${pb.callsStudied}`,
+        ...pb.objections.map(o => [`Objection "${o.label}": heard ${o.heard}, saved ${o.saved}. They say: ${o.theySay.join(' / ')}`,
+          ...rebuttalsFor(pb, o.label).slice(0, 5).map(r => `  - "${r.line}" (${r.tried ? `tried ${r.tried}, saved ${r.saved}` : r.from === 'george' ? "from George, not tried yet" : 'untested idea'}). ${r.why}`)].join('\n')),
+        `Openers: ${pb.openers.map(o => `"${o.line}" tried ${o.tried}, ended well ${o.good}`).join('; ')}`,
+        `Tips: ${pb.tips.join(' / ')}`, `Trends: ${pb.trends.join(' / ')}`].join('\n') : '(The Playbook has not been built yet.)';
+      const mineText = `This agent's last 30 days: ${sm.calls} calls analyzed, ${sm.talked} real conversations, ${sm.good} ended well. Objections: ${sm.objections.map(o => `${o.label} ${o.count} (saved ${o.savedAnyway})`).join(', ') || 'none'}.`;
+      const teachText = teach.map(t => `## ${t.title}\n${t.text.slice(0, 8000)}`).join('\n\n') || '(none)';
+      const msgs: { role: 'user' | 'assistant'; content: string }[] = [];
+      for (const h of (history ?? []).slice(-6)) { msgs.push({ role: 'user', content: String(h.q).slice(0, 2000) }, { role: 'assistant', content: String(h.a).slice(0, 4000) }); }
+      msgs.push({ role: 'user', content: q });
+      const r = await client.messages.create({ model: 'claude-opus-5-5', max_tokens: 2000,
+        system: `${ASK_PROMPT}\n\n# Team Playbook\n${book}\n\n# George's teachings\n${teachText}\n\n# ${mineText}`, messages: msgs });
+      const text = r.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('\n').trim();
+      return NextResponse.json({ ok: true, text });
+    }
 
     if (action === 'tag') {
       const { data, error } = await db.from('quo_events').select('id,payload').eq('agent_id', agent).eq('type', 'call.transcript.completed')
@@ -27,11 +61,7 @@ export async function POST(req: Request) {
       for (const e of data ?? []) {
         const text = transcriptText(e.payload);
         if (text.length <= 40) continue;
-        const r = await client.messages.create({ model: 'claude-opus-5-5', max_tokens: 1000,
-          system: `${NOTE_PROMPT}\nAlso tag the call for the agent's coaching. Save everything with the save_call tool.`,
-          tools: [CALL_TOOL], tool_choice: { type: 'tool', name: CALL_TOOL.name },
-          messages: [{ role: 'user', content: `Call transcript:\n\n${text.slice(0, 60_000)}` }] });
-        const got = readCallTool((r.content.find(b => b.type === 'tool_use') as { input: unknown } | undefined)?.input);
+        const got = await tagTranscript(client, text);
         if (got) { await db.from('quo_events').update({ ai_tags: got.tags }).eq('id', e.id); done++; }
       }
       return NextResponse.json({ ok: true, tagged: done });
