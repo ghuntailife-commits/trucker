@@ -9,6 +9,13 @@ export interface WantedEvent extends CalEvent { uid: string; contactId: string }
 export interface Row { uid: string; google_id: string; contact_id: string; start_at: number; hash: string }
 export interface Move { contactId: string; start: number }
 
+// Accept the names George may already have in Vercel from the go-live setup.
+const pick = (...names: string[]) => names.map(n => process.env[n]).find(v => v && v.trim())?.trim();
+export const googleKeys = () => ({
+  id: pick('GOOGLE_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_ID', 'NEXT_PUBLIC_GOOGLE_CLIENT_ID', 'GOOGLE_ID', 'GOOGLE_CLIENTID'),
+  secret: pick('GOOGLE_CLIENT_SECRET', 'GOOGLE_OAUTH_CLIENT_SECRET', 'GOOGLE_SECRET', 'GOOGLE_CLIENT_SECRET_KEY', 'GOOGLE_SECRET_KEY'),
+});
+
 export const hashOf = (e: WantedEvent) => JSON.stringify([e.title, e.start, e.end, e.description, e.location, e.guests]);
 
 /** What a sync has to do, worked out before any call to Google. Pure: tested in test/calendar.test.ts. */
@@ -30,7 +37,7 @@ export function planSync(wanted: WantedEvent[], rows: Row[], google: Map<string,
 }
 
 export async function accessToken(refresh: string): Promise<string> {
-  const id = process.env.GOOGLE_CLIENT_ID, secret = process.env.GOOGLE_CLIENT_SECRET;
+  const { id, secret } = googleKeys();
   if (!id || !secret) throw new Error('GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are not set on Vercel.');
   const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ client_id: id, client_secret: secret, refresh_token: refresh, grant_type: 'refresh_token' }) });

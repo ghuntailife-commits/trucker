@@ -1,6 +1,7 @@
 // Saves an agent's Google Calendar connection (the refresh token from their Google sign-in) or reports it.
 import { NextResponse } from 'next/server';
 import { adminDb, whoIsCalling } from '../../../../src/live/server';
+import { googleKeys } from '../../../../src/calendar/google';
 
 export async function GET(req: Request) {
   try {
@@ -11,7 +12,7 @@ export async function GET(req: Request) {
     if (agent !== me.agentId && me.role !== 'admin') return NextResponse.json({ error: 'Not yours.' }, { status: 403 });
     const { data, error } = await db.from('google_tokens').select('email,updated_at').eq('agent_id', agent).maybeSingle();
     if (error) return NextResponse.json({ connected: false, setup: /google_tokens/.test(error.message) ? 'Run the calendar SQL in Supabase first.' : error.message });
-    return NextResponse.json({ connected: !!data, email: data?.email ?? null, keys: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) });
+    return NextResponse.json({ connected: !!data, email: data?.email ?? null, keys: (() => { const k = googleKeys(); return !!(k.id && k.secret); })() });
   } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 500 }); }
 }
 
