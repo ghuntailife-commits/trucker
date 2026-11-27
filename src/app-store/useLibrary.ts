@@ -13,7 +13,7 @@ import { loadAgentData } from './useTeam';
 import { returnKey, type Returned } from './libraryReturns';
 
 const KEY = 'dispatch-library-v1';
-export interface Inbox { contacts: Contact[]; removed: string[] }
+export interface Inbox { contacts: Contact[]; removed: string[]; [k: string]: unknown }
 export const inboxKey = (agent: AgentId) => `dispatch-inbox-${agent}`;
 
 export function useLibrary(me: AgentId, mine: { contacts: Contact[]; batch: (label: string, change: { added?: Contact[]; removed?: string[] }, message: string) => void }, tz: string, admin = false, agentIds: string[] = []) {
@@ -58,7 +58,7 @@ export function useLibrary(me: AgentId, mine: { contacts: Contact[]; batch: (lab
       else {
         const inbox = (await loadState<Inbox>(inboxKey(who))) ?? { contacts: [], removed: [] };
         const rm = new Set(ids);
-        await saveState(inboxKey(who), { contacts: inbox.contacts.filter(c => !rm.has(c.id)), removed: [...inbox.removed, ...ids] });
+        await saveState(inboxKey(who), { ...inbox, contacts: inbox.contacts.filter(c => !rm.has(c.id)), removed: [...inbox.removed, ...ids] });
       }
     }
     if (to.id === me) mine.batch('Contacts from the library', { added: r.added }, `${r.added.length} contacts added from the library.`);
@@ -81,7 +81,7 @@ export function useLibrary(me: AgentId, mine: { contacts: Contact[]; batch: (lab
       const inbox = (await loadState<Inbox>(inboxKey(h.agent as AgentId))) ?? { contacts: [], removed: [] };
       const rm = new Set(u.remove), still = inbox.contacts.filter(c => !rm.has(c.id));
       const merged = u.remove.filter(id => !inbox.contacts.some(c => c.id === id));
-      await saveState(inboxKey(h.agent as AgentId), { contacts: still, removed: [...inbox.removed, ...merged] });
+      await saveState(inboxKey(h.agent as AgentId), { ...inbox, contacts: still, removed: [...inbox.removed, ...merged] });
     }
     setSt(u.state);
     return { back: h.items.length - u.kept.length, kept: u.kept };
@@ -96,7 +96,7 @@ export function useLibrary(me: AgentId, mine: { contacts: Contact[]; batch: (lab
     else {
       const inbox = (await loadState<Inbox>(inboxKey(from))) ?? { contacts: [], removed: [] };
       const rm = new Set(ids);
-      await saveState(inboxKey(from), { contacts: inbox.contacts.filter(c => !rm.has(c.id)), removed: [...inbox.removed, ...ids] });
+      await saveState(inboxKey(from), { ...inbox, contacts: inbox.contacts.filter(c => !rm.has(c.id)), removed: [...inbox.removed, ...ids] });
     }
     if (to === me) mine.batch('Moved from another agent', { added: add }, `${add.length} contacts added.`);
     else {

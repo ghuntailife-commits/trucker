@@ -16,20 +16,22 @@ let seq = 0;
 const newId = () => `c-${Date.now().toString(36)}-m${(seq++).toString(36)}`;
 const status = (c: Contact) => (c.tag ? tagShort(c.tag) : c.dials ? 'Retry' : 'Fresh');
 
-export function MoveContacts({ t, lib, now, onClose, say }: { t: Team; lib: Library; now: number; onClose: () => void; say: (s: string, k?: 'ok' | 'warn') => void }) {
+export function MoveContacts({ t, lib, now, onClose, say, presetFrom, presetPicked }: { t: Team; lib: Library; now: number; onClose: () => void; say: (s: string, k?: 'ok' | 'warn') => void;
+  /** opened from the Contacts tab with these contacts ticked */ presetFrom?: AgentId; presetPicked?: string[] }) {
   const agents = t.team.agents.filter(a => a.active);
-  const [from, setFrom] = useState<AgentId | ''>('');
+  const [from, setFrom] = useState<AgentId | ''>(presetFrom ?? '');
   const [to, setTo] = useState<AgentId | ''>('');
   const [list, setList] = useState<Contact[] | null>(null);
   const [q, setQ] = useState('');
   const [st, setSt] = useState('all');
-  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [picked, setPicked] = useState<Set<string>>(new Set(presetPicked ?? []));
   const [limit, setLimit] = useState(500);
   const [plan, setPlan] = useState<MoveLine[] | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    setList(null); setPicked(new Set()); setPlan(null);
+    setList(null); setPlan(null);
+    if (from !== presetFrom) setPicked(new Set());
     if (!from) return;
     let live = true;
     lib.contactsOf(from, now).then(cs => { if (live) setList(cs); }).catch(() => { if (live) setList([]); });
@@ -60,7 +62,7 @@ export function MoveContacts({ t, lib, now, onClose, say }: { t: Team; lib: Libr
     setBusy(true);
     const n = await lib.transfer(fromA.id, toA.id, toA.name, plan);
     setBusy(false);
-    say(n ? `Moved ${n} contact${n === 1 ? '' : 's'} from ${fromA.name} to ${toA.name}. They show up in their lists next time each of them opens Dispatch.` : 'Nothing was moved.', n ? 'ok' : 'warn');
+    say(n ? `Moved ${n} contact${n === 1 ? '' : 's'} from ${fromA.name} to ${toA.name}. They show up on their screens within a minute.` : 'Nothing was moved.', n ? 'ok' : 'warn');
     onClose();
   };
 

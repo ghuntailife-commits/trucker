@@ -9,6 +9,7 @@ import { notesNewestFirst } from '../../src/rules/notes';
 import { parseTable, toCsv } from '../../src/contacts/csv';
 import { IMPORT_COLUMNS, planImport, type ImportLine, type OtherHolder } from '../../src/contacts/importer';
 import { loadAllContacts } from '../../src/live/allContacts';
+import { useRangePick } from './rangePick';
 import { needsGroup } from '../../src/contacts/needs';
 import { EDIT_LABELS, planEdit, type EditFields } from '../../src/contacts/edit';
 import { TZ, ZONE_NAME, Dialog, saveText, NoteText, ShowCount, Reach } from './shared';
@@ -49,14 +50,16 @@ const fieldsOf = (c: Contact): EditFields => ({ first: c.first, last: c.last, ph
 let idSeq = 0;
 const newId = () => `c-${Date.now().toString(36)}-${(idSeq++).toString(36)}`;
 
-export function ContactsPage({ d, onDial, onText, agentName = 'agent', allAgents }: { d: D; onDial: (id: string) => void; onText?: (id: string) => void; agentName?: string;
-  /** admin only: imports also check every other agent's contacts */ allAgents?: { id: string; name: string }[] }) {
+export function ContactsPage({ d, onDial, onText, agentName = 'agent', allAgents, onMove }: { d: D; onDial: (id: string) => void; onText?: (id: string) => void; agentName?: string;
+  /** admin only: imports also check every other agent's contacts */ allAgents?: { id: string; name: string }[];
+  /** admin only: move the ticked contacts to another agent (George, 2026-11-27) */ onMove?: (ids: string[]) => void }) {
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [group, setGroup] = useState<Group>('all');
   const [list, setList] = useState('');
   const [q, setQ] = useState('');
   const [shown, setShown] = useState(PAGE);
   const [sel, setSel] = useState<string | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   const [dialog, setDialog] = useState<null | 'add' | 'import' | 'delete'>(null);
 
   const lists = useMemo(() => [...new Set(d.contacts.map(c => c.list))].sort(), [d.contacts]);
@@ -77,6 +80,9 @@ export function ContactsPage({ d, onDial, onText, agentName = 'agent', allAgents
     company: c => c.company, status: c => pillFor(c)[0], dials: c => c.dials, last: c => c.lastDialed, next: c => c.callAt,
     note: c => notesNewestFirst(c.notes)[0]?.replace(/^\d{1,2}\/\d{1,2}:\s*/, '') ?? '' });
   useEffect(() => setShown(PAGE), [group, list, q]);
+  const pickOrder = useMemo(() => rows.slice(0, shown).map(c => c.id), [rows, shown]);
+  const pick = useRangePick(setPicked, pickOrder);
+  useEffect(() => { const have = new Set(d.contacts.map(c => c.id)); setPicked(p => { const n = new Set([...p].filter(id => have.has(id))); return n.size === p.size ? p : n; }); }, [d.contacts]);
 
   const c = sel ? d.byId.get(sel) : undefined;
   const exportCsv = () => saveText('contacts.csv', toCsv([
@@ -122,11 +128,16 @@ export function ContactsPage({ d, onDial, onText, agentName = 'agent', allAgents
                 <button className="btn primary" onClick={() => setDialog('add')}>Add contact</button>
                 <button className="btn" onClick={() => setDialog('import')}>Import</button>
                 <button className="btn" onClick={exportCsv}>Export CSV</button>
+                {onMove && <button className="btn" disabled={!picked.size} onClick={() => onMove([...picked])}
+                  title="Tick contacts (shift-click picks a range), then move them to another agent">{picked.size ? `Move ${picked.size} to another agent` : 'Move to another agent'}</button>}
+                {onMove && picked.size > 0 && <button className="linkish" onClick={() => setPicked(new Set())}>Clear</button>}
               </div>
             </div>
             <div className="tscroll">
               <table className="qt">
                 <thead><tr>
+                  {onMove && <th className="pickc"><input type="checkbox" aria-label="Pick every contact shown" checked={!!pickOrder.length && pickOrder.every(id => picked.has(id))}
+                    onChange={e => setPicked(x => { const n = new Set(x); for (const id of pickOrder) { if (e.target.checked) n.add(id); else n.delete(id); } return n; })} /></th>}
                   {th('name', 'Contact')}{th('phone', 'Phone')}{th('backup', 'Backup')}{th('list', 'List')}{th('loc', 'Location · Zone')}{th('company', 'Company — Role')}
                   {th('status', 'Status')}{th('dials', 'Dials', 'num')}{th('last', 'Last', 'num')}{th('next', 'Next', 'num')}{th('note', 'Notes (newest)')}
                 </tr></thead>
@@ -137,6 +148,7 @@ export function ContactsPage({ d, onDial, onText, agentName = 'agent', allAgents
                       <tr key={x.id} className={x.id === sel ? 'cur' : ''} tabIndex={0} onClick={() => setSel(x.id)}
                           onContextMenu={e => { e.preventDefault(); setSel(x.id); setMenu({ id: x.id, x: e.clientX, y: e.clientY }); }}
                           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSel(x.id); } }}>
+                        {onMove && <td className="pickc" onClick={e => e.stopPropagation()}><input type="checkbox" aria-label={`Pick ${x.first} ${x.last}`} checked={picked.has(x.id)} onChange={e => pick(x.id, e.target.checked, e)} /></td>}
                         <td className="strong">{x.first} {x.last}</td>
                         <td className="tnum">{x.phone || '—'}</td>
                         <td className="tnum muted">{x.backup || '—'}</td>

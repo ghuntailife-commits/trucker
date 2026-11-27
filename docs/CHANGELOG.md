@@ -143,3 +143,4 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 | 2026-11-27 | Contacts the admin imports for another agent also go to that agent's inbox, so the agent's open Dispatch can't wipe them; Dispatch checks the inbox every minute, on focus and on Re-sort | George |
 | 2026-11-27 | Admin on another agent's Dispatch: every change (add, import, edit, remove, notes, results) goes through the agent's inbox and shows on their open screen within a minute; nobody saves over anyone | George |
 | 2026-11-27 | Admin imports now also skip anyone already on another agent's Dispatch (by phone, backup or name + company) and say whose list they're on | George |
+| 2026-11-27 | Admin: tick contacts on the Contacts tab (shift-click for a range) and Move them to another agent, with the same review as the library's move | George |

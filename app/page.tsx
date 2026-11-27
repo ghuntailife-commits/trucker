@@ -21,6 +21,7 @@ import { ResultForm, type ResultKind, type ResultInitial } from './ui/forms';
 import type { AmendTarget } from '../src/rules/amend';
 import { saleAlp } from '../src/rules/results';
 import { AllSearch } from './ui/allSearch';
+import { MoveContacts } from './ui/transfer';
 import { Dialog, TZ, TZ_ABBR, TZ_NAME, ZONE_TZ, chipClass, localTime, Ico, IC, fmtSecs, ZONE_NAME, timeOnly, saveText, NoteText } from './ui/shared';
 import { useTeam, type Team } from '../src/app-store/useTeam';
 import { pagesFor, viewers, type AgentId, type Page, type ViewerId } from '../src/team/agents';
@@ -129,6 +130,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const lib = useLibrary(agent, { contacts: d0.contacts ?? [], batch: d0.batch }, TZ, !LIVE || t.person?.role === 'admin', t.team.agents.map(a => a.id));
   const [licOpen, setLicOpen] = useState(false);
   const [tzOpen, setTzOpen] = useState(false);
+  const [moveIds, setMoveIds] = useState<string[] | null>(null);   // admin: Contacts tab > Move to another agent
   const [allOpen, setAllOpen] = useState<string | null>(null);   // admin: search every agent
   const [pendingPick, setPendingPick0] = useState<{ agent: string; id: string } | null>(() => PENDING.pick);
   const setPendingPick = (v: { agent: string; id: string } | null) => { PENDING.pick = v; setPendingPick0(v); };
@@ -526,7 +528,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
         health={hc} sheet={{ waiting: sheetWaitN, look: sheetLookN, needs: needsN }} wins={wins} monthDays={monthDays} daysInMonth={daysInMonth}
         go={setPage} openHealth={() => setHealthOpen(true)} onDial={id => { setPicked(id); setPage('today'); }} timeOnly={timeOnly} md={x => md(x, TZ)} />}
       {!switching && page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onText={textContact} agentName={me.name}
-        allAgents={isAdmin ? t.team.agents.map(a => ({ id: a.id, name: a.name })) : undefined} />}
+        allAgents={isAdmin ? t.team.agents.map(a => ({ id: a.id, name: a.name })) : undefined} onMove={isAdmin ? ids => setMoveIds(ids) : undefined} />}
       {!switching && page === 'coach' && <CoachPage me={me} admin={t.role === 'admin'} agents={t.team.agents} contacts={d.contacts} now={d.now} />}
       {!switching && page === 'needs' && <NeedsPage d={d} ns={ns} states={me.states} agent={agent} />}
       {!switching && page === 'team' && <TeamPage t={t} now={d.now} live={{ id: agent, data: { contacts: d.contacts, log: d.log, sales: d.sales, noSales: d.noSales } }}
@@ -848,6 +850,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       {keysOpen && <ShortcutsDialog onClose={() => setKeysOpen(false)} />}
       {allOpen !== null && <AllSearch agents={t.team.agents.map(a => ({ id: a.id, name: a.name }))} start={allOpen} onClose={() => setAllOpen(null)}
         onOpen={(who, id) => { setAllOpen(null); if (who !== agent) t.setViewer(who as ViewerId); setPendingPick({ agent: who, id }); }} />}
+      {moveIds && <MoveContacts t={t} lib={lib} now={d.now} say={d.say} presetFrom={agent} presetPicked={moveIds} onClose={() => setMoveIds(null)} />}
       {tzOpen && <Dialog title="My time zone" onClose={() => setTzOpen(false)}>
         <div className="newev">
           <p className="hint">Every time on your screens shows in this zone, and your day starts at your midnight. Contacts are still only called inside their own hours.</p>
