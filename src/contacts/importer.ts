@@ -13,8 +13,16 @@ export interface ImportLine { line: number; name: string; result: string; ok: bo
 interface Hit { where: string; tag: string }
 
 /** Who already has each phone number and name, across every list. */
-export function buildIndex(contacts: Contact[]) {
+/** Someone on another agent's Dispatch, for the admin's import check (George, 2026-11-27). */
+export interface OtherHolder { first: string; last: string; company: string; phone: string; backup: string; tag: string; where: string }
+
+export function buildIndex(contacts: Contact[], others: OtherHolder[] = []) {
   const phones = new Map<string, Hit>(), names = new Map<string, Hit>();
+  for (const o of others) {
+    const hit = { where: o.where, tag: o.tag };
+    for (const p of [o.phone, o.backup]) { const d = digits10(p); if (d.length === 10) phones.set(d, hit); }
+    names.set(`${norm(o.first)}|${norm(o.last)}|${norm(o.company)}`, hit);
+  }
   for (const c of contacts) {
     const hit = { where: `${c.first} ${c.last} (${c.list})`, tag: c.tag };
     for (const p of [c.phone, c.backup]) { const d = digits10(p); if (d.length === 10) phones.set(d, hit); }
@@ -33,8 +41,8 @@ export function dropHeader(rows: string[][]): string[][] {
  * Plans an import without changing anything: each line gets a result ("Will import to Texas", "Skipped - duplicate of ...").
  * `hardcards` sends every contact to the Hardcards list (Job goes in as Union, Company as Beneficiary, like the sheet).
  */
-export function planImport(rows: string[][], existing: Contact[], opts: { now: number; nextId: (i: number) => string; hardcards?: boolean }): ImportLine[] {
-  const idx = buildIndex(existing);
+export function planImport(rows: string[][], existing: Contact[], opts: { now: number; nextId: (i: number) => string; hardcards?: boolean; others?: OtherHolder[] }): ImportLine[] {
+  const idx = buildIndex(existing, opts.others);
   const seqBy = new Map<string, number>();
   for (const c of existing) seqBy.set(c.list, Math.max(seqBy.get(c.list) ?? 0, c.seq));
   return dropHeader(rows).map((r, i): ImportLine => {

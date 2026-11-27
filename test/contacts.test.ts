@@ -78,6 +78,12 @@ describe('needs number', () => {
     expect(needsGroup(contact())).toBeNull();
     expect(needsGroup(contact({ phone: '', tag: TAGS.dnc }))).toBeNull();
   });
+  it('admin import also skips someone on another agent\'s Dispatch (George, 2026-11-27)', () => {
+    const others = [{ first: 'Quinn', last: 'Sample', company: 'Acme', phone: '(214) 555-0188', backup: '', tag: '', where: "Quinn Sample, on Austin's Texas" }];
+    const r = planImport([['Quinn', 'Sample', '214-555-0188', 'Driver', 'Acme', 'Dallas', 'TX']], [], { now, nextId: ids, others });
+    expect(r[0].ok).toBe(false);
+    expect(r[0].result).toBe("Skipped - duplicate of Quinn Sample, on Austin's Texas");
+  });
   it('saves a number with new-number priority, refuses bad, duplicate and short numbers', () => {
     const a = contact({ phone: '', dials: 3 }), b = contact({ phone: '', notes: 'Bad number: 214-555-0170' }), other = contact({ phone: '(214) 555-0171' });
     const c = contact({ phone: '' }), d = contact({ phone: '' });

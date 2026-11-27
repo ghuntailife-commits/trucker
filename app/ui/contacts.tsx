@@ -7,7 +7,8 @@ import { tagKind, tagShort } from '../../src/rules/tags';
 import { md, mdTime } from '../../src/rules/time';
 import { notesNewestFirst } from '../../src/rules/notes';
 import { parseTable, toCsv } from '../../src/contacts/csv';
-import { IMPORT_COLUMNS, planImport, type ImportLine } from '../../src/contacts/importer';
+import { IMPORT_COLUMNS, planImport, type ImportLine, type OtherHolder } from '../../src/contacts/importer';
+import { loadAllContacts } from '../../src/live/allContacts';
 import { needsGroup } from '../../src/contacts/needs';
 import { EDIT_LABELS, planEdit, type EditFields } from '../../src/contacts/edit';
 import { TZ, ZONE_NAME, Dialog, saveText, NoteText, ShowCount, Reach } from './shared';
@@ -48,7 +49,8 @@ const fieldsOf = (c: Contact): EditFields => ({ first: c.first, last: c.last, ph
 let idSeq = 0;
 const newId = () => `c-${Date.now().toString(36)}-${(idSeq++).toString(36)}`;
 
-export function ContactsPage({ d, onDial, onText, agentName = 'agent' }: { d: D; onDial: (id: string) => void; onText?: (id: string) => void; agentName?: string }) {
+export function ContactsPage({ d, onDial, onText, agentName = 'agent', allAgents }: { d: D; onDial: (id: string) => void; onText?: (id: string) => void; agentName?: string;
+  /** admin only: imports also check every other agent's contacts */ allAgents?: { id: string; name: string }[] }) {
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [group, setGroup] = useState<Group>('all');
   const [list, setList] = useState('');
@@ -180,7 +182,7 @@ export function ContactsPage({ d, onDial, onText, agentName = 'agent' }: { d: D;
       </main>
 
       {dialog === 'add' && <AddDialog d={d} onClose={() => setDialog(null)} onAdded={id => { setSel(id); setDialog(null); }} />}
-      {dialog === 'import' && <ImportDialog d={d} onClose={() => setDialog(null)} />}
+      {dialog === 'import' && <ImportDialog d={d} onClose={() => setDialog(null)} allAgents={allAgents} />}
       {dialog === 'delete' && c && <RemoveDialog d={d} ids={[c.id]} agentName={agentName} onClose={() => { if (!d.byId.has(c.id)) setSel(null); setDialog(null); }} />}
       {menu && d.byId.get(menu.id) && <CtxMenu at={menu} onClose={() => setMenu(null)}
         entries={[['Open in dialer', () => onDial(menu.id)] as [string, () => void], ...contactEntries(d, d.byId.get(menu.id)!, { onToday: d.today.some(r => r.contact.id === menu.id && !r.done), askRemove: () => setDialog('delete') })]} />}
@@ -286,11 +288,24 @@ function AddDialog({ d, onClose, onAdded }: { d: D; onClose: () => void; onAdded
   );
 }
 
-function ImportDialog({ d, onClose }: { d: D; onClose: () => void }) {
+function ImportDialog({ d, onClose, allAgents }: { d: D; onClose: () => void; allAgents?: { id: string; name: string }[] }) {
   const [text, setText] = useState('');
   const [hc, setHc] = useState(false);
   const [plan, setPlan] = useState<ImportLine[] | null>(null);
-  const check = () => setPlan(planImport(parseTable(text), d.contacts, { now: d.now, nextId: newId, hardcards: hc }));
+  const [checking, setChecking] = useState(false);
+  // admin: also skip anyone already on another agent's Dispatch (George, 2026-11-27)
+  const check = async () => {
+    let others: OtherHolder[] = [];
+    if (allAgents) {
+      setChecking(true);
+      const name = new Map(allAgents.map(a => [a.id, a.name]));
+      const rows = await loadAllContacts(allAgents.map(a => a.id), true).catch(() => []);
+      others = rows.filter(r => r.a !== d.agent).map(r => { const [first, ...rest] = r.n.split(' ');
+        return { first, last: rest.join(' '), company: r.co, phone: r.p, backup: r.b, tag: r.t, where: `${r.n}, on ${name.get(r.a) ?? r.a}'s ${r.l}` }; });
+      setChecking(false);
+    }
+    setPlan(planImport(parseTable(text), d.contacts, { now: d.now, nextId: newId, hardcards: hc, others }));
+  };
   const good = plan?.filter(x => x.ok) ?? [];
   const run = () => {
     const added = good.map(x => x.contact!);
@@ -314,7 +329,7 @@ function ImportDialog({ d, onClose }: { d: D; onClose: () => void }) {
         </div>
         <p className="hint">Nothing is saved yet. The next step shows what will be imported and what will be skipped.</p>
         <div className="bar"><button className="btn" onClick={onClose}>Cancel</button>
-          <button className="btn primary" disabled={!text.trim()} onClick={check}>Check the list</button></div>
+          <button className="btn primary" disabled={!text.trim() || checking} onClick={() => void check()}>{checking ? 'Checking every agent\u2026' : 'Check the list'}</button></div>
       </> : <>
         <p><b>{good.length}</b> will be imported, <b>{plan.length - good.length}</b> skipped.</p>
         <div className="plan">
