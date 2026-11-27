@@ -5,13 +5,19 @@ import { isListHeader, NOT_LISTS, type Cell, type SheetTabs } from '../migrate/a
 const API = 'https://sheets.googleapis.com/v4/spreadsheets';
 export const REGISTRY_ID = '1-FZMbygnsUq8IN46kpfF7ettrqS01F8VaSf2w8z5-G8';
 
+/** Called when Google says to slow down, so the screen can say "waiting". */
+export let onWait: (() => void) | null = null;
+export function setOnWait(f: (() => void) | null) { onWait = f; }
+
 const q = (t: string) => `'${t.replace(/'/g, "''")}'`;
 
 async function get<T>(token: string, url: string): Promise<T> {
   for (let i = 0; ; i++) {
     const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (r.ok) return r.json() as Promise<T>;
-    if ((r.status === 429 || r.status >= 500) && i < 4) { await new Promise(res => setTimeout(res, 1500 * 2 ** i)); continue; }
+    // Google allows about 60 reads a minute: on "too many" wait for the minute to roll over, then try again
+    if (r.status === 429 && i < 6) { onWait?.(); await new Promise(res => setTimeout(res, 20_000 * (i + 1))); continue; }
+    if (r.status >= 500 && i < 4) { await new Promise(res => setTimeout(res, 1500 * 2 ** i)); continue; }
     const body = await r.text().catch(() => '');
     if (r.status === 401) throw new Error('Google sign-in expired. Click "Connect Google Sheets" again.');
     if (r.status === 403) {

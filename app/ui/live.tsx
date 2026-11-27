@@ -3,8 +3,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { db, signInEmail, signInGoogle, signOut, whoAmI, type Person } from '../../src/live/supabase';
 import { liveLoad, onSaveStatus, setMe, writeNow, type SaveStatus } from '../../src/live/kvStore';
-import { readAgentSheet, readRegistryEmails } from '../../src/live/sheets';
-import { buildAgentData, type AgentReport } from '../../src/migrate/agentSheet';
+import { readAgentSheet, readRegistryEmails, setOnWait } from '../../src/live/sheets';
+import { buildAgentData, type AgentReport, type SheetTabs } from '../../src/migrate/agentSheet';
 import { ROSTER } from '../../src/team/roster';
 import { rosterAgent } from '../../src/team/agents';
 import { storageKey } from '../../src/app-store/agentSeeds';
@@ -81,7 +81,18 @@ export function useSaveStatus(): SaveStatus | null {
 
 interface Row { id: string; name: string; sheetId: string; email: string; status: 'waiting' | 'reading' | 'ready' | 'saving' | 'done' | 'error';
   msg?: string; report?: AgentReport & { appts: number; lastAt: number | null }; data?: ReturnType<typeof buildAgentData>; existing?: number;
-  check?: { contacts: number; log: number; sales: number; noSales: number }; include: boolean }
+  check?: { contacts: number; log: number; sales: number; noSales: number }; include: boolean;
+  tabs?: SheetTabs; skip?: string[] }
+
+/** Tabs left out unless ticked: blank templates, copies of another tab, and George's old Utah test import. */
+const skipByDefault = (agent: string, list: string) => /template/i.test(list) || /^copy of /i.test(list) || (agent === 'george' && list === 'Utah');
+
+function built(agent: string, tabs: SheetTabs, skip: string[]) {
+  const data = buildAgentData({ ...tabs, lists: tabs.lists.filter(l => !skip.includes(l.list)) });
+  const lastAt = data.log.length ? data.log[data.log.length - 1].at : null;
+  const appts = data.contacts.filter(c => tagKind(c.tag) === 'scheduled').length;
+  return { data, report: { ...data.report, appts, lastAt } };
+}
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 const when = (t: number | null) => t == null ? '' : new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit' }).format(t);
@@ -108,17 +119,18 @@ export function SwitchPage({ onDone }: { onDone: () => void }) {
       setRows(rs => rs.map(r => ({ ...r, email: r.email || emails[r.name.toLowerCase()] || Object.entries(emails).find(([k]) => k.split(/\s+/)[0] === r.name.toLowerCase())?.[1] || '' })));
     } catch (e) { setErr(`Registry: ${(e as Error).message}`); }
     for (const r of rows) {
-      if (!r.include) continue;
+      if (!r.include || r.status === 'ready' || r.status === 'done') continue;   // a second click only retries the rest
       upd(r.id, { status: 'reading', msg: undefined });
+      setOnWait(() => upd(r.id, { msg: 'Google asked us to slow down. Waiting a moment, then trying again…' }));
       try {
         const tabs = await readAgentSheet(token, r.sheetId);
-        const data = buildAgentData(tabs);
-        const lastAt = data.log.length ? data.log[data.log.length - 1].at : null;
-        const appts = data.contacts.filter(c => tagKind(c.tag) === 'scheduled').length;
+        const skip = tabs.lists.map(l => l.list).filter(l => skipByDefault(r.id, l));
+        const { data, report } = built(r.id, tabs, skip);
         const existing = await db().from('kv').select('part', { count: 'exact', head: true }).eq('key', storageKey(r.id));
-        upd(r.id, { status: 'ready', data, report: { ...data.report, appts, lastAt }, existing: existing.count ?? 0, msg: tabs.lists.length ? undefined : 'No contact lists found on this sheet' });
+        upd(r.id, { status: 'ready', tabs, skip, data, report, existing: existing.count ?? 0, msg: tabs.lists.length ? undefined : 'No contact lists found on this sheet' });
       } catch (e) { upd(r.id, { status: 'error', msg: (e as Error).message }); }
     }
+    setOnWait(null);
     setBusy(false);
   };
 
@@ -161,7 +173,7 @@ export function SwitchPage({ onDone }: { onDone: () => void }) {
           <span className="hint">Google will ask to let Dispatch see your spreadsheets. It cannot change them.</span></div>
       ) : (
         <div className="bar">
-          <button className="btn primary" disabled={busy} onClick={readAll}>1. Read all sheets</button>
+          <button className="btn primary" disabled={busy} onClick={readAll}>{rows.some(r => r.status === 'ready') ? 'Read again (only the ones not ready)' : '1. Read all sheets'}</button>
           <button className="btn go" disabled={busy || !ready.length} onClick={confirm}>2. Confirm and save {ready.length ? `${ready.length} agents` : ''}</button>
           {done > 0 && !busy && <button className="btn" onClick={onDone}>Done</button>}
           <button className="btn" disabled={busy} onClick={() => signInGoogle(true)} title="Asks Google again for read-only access to your spreadsheets">Reconnect Google Sheets</button>
@@ -175,7 +187,14 @@ export function SwitchPage({ onDone }: { onDone: () => void }) {
             <td><input type="checkbox" checked={r.include} disabled={busy} onChange={e => upd(r.id, { include: e.target.checked })} aria-label={`Copy ${r.name}`} /></td>
             <td><b>{r.name}</b></td>
             <td><input className="emailin" value={r.email} disabled={busy} placeholder="needs an email" onChange={e => upd(r.id, { email: e.target.value })} /></td>
-            <td className="hint">{r.data ? r.data.report.perList.map(l => l.list).join(', ') : ''}</td>
+            <td className="hint lists">{r.tabs && r.tabs.lists.map(l => {
+              const off = (r.skip ?? []).includes(l.list);
+              const n = r.data?.report.perList.find(p => p.list === l.list)?.contacts;
+              return <button key={l.list} className={`lchip ${off ? 'off' : ''}`} disabled={busy || r.status !== 'ready'}
+                title={off ? 'Left out. Click to copy this list too.' : 'Click to leave this list out'}
+                onClick={() => { const skip = off ? (r.skip ?? []).filter(x => x !== l.list) : [...(r.skip ?? []), l.list]; upd(r.id, { skip, ...built(r.id, r.tabs!, skip) }); }}>
+                {off ? '✕ ' : ''}{l.list}{!off && n != null ? ` ${n}` : ''}</button>;
+            })}</td>
             <td className="n">{r.data ? fmt(r.data.contacts.length) : ''}</td>
             <td className="n">{r.data ? fmt(r.data.log.length) : ''}</td>
             <td className="n">{r.data ? r.data.sales.length : ''}</td>

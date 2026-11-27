@@ -1070,3 +1070,7 @@ kbd { font: 600 12px var(--mono); background: var(--panel2); border: 1px solid v
 .switcht td.hint { white-space: normal; max-width: 240px; font-size: 12px; }
 .switcht .emailin { width: 230px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; background: transparent; color: inherit; }
 .switcht tr.done td:last-child { color: #2f8a55; font-weight: 600; }
+.switcht td.lists { max-width: 340px; }
+.lchip { display: inline-block; margin: 1px 3px 1px 0; padding: 1px 7px; border: 1px solid var(--line); border-radius: 10px; font: inherit; font-size: 11px; background: var(--panel2); color: var(--text); cursor: pointer; }
+.lchip.off { text-decoration: line-through; color: var(--faint); background: transparent; }
+.lchip:disabled { cursor: default; }
