@@ -84,3 +84,15 @@ export function ShowCount({ value, total, onChange }: { value: number; total: nu
       <option value="all">All {total.toLocaleString('en-US')}</option>
     </select></label>;
 }
+
+/** Call and Text buttons for a client, anywhere their details show (George, 2026-11-26). Text uses Quo when it's on,
+ *  otherwise the computer's own texting app. */
+export function Reach({ id, phone, first, onText }: { id: string; phone: string; first?: string; onText?: (id: string) => void }) {
+  const num = phone.replace(/[^\d+]/g, '');
+  if (!num) return <span className="hint">No number to call or text</span>;
+  return <span className="reach">
+    <a className="btn rcall" href={`tel:${num}`} title={`Call ${first ?? ''} at ${phone}`}>Call</a>
+    {onText ? <button className="btn rtext" onClick={() => onText(id)} title="Text with Quo">Text</button>
+      : <a className="btn rtext" href={`sms:${num}`} title={`Text ${first ?? ''} at ${phone}`}>Text</a>}
+  </span>;
+}

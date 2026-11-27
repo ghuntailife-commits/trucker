@@ -10,7 +10,7 @@ import { parseTable, toCsv } from '../../src/contacts/csv';
 import { IMPORT_COLUMNS, planImport, type ImportLine } from '../../src/contacts/importer';
 import { needsGroup } from '../../src/contacts/needs';
 import { EDIT_LABELS, planEdit, type EditFields } from '../../src/contacts/edit';
-import { TZ, ZONE_NAME, Dialog, saveText, NoteText, ShowCount } from './shared';
+import { TZ, ZONE_NAME, Dialog, saveText, NoteText, ShowCount, Reach } from './shared';
 import { useSort } from './sort';
 
 type D = ReturnType<typeof useDialer>;
@@ -44,7 +44,7 @@ const fieldsOf = (c: Contact): EditFields => ({ first: c.first, last: c.last, ph
 let idSeq = 0;
 const newId = () => `c-${Date.now().toString(36)}-${(idSeq++).toString(36)}`;
 
-export function ContactsPage({ d, onDial }: { d: D; onDial: (id: string) => void }) {
+export function ContactsPage({ d, onDial, onText }: { d: D; onDial: (id: string) => void; onText?: (id: string) => void }) {
   const [group, setGroup] = useState<Group>('all');
   const [list, setList] = useState('');
   const [q, setQ] = useState('');
@@ -155,7 +155,7 @@ export function ContactsPage({ d, onDial }: { d: D; onDial: (id: string) => void
         </div>
 
         <aside className="sidecol">
-          {c ? <Detail key={c.id} c={c} d={d} onDial={onDial} onDelete={() => setDialog('delete')} />
+          {c ? <Detail key={c.id} c={c} d={d} onDial={onDial} onText={onText} onDelete={() => setDialog('delete')} />
             : (
               <section className="panel line">
                 <div className="eyebrow">Contact details</div>
@@ -187,7 +187,7 @@ export function ContactsPage({ d, onDial }: { d: D; onDial: (id: string) => void
   );
 }
 
-function Detail({ c, d, onDial, onDelete }: { c: Contact; d: D; onDial: (id: string) => void; onDelete: () => void }) {
+function Detail({ c, d, onDial, onDelete, onText }: { c: Contact; d: D; onDial: (id: string) => void; onDelete: () => void; onText?: (id: string) => void }) {
   const [f, setF] = useState<EditFields>(fieldsOf(c));
   const [note, setNote] = useState('');
   const plan = useMemo(() => planEdit(c, f, d.contacts), [c, f, d.contacts]);
@@ -209,6 +209,7 @@ function Detail({ c, d, onDial, onDelete }: { c: Contact; d: D; onDial: (id: str
       {!!c.quals?.length && <div className="quals static">{c.quals.map(q => <span key={q} className="on">{q}</span>)}</div>}
       <div className="dact">
         <button className="callbtn sm" disabled={!c.phone} onClick={() => onDial(c.id)}>Open in dialer</button>
+        {(c.phone || c.backup) && <Reach id={c.id} phone={c.phone || c.backup} first={c.first} onText={onText} />}
         {c.linkedin && /^https:\/\//.test(c.linkedin) && <a className="btn" href={c.linkedin} target="_blank" rel="noopener noreferrer">LinkedIn</a>}
       </div>
 

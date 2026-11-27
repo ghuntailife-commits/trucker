@@ -1,7 +1,7 @@
 // Appointments page: the week on one screen (appointments, callbacks, follow-ups and results), what needs a result,
 // and the details and actions for the one picked. Replaces the APPOINTMENTS calendar check and the sync menu.
 'use client';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { useDialer } from '../../src/app-store/useDialer';
 import type { Contact } from '../../src/rules/types';
 import { tagKind } from '../../src/rules/tags';
@@ -10,7 +10,9 @@ import { notesNewestFirst } from '../../src/rules/notes';
 import { LIVE, connectGoogleCalendar } from '../../src/live/supabase';
 import type { GoogleCal } from '../../src/live/useGoogleCalendar';
 import { calendarItems, weekStart, eventFor, toIcs, type CalItem } from '../../src/calendar/events';
-import { TZ, ZONE_NAME, saveText, timeOnly, localTime, NoteText } from './shared';
+import { TZ, ZONE_NAME, saveText, timeOnly, localTime, NoteText, Reach } from './shared';
+import { WeekGrid } from './weekGrid';
+import { addNote } from '../../src/rules/engine';
 import type { ResultKind, ResultInitial } from './forms';
 import type { AmendTarget } from '../../src/rules/amend';
 
@@ -40,13 +42,17 @@ const TONE: Record<CalItem['kind'], string> = { appt: 'blue', callback: 'amber',
 const pillTone = (it: CalItem) => it.kind === 'appt' ? (it.label === 'Confirmed' ? 'teal' : it.label === 'Booked' ? 'blue' : 'amber') : TONE[it.kind];
 
 /** onQuoText: when the agent has Quo, reminders open the Quo text box instead of the computer's own texting app. */
-export function AppointmentsPage({ d, cal, onDial, onResult, onQuoText }: { d: D; cal?: GoogleCal; onDial: (id: string) => void; onResult: OnResult; onQuoText?: (id: string, at: number, tomorrow: boolean) => void }) {
+export function AppointmentsPage({ d, cal, onDial, onResult, onQuoText, onText }: { d: D; cal?: GoogleCal; onDial: (id: string) => void; onResult: OnResult; onQuoText?: (id: string, at: number, tomorrow: boolean) => void; onText?: (id: string) => void }) {
   const [offset, setOffset] = useState(0);
   const [sel, setSel] = useState<string | null>(null);
   const start = addDays(weekStart(d.now, TZ), offset * 7, TZ);
   const end = addDays(start, 7, TZ);
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i, TZ));
   const today = startOfDay(d.now, TZ);
+  // Calendar (hours, 30-minute blocks, drag to move) or the old list of cards. Remembered per computer.
+  const [view, setView] = useState<'grid' | 'list'>('grid');
+  useEffect(() => { try { if (localStorage.getItem('dispatch-appt-view') === 'list') setView('list'); } catch { /* */ } }, []);
+  const pickView = (v: 'grid' | 'list') => { setView(v); try { localStorage.setItem('dispatch-appt-view', v); } catch { /* */ } };
 
   const items = useMemo(() => calendarItems(d.contacts, d.sales, d.noSales, d.log, start, end, d.now, TZ),
     [d.contacts, d.sales, d.noSales, d.log, start, end, d.now]);
@@ -72,6 +78,22 @@ export function AppointmentsPage({ d, cal, onDial, onResult, onQuoText }: { d: D
     ['Show rate', held + noShows ? Math.round(100 * held / (held + noShows)) + '%' : '—', 'green'],
     ['Sold', items.filter(it => it.kind === 'sold').length, 'green'],
   ];
+
+  // Only booked appointments and callbacks can be dragged, and only while they're still open.
+  const canMove = (it: CalItem) => {
+    const x = d.byId.get(it.contactId); if (!x) return false;
+    const k = tagKind(x.tag);
+    return (it.kind === 'appt' && k === 'scheduled') || (it.kind === 'callback' && k === 'callback');
+  };
+  const moveTo = (it: CalItem, at: number) => {
+    const x = d.byId.get(it.contactId); if (!x || !canMove(it)) return;
+    if (at < d.now) return d.say('That time has already passed. Drop it on a time still ahead.', 'warn');
+    setSel(it.key);
+    if (it.kind === 'appt') return d.outcome(x.id, 'reschedule', { when: at });
+    const md = fmt({ month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    d.batch('Move callback', { changed: [{ ...x, callAt: at, notes: addNote(x.notes, `${fmt({ month: 'numeric', day: 'numeric' }).format(d.now)}: Callback moved to ${md.format(at)}`) }] },
+      `${x.first} ${x.last}: callback moved to ${md.format(at)}.`);
+  };
 
   const downloadWeek = () => {
     const evs = d.contacts.filter(x => x.callAt != null && x.callAt >= Math.max(start, d.now) && x.callAt < end
@@ -99,12 +121,18 @@ export function AppointmentsPage({ d, cal, onDial, onResult, onQuoText }: { d: D
           <button onClick={() => setOffset(o => o + 1)} aria-label="Next week">›</button>
         </div>
         <b className="wk">{dayNum.format(start)} – {dayNum.format(addDays(start, 6, TZ))}</b>
+        <div className="seg mini">
+          <button className={view === 'grid' ? 'on' : ''} onClick={() => pickView('grid')}>Calendar</button>
+          <button className={view === 'list' ? 'on' : ''} onClick={() => pickView('list')}>List</button>
+        </div>
         <span className="grow" />
         {LIVE && cal ? <GcalStatus cal={cal} /> : <span className="gcal" title="In the live app, appointments go on your Google Calendar automatically.">Google Calendar: live app only</span>}
         {(!LIVE || cal?.status !== 'connected') && <button className="btn" onClick={downloadWeek}>Add week to my calendar</button>}
       </div>
 
       <main className="apptwork">
+        {view === 'grid' ? <WeekGrid days={days} items={items} today={today} now={d.now} sel={sel} onPick={setSel} canMove={canMove} onMove={moveTo}
+          tone={pillTone} nameOf={it => { const x = contactFor(d, it); return { name: x ? `${x.first} ${x.last}` : 'Deleted contact', company: x?.company ?? '' }; }} /> :
         <section className="panel week">
           {days.map((t, i) => {
             const isToday = t === today, past = t < today;
@@ -126,12 +154,12 @@ export function AppointmentsPage({ d, cal, onDial, onResult, onQuoText }: { d: D
               </div>
             );
           })}
-        </section>
+        </section>}
 
         <aside className="apptside">
           <section className="panel adetail">
-            {picked && c ? <Detail it={picked} c={c} d={d} onDial={onDial} onResult={onResult} onQuoText={onQuoText} />
-              : <div className="pad16"><div className="eyebrow">Details</div><p className="hint">Pick anything on the week to see the contact, confirm it, or record how it went.</p></div>}
+            {picked && c ? <Detail it={picked} c={c} d={d} onDial={onDial} onResult={onResult} onQuoText={onQuoText} onText={onText} />
+              : <div className="pad16"><div className="eyebrow">Details</div><p className="hint">Pick anything on the week to see the contact, confirm it, or record how it went.{view === 'grid' ? ' Drag an appointment or callback to a new time; empty space is open time.' : ''}</p></div>}
           </section>
           <section className="panel needs2">
             <div className="ph"><h2>Needs a result</h2><span>{needs.length}</span></div>
@@ -159,7 +187,7 @@ export function AppointmentsPage({ d, cal, onDial, onResult, onQuoText }: { d: D
   );
 }
 
-function Detail({ it, c, d, onDial, onResult, onQuoText }: { it: CalItem; c: Contact; d: D; onDial: (id: string) => void; onResult: OnResult; onQuoText?: (id: string, at: number, tomorrow: boolean) => void }) {
+function Detail({ it, c, d, onDial, onResult, onQuoText, onText }: { it: CalItem; c: Contact; d: D; onDial: (id: string) => void; onResult: OnResult; onQuoText?: (id: string, at: number, tomorrow: boolean) => void; onText?: (id: string) => void }) {
   const phone = c.phone || c.backup;
   const open = tagKind(c.tag) === 'scheduled' && it.kind === 'appt';
   const soon = open && it.at >= d.now && it.at < startOfDay(d.now, TZ) + 2 * DAY_MS;
@@ -174,6 +202,7 @@ function Detail({ it, c, d, onDial, onResult, onQuoText }: { it: CalItem; c: Con
       <div className="eyebrow">{it.label}{it.detail ? ' · ' + it.detail : ''}</div>
       <h2 className="dn">{c.first} {c.last}</h2>
       <p className="dsub">{[c.company, c.job].filter(Boolean).join(' — ')}</p>
+      <div className="dacts reachrow"><Reach id={c.id} phone={phone} first={c.first} onText={d.byId.has(c.id) ? onText : undefined} /></div>
       <dl className="dl">
         <dt>When</dt><dd>{it.allDay ? fmt({ weekday: 'short', month: 'numeric', day: 'numeric' }).format(it.at) : whenFull.format(it.at) + ' ET'}
           {!it.allDay && c.zone && c.zone !== 'ET' && ZONE_NAME[c.zone] ? <span className="hint"> · {localTime(c.zone, it.at)} {ZONE_NAME[c.zone]}</span> : null}</dd>

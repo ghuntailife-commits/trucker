@@ -7,7 +7,7 @@ import type { useDialer } from '../../src/app-store/useDialer';
 import * as R from '../../src/reports/results';
 import { reachByDial } from '../../src/rules/stats';
 import { addDays, parts, startOfDay } from '../../src/rules/time';
-import { TZ, saveText } from './shared';
+import { TZ, saveText, Reach } from './shared';
 import { ChangeResult, contactFor, type OnResult } from './appointments';
 import { SOURCE_LABEL, type SaleRecord, type NoSaleRecord } from '../../src/rules/results';
 import { OutsideSaleForm } from './forms';
@@ -29,7 +29,7 @@ const wkLabel = (a: number, b: number) => { const e = parts(b - 1, TZ).d; return
 const rate = (b: { reached: number; dials: number }) => Math.min(1, R.pct(b.reached, b.dials));
 const MIN = 30;   // trust a rate once it has about 30 dials
 
-export function ResultsPage({ d, onDial, onResult }: { d: D; onDial: (id: string) => void; onResult: OnResult }) {
+export function ResultsPage({ d, onDial, onResult, onText }: { d: D; onDial: (id: string) => void; onResult: OnResult; onText?: (id: string) => void }) {
   const [tab, setTab] = useState<Tab>(() => { try { return (localStorage.getItem('trucker-results-tab') as Tab) || 'overview'; } catch { return 'overview'; } });
   const [rk, setRk] = useState<RangeKind>('month');
   const [drill, setDrill] = useState<DrillT | null>(null);
@@ -79,13 +79,13 @@ export function ResultsPage({ d, onDial, onResult }: { d: D; onDial: (id: string
         {tab === 'dialing' && <Dialing d={d} r={range} />}
         {tab === 'history' && <History d={d} />}
       </div>
-      {drill && <Drill d={d} t={drill} who={who} onClose={() => setDrill(null)} onDial={id => { setDrill(null); onDial(id); }} onResult={onResult} />}
+      {drill && <Drill d={d} t={drill} who={who} onClose={() => setDrill(null)} onDial={id => { setDrill(null); onDial(id); }} onResult={onResult} onText={onText ? id => { setDrill(null); onText(id); } : undefined} />}
     </div>
   );
 }
 
 /** The side sheet a chart click opens: every sale and no-sale behind it. Click one for the dialer or to change it. */
-function Drill({ d, t, who, onClose, onDial, onResult }: { d: D; t: DrillT; who: (id: string) => R.Who; onClose: () => void; onDial: (id: string) => void; onResult: OnResult }) {
+function Drill({ d, t, who, onClose, onDial, onResult, onText }: { d: D; t: DrillT; who: (id: string) => R.Who; onClose: () => void; onDial: (id: string) => void; onResult: OnResult; onText?: (id: string) => void }) {
   const [open, setOpen] = useState<string | null>(t.sales.length + t.noSales.length === 1 ? (t.sales.length ? 's' + t.sales[0] : 'n' + t.noSales[0]) : null);
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('.modal-bg')) onClose(); }; addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, [onClose]);
   const items = [
@@ -120,7 +120,7 @@ function Drill({ d, t, who, onClose, onDial, onResult }: { d: D; t: DrillT; who:
                     {ns && <p className="hint">{ns.reason || 'No reason written.'}{ns.followUp ? ` · follow up ${ns.followUp.slice(5).replace('-', '/')}` : ''}{ns.followUpNote ? ` (${ns.followUpNote})` : ''}</p>}
                     <div className="dacts">
                       {real && <button className="btn primary" onClick={() => onDial(rec!.contactId)}>Open in dialer</button>}
-                      {phone && <a className="btn" href={`tel:${phone.replace(/[^\d+]/g, '')}`}>Call {phone}</a>}
+                      {phone && <Reach id={rec!.contactId} phone={phone} first={w.first} onText={real ? onText : undefined} />}
                       {!real && <span className="hint">From the Production Desk: not on a calling list.</span>}
                     </div>
                     {c && <ChangeResult at={rec!.at} target={{ from: kind, index: i }} c={c} d={d} onResult={onResult} onDone={onClose} />}

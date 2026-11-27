@@ -191,6 +191,9 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
     }
   }, [current?.id]);
 
+  /** Text button on client panels: the Quo text box when Quo is on (otherwise the panels use the computer's texting app). */
+  const textContact = quoOn ? (id: string) => { const c = d.byId.get(id); if (c) setQuo({ id, apptAt: tagKind(c.tag) === 'scheduled' ? c.callAt : null }); } : undefined;
+
   /** Call: opens the phone app (or the web dialer) and starts the call timer. */
   const startCall = (c: Contact, useBackup = false) => {
     const num = (useBackup && c.backup ? c.backup : c.phone || c.backup).replace(/[^\d+]/g, '');
@@ -463,7 +466,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       {!switching && page === 'home' && <HomePage note={note} stats={s} appts={homeAppts} nextAppts={nextAppts} nextLabel={nextLabel} waiting={{ ...waiting, newNumbers: newNums }} coach={coach}
         health={hc} sheet={{ waiting: sheetWaitN, look: sheetLookN, needs: needsN }} wins={wins} monthDays={monthDays} daysInMonth={daysInMonth}
         go={setPage} openHealth={() => setHealthOpen(true)} onDial={id => { setPicked(id); setPage('today'); }} timeOnly={timeOnly} md={x => md(x, TZ)} />}
-      {!switching && page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} />}
+      {!switching && page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onText={textContact} />}
       {!switching && page === 'coach' && <CoachPage me={me} admin={t.role === 'admin'} agents={t.team.agents} contacts={d.contacts} now={d.now} />}
       {!switching && page === 'needs' && <NeedsPage d={d} ns={ns} states={me.states} />}
       {!switching && page === 'team' && <TeamPage t={t} now={d.now} live={{ id: agent, data: { contacts: d.contacts, log: d.log, sales: d.sales, noSales: d.noSales } }}
@@ -471,8 +474,8 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       {!switching && page === 'library' && <LibraryPage t={t} lib={lib} now={d.now} say={d.say} onLicenses={() => setLicOpen(true)} mine={d.contacts} />}
       {!switching && page === 'settings' && <SettingsPage t={t} />}
       {!switching && page === 'integrations' && <IntegrationsPage t={t} />}
-      {!switching && page === 'results' && <ResultsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} />}
-      {!switching && page === 'appts' && <AppointmentsPage d={d} cal={cal} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} 
+      {!switching && page === 'results' && <ResultsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} onText={textContact} />}
+      {!switching && page === 'appts' && <AppointmentsPage d={d} cal={cal} onText={textContact} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} 
         onQuoText={quoOn ? (id, at, tomorrow) => setQuo({ id, apptAt: at, first: tomorrow ? 'confirmTomorrow' : 'confirmToday' }) : undefined} />}
       {!switching && page === 'today' && <>
       <section className="hero">
