@@ -64,3 +64,13 @@ describe("Quo's 2026 webhook format (data.resource + data.context)", () => {
     expect(transcriptText(tr)).toBe('Agent: Hi, this is the agent\nContact: Hey');
   });
 });
+
+describe('several Quo numbers per agent', () => {
+  it('finds the agent by any of their numbers', async () => {
+    const { agentByNumber } = await import('../src/live/server');
+    const t = { agents: [{ id: 'a1', quo: true, quoNumber: '+15555550199, (555) 555-0188' }] } as never;
+    expect(agentByNumber(t, '+15555550188')?.id).toBe('a1');
+    expect(agentByNumber(t, '+15555550199')?.id).toBe('a1');
+    expect(agentByNumber(t, '+15555550177')).toBeUndefined();
+  });
+});

@@ -2,7 +2,7 @@
 // SUPABASE_SECRET_KEY lets the server add Quo events, which nobody signed in can do.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { digits10 } from '../contacts/phones';
-import type { TeamSettings, AgentSetting } from '../team/agents';
+import { quoNumbers, type TeamSettings, type AgentSetting } from '../team/agents';
 
 const URL = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim().replace(/\/(rest\/v1\/?)?$/, '').replace(/\/+$/, '');
 
@@ -21,7 +21,7 @@ export async function teamSettings(db: SupabaseClient): Promise<TeamSettings | n
 /** Which agent owns a Quo number. */
 export function agentByNumber(t: TeamSettings | null, phone: string): AgentSetting | undefined {
   const d = digits10(phone);
-  return d.length === 10 ? t?.agents.find(a => a.quo && digits10(a.quoNumber ?? '') === d) : undefined;
+  return d.length === 10 ? t?.agents.find(a => a.quo && quoNumbers(a.quoNumber).some(n => digits10(n) === d)) : undefined;
 }
 
 /** The signed-in person behind a request (from the Supabase access token the screen sends). Says why when it can't tell. */

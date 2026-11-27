@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { adminDb, teamSettings, whoIsCalling } from '../../../../src/live/server';
 import { checkText, sendTextRequest } from '../../../../src/quo/quo';
+import { quoNumbers } from '../../../../src/team/agents';
 
 export async function POST(req: Request) {
   try {
@@ -11,7 +12,7 @@ export async function POST(req: Request) {
     const { to, content } = await req.json() as { to: string; content: string };
     const agent = (await teamSettings(db))?.agents.find(a => a.id === me.agentId);
     if (!agent?.quo) return NextResponse.json({ error: 'Quo is not turned on for you in Settings.' }, { status: 400 });
-    const t = { from: agent.quoNumber ?? '', to, content };
+    const t = { from: quoNumbers(agent.quoNumber)[0] ?? '', to, content };
     const problem = checkText(t);
     if (problem) return NextResponse.json({ error: problem }, { status: 400 });
     const key = process.env.QUO_API_KEY;

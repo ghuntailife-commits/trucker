@@ -62,7 +62,7 @@ export function SettingsPage({ t }: { t: Team }) {
                     <td><input className="money" inputMode="decimal" value={goalText[a.id] ?? ''} aria-label={`${a.name} monthly goal`}
                       onChange={e => { setGoalText(g => ({ ...g, [a.id]: e.target.value })); const n = num(e.target.value); setA(a.id, { goal: n > 0 ? Math.round(n) : 0 }); }} /></td>
                     <td><Toggle on={a.quo} label={`Quo for ${a.name}`} onChange={v => setA(a.id, { quo: v })} /></td>
-                    <td><input placeholder={a.quo ? 'Added at go-live' : '—'} disabled={!a.quo} value={a.quoNumber} aria-label={`${a.name} Quo number`}
+                    <td><input placeholder={a.quo ? 'One or more, with commas' : '—'} disabled={!a.quo} value={a.quoNumber} aria-label={`${a.name} Quo number`}
                       onChange={e => setA(a.id, { quoNumber: e.target.value })} /></td>
                     <td><Toggle on={a.coaching} label={`Monday note for ${a.name}`} onChange={v => setA(a.id, { coaching: v })} /></td>
                   </tr>

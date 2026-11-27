@@ -163,3 +163,6 @@ export function agentChanges(before: AgentSetting[], after: AgentSetting[]): str
   }
   return out;
 }
+
+/** An agent can have several Quo numbers (e.g. one per state), typed comma-separated. The first is the one texts go from. */
+export const quoNumbers = (v: string | undefined): string[] => (v ?? '').split(/[,;\n]+/).map(x => x.trim()).filter(Boolean);
