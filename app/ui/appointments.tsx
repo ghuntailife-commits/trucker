@@ -401,6 +401,9 @@ function Detail({ agentName, it, c, d, onDial, onResult, onQuoText, onText, onCa
           <button className="btn go" onClick={() => onResult('sold', c.id)}>Sold</button>
           <button className="btn" onClick={() => onResult('presented', c.id)}>Presented</button>
           <button className="btn" onClick={() => onResult('reschedule', c.id)}>Book appointment</button>
+          {/* a callback whose time has passed: they didn't pick up, or it was a set call they missed (George, 2026-11-27) */}
+          {it.at <= d.now && <button className="btn" onClick={() => d.press(c.id, 'noanswer')}>No answer</button>}
+          {it.at <= d.now && <button className="btn" onClick={() => d.outcome(c.id, 'noshow')}>No-show</button>}
         </div>
       )}
       {target && <ChangeResult at={it.at} target={target} c={c} d={d} onResult={onResult} />}

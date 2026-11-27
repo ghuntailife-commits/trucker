@@ -21,6 +21,7 @@ import { ResultForm, type ResultKind, type ResultInitial } from './ui/forms';
 import type { AmendTarget } from '../src/rules/amend';
 import { saleAlp } from '../src/rules/results';
 import { AllSearch } from './ui/allSearch';
+import { CatchUpDialog } from './ui/catchUp';
 import { realPresentations } from '../src/reports/presented';
 import { StatusPage } from './ui/status';
 import { useUpdateCheck } from '../src/live/useUpdateCheck';
@@ -153,6 +154,9 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const [moveIds, setMoveIds] = useState<string[] | null>(null);
   const [openAppt, setOpenAppt] = useState<{ id: string; at: number | null } | null>(null);   // Home > appointment > its card   // admin: Contacts tab > Move to another agent
   const [allOpen, setAllOpen] = useState<string | null>(null);   // admin: search every agent
+  // admin: bring an agent's old-sheet work into Dispatch; reopens itself after Google's permission screen
+  const [catchOpen, setCatchOpen] = useState(false);
+  useEffect(() => { try { if (sessionStorage.getItem('dispatch-catchup-resume')) setCatchOpen(true); } catch { /* */ } }, []);
   const [pendingPick, setPendingPick0] = useState<{ agent: string; id: string } | null>(() => PENDING.pick);
   const setPendingPick = (v: { agent: string; id: string } | null) => { PENDING.pick = v; setPendingPick0(v); };
   // The agent's time zone follows them to other computers (kv dispatch-tz-<id>); a change reloads so every screen uses it.
@@ -548,6 +552,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
           <ProfileMenu t={t} me={me} theme={theme} setTheme={setTheme} items={[
             { key: 'settings', label: 'Settings', sub: 'Goals, rules, Quo, coaching', onClick: () => setPage('settings'), hidden: !pages.includes('settings') },
             { key: 'integrations', label: 'Integrations', sub: 'Quo, Google, Claude AI', onClick: () => setPage('integrations') },
+            { key: 'catchup', label: 'Bring over sheet work', sub: 'For an agent who dialed in their old sheet today', onClick: () => setCatchOpen(true), hidden: !isAdmin },
             { key: 'status', label: 'System status', sub: 'Is everything working for everyone', onClick: () => setPage('status'), hidden: !pages.includes('status') },
             { key: 'tz', label: 'My time zone', sub: `${TZ_NAME} (${TZ_ABBR})`, onClick: () => setTzOpen(true) },
             { key: 'lic', label: 'My licensed states', sub: me.states.length ? `${me.states.length} state${me.states.length === 1 ? '' : 's'}` : 'None set yet', onClick: () => setLicOpen(true) },
@@ -891,6 +896,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       {quo && d.byId.get(quo.id) && <QuoText c={d.byId.get(quo.id)!} agent={me} apptAt={quo.apptAt} first={quo.first} onClose={() => setQuo(null)}
         onSent={body => { d.note(quo.id, `Texted (Quo): "${body}"`); setQuo(null); }} />}
       {keysOpen && <ShortcutsDialog onClose={() => setKeysOpen(false)} />}
+      {catchOpen && isAdmin && <CatchUpDialog say={d0.say} onClose={() => setCatchOpen(false)} />}
       {allOpen !== null && <AllSearch agents={t.team.agents.map(a => ({ id: a.id, name: a.name }))} start={allOpen} onClose={() => setAllOpen(null)}
         onOpen={(who, id) => { setAllOpen(null); if (who !== agent) t.setViewer(who as ViewerId); setPendingPick({ agent: who, id }); }} />}
       {moveIds && <MoveContacts t={t} lib={lib} now={d.now} say={d.say} presetFrom={agent} presetPicked={moveIds} onClose={() => setMoveIds(null)} />}
