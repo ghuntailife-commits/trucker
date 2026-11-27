@@ -27,3 +27,14 @@ describe('meet presentations', () => {
     expect(readPresTool({ summary: '' })).toBeNull();
   });
 });
+
+describe('presentations not on this Dispatch', () => {
+  it('reads a phone or a plain name title as a presentation, not meetings', async () => {
+    const { guessPerson } = await import('../src/meet/present');
+    expect(guessPerson({ id: '1', summary: 'Sam Testwell - 555-555-0141' })).toEqual({ id: '', n: 'Sam Testwell', p: '5555550141' });
+    expect(guessPerson({ id: '2', summary: 'Jo Example - Knight-Swift - (555) 555-0142 - FL' })?.p).toBe('5555550142');
+    expect(guessPerson({ id: '3', summary: 'Kellie Example' })?.n).toBe('Kellie Example');
+    expect(guessPerson({ id: '4', summary: 'Team meeting' })).toBeNull();
+    expect(guessPerson({ id: '5', summary: 'lunch' })).toBeNull();
+  });
+});

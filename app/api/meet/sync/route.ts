@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { adminDb, whoIsCalling } from '../../../../src/live/server';
 import { accessToken } from '../../../../src/calendar/google';
-import { PRES_PROMPT, PRES_TOOL, PRES_TYPE, matchEvent, meetDocs, readPresTool, type CalEvent, type Person } from '../../../../src/meet/present';
+import { PRES_PROMPT, PRES_TOOL, PRES_TYPE, guessPerson, matchEvent, meetDocs, readPresTool, type CalEvent, type Person } from '../../../../src/meet/present';
 
 export const maxDuration = 300;
 const DAY = 86_400_000, PER_RUN = 2;
@@ -62,7 +62,8 @@ export async function POST(req: Request) {
     // the same meeting can sit on two calendars: keep one
     const uniq = new Map(events.map(e => [e.id, e])); events.length = 0; events.push(...uniq.values());
 
-    const found = events.filter(e => pins[e.id] !== 'skip').map(e => ({ e, who: (pins[e.id] as Person | undefined) ?? matchEvent(e, people ?? []) }));
+    // not on this Dispatch but clearly a presentation (phone or a person's name as the title): still read it, for coaching (George, 2026-11-27)
+    const found = events.filter(e => pins[e.id] !== 'skip').map(e => ({ e, who: (pins[e.id] as Person | undefined) ?? matchEvent(e, people ?? []) ?? guessPerson(e) }));
     const matched = found.filter(f => f.who);
     const unmatched = found.filter(f => !f.who).map(f => ({ eventId: f.e.id, title: f.e.summary ?? '(no title)', at: Date.parse(f.e.start?.dateTime ?? `${f.e.start?.date}T12:00:00Z`) }))
       .sort((a, b) => b.at - a.at).slice(0, 40);
@@ -94,7 +95,7 @@ export async function POST(req: Request) {
       const got = readPresTool((msg.content.find(b => b.type === 'tool_use') as { input: unknown } | undefined)?.input);
       const at = Date.parse(e.start?.dateTime ?? `${e.start?.date}T12:00:00Z`);
       const { error } = await db.from('quo_events').upsert({ id: `meet:${e.id}`, agent_id: agent, type: PRES_TYPE, call_id: null, phone: who!.p,
-        at: new Date(Number.isFinite(at) ? at : now).toISOString(), applied: !got, ai_note: got?.note ?? '', ai_tags: got?.tags ?? null,
+        at: new Date(Number.isFinite(at) ? at : now).toISOString(), applied: !got || !who!.id, ai_note: got?.note ?? '', ai_tags: got?.tags ?? null,
         payload: { source: 'Google Meet', title: e.summary ?? '', eventId: e.id, contactId: who!.id, doc: doc.fileUrl ?? '', docTitle: doc.title ?? '' } });
       if (error) return NextResponse.json({ error: error.message, saved });
       if (got) saved++;   // a transcript Claude could not read is still marked done, so it isn't paid for again every run

@@ -105,6 +105,18 @@ export function matchEvent(ev: CalEvent, people: Person[]): Person | null {
   return named.length === 1 ? named[0] : null;
 }
 
+/** A Meet event that is clearly a client presentation even though the contact isn't on this Dispatch: a phone number in
+ *  the title, or a title that is just a person's name ("Kellie Kaymark"). Team meetings, trainings and the like are not. */
+export function guessPerson(ev: CalEvent): Person | null {
+  const title = (ev.summary ?? '').trim();
+  if (!title || /\b(meeting|team|training|sync|stand ?up|interview|huddle|call with|webinar|onboarding|review|1:1|one on one|class|zoom|office)\b/i.test(title)) return null;
+  const phone = (title.match(/\d[\d\s().-]{8,}\d/g) ?? []).map(d10).find(d => d.length === 10) ?? '';
+  const name = title.split(/\s+[-–|]\s+/)[0].replace(/[^A-Za-z' .-]/g, ' ').replace(/\s+/g, ' ').trim();
+  const words = name.split(' ').filter(Boolean);
+  if (phone) return { id: '', n: name || title, p: phone };
+  return words.length >= 2 && words.length <= 4 && words.every(w => /^[A-Z][A-Za-z'.-]*$/.test(w)) && title.length < 60 ? { id: '', n: name, p: '' } : null;
+}
+
 // ---------- sums for the Coaching tab ----------
 export interface PresRow { id: string; at: number; phone: string; title: string; note: string; tags: PresTags | null; doc?: string }
 export function presSums(rows: PresRow[]) {

@@ -119,7 +119,7 @@ export function useGoogleCalendar(agent: string, contacts: Contact[], tz: string
   const meetSync = useCallback(async (manual = false) => {
     if (!LIVE || meetBusy.current || !readyRef.current || (!manual && signedInAs() !== agent)) return;
     meetBusy.current = true;
-    const flag = `dispatch-meet-backfill-v1-${agent}`;
+    const flag = `dispatch-meet-backfill-v2-${agent}`;
     let back = false; try { back = !localStorage.getItem(flag); } catch { /* */ }
     try {
       const people = latest.current.filter(c => c.phone).map(c => ({ id: c.id, n: `${c.first} ${c.last}`.trim(), p: c.phone }));
