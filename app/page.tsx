@@ -35,6 +35,7 @@ import { ProfileMenu, ShortcutsDialog, IntegrationsPage } from './ui/profile';
 import { buildBrief, briefKind } from '../src/brief/brief';
 import { factsByTopic, lastCallNotes, readFacts } from '../src/brief/profile';
 import { profileBackfill } from '../src/live/coachClient';
+import { useAiBrief } from '../src/live/useAiBrief';
 import { MENU_PAGES } from '../src/team/agents';
 import { Sidebar, useSidebar, Mark, Wordmark } from './ui/sidebar';
 import { HomePage } from './ui/home';
@@ -377,16 +378,23 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   }, [d.sales, d.now]);
   const wins = useMemo(() => [...d.sales].sort((a, b) => b.at - a.at).slice(0, 4).map(x => { const c = d.byId.get(x.contactId);
     return { id: x.contactId, name: c ? `${c.first} ${c.last}` : x.who ? `${x.who.first} ${x.who.last}` : 'Sale', alp: saleAlp(x), at: x.at }; }), [d.sales, d.byId]);
-  if (!d.ready) return <div className="empty">Loading…</div>;
-  const s = d.stats;
-  const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
-  const lines = current ? notesNewestFirst(current.notes) : [];
   const bk = current ? briefKind(why) : null;
   const brief = current && bk ? buildBrief({ c: current, kind: bk, agent: me.name, now: d.now, tz: TZ, cfg: d.cfg, noShowRate,
     noSale: bk === 'followUp' ? [...d.noSales].reverse().find(n => n.contactId === current.id) : undefined }) : null;
   // George 2026-11-27: the brief also shows the AI notes from the last call and what the calls taught us about the person
   const lastCall = current ? lastCallNotes(current.notes) : null;
   const known = current ? factsByTopic(current.profile, d.now) : [];
+  // ...and Claude writes it in its own words (George, 2026-11-27). The rules draft shows until it comes back.
+  const talkedBefore = (c?: Contact) => !!c && (!!lastCallNotes(c.notes) || !!c.profile?.length);
+  const aiKind = bk ?? (talkedBefore(current) ? 'retry' : null);
+  const nextRow = position >= 0 ? d.queue[position + 1] : d.queue[1];
+  const nextKind = nextRow ? briefKind(nextRow.why) ?? (talkedBefore(nextRow.contact) ? 'retry' : null) : null;
+  const ai = useAiBrief(current, aiKind, me.name, d.now, TZ, brief, nextRow && nextKind ? { c: nextRow.contact, kind: nextKind } : null);
+  const shown = ai.b ?? brief;
+  if (!d.ready) return <div className="empty">Loading…</div>;
+  const s = d.stats;
+  const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
+  const lines = current ? notesNewestFirst(current.notes) : [];
   const history = lines.filter(isHistoryNote), research = lines.filter(l => !isHistoryNote(l));
   const dialNum = current ? (backupMode && current.backup ? current.backup : current.phone || current.backup) : '';
   const otherNum = current ? (backupMode ? current.phone : current.backup) : '';
@@ -495,7 +503,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       {!switching && page === 'settings' && <SettingsPage t={t} />}
       {!switching && page === 'integrations' && <IntegrationsPage t={t} />}
       {!switching && page === 'results' && <ResultsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} onText={textContact} />}
-      {!switching && page === 'appts' && <AppointmentsPage agent={agent} d={d} cal={cal} onText={textContact} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} 
+      {!switching && page === 'appts' && <AppointmentsPage agent={agent} agentName={me.name} d={d} cal={cal} onText={textContact} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} 
         onQuoText={quoOn ? (id, at, tomorrow) => setQuo({ id, apptAt: at, first: tomorrow ? 'confirmTomorrow' : 'confirmToday' }) : undefined} />}
       {!switching && page === 'today' && <>
       <section className="hero">
@@ -664,14 +672,15 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
                 })}
               </div>
 
-              {(brief || lastCall || known.length > 0) && (
+              {(shown || lastCall || known.length > 0) && (
                 <div className={`brief b-${brief?.kind ?? 'known'}`} aria-label="Call brief">
-                  <div className="bhead"><span className="eyebrow">Call brief</span>{brief && <small title="Built from the contact's notes and history">from notes and history</small>}</div>
-                  {brief && <>
-                    <p><b>Who.</b> {brief.who}</p>
-                    <p><b>Where it stands.</b> {brief.stands}</p>
-                    <p className="open"><b>Open with.</b> {brief.openWith}</p>
-                    {brief.watch.length > 0 && <ul>{brief.watch.map(w => <li key={w}>{w}</li>)}</ul>}
+                  <div className="bhead"><span className="eyebrow">Call brief</span>
+                    <small>{ai.b ? 'written by Claude' : ai.busy ? 'Claude is writing…' : brief ? 'from notes and history' : ''}</small></div>
+                  {shown && <>
+                    <p><b>Who.</b> {shown.who}</p>
+                    <p><b>Where it stands.</b> {shown.stands}</p>
+                    <p className="open"><b>Open with.</b> {shown.openWith}</p>
+                    {shown.watch.length > 0 && <ul>{shown.watch.map(w => <li key={w}>{w}</li>)}</ul>}
                   </>}
                   {lastCall && <p className="blast"><b>Last call · {lastCall.day}.</b> {lastCall.text}</p>}
                   {known.length > 0 && <div className="bknown">

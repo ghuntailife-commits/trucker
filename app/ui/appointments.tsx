@@ -1,7 +1,7 @@
 // Appointments page: the week on one screen (appointments, callbacks, follow-ups and results), what needs a result,
 // and the details and actions for the one picked. Replaces the APPOINTMENTS calendar check and the sync menu.
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import type { useDialer } from '../../src/app-store/useDialer';
 import type { Contact } from '../../src/rules/types';
 import { tagKind } from '../../src/rules/tags';
@@ -14,6 +14,9 @@ import { TZ, ZONE_NAME, saveText, timeOnly, localTime, NoteText, Reach } from '.
 import { WeekGrid } from './weekGrid';
 import { NewEvent } from './newEvent';
 import { useMyEvents } from '../../src/app-store/useMyEvents';
+import { eventNote } from '../../src/brief/text';
+import { factsByTopic, lastCallNotes } from '../../src/brief/profile';
+import { useAiBrief } from '../../src/live/useAiBrief';
 import { occurrencesBetween, REPEAT_LABEL, type MyEvent, type Occurrence } from '../../src/calendar/myEvents';
 import { BLOCK_MS, nextOpenings, type WorkHours } from '../../src/calendar/grid';
 import { Dialog } from './shared';
@@ -47,7 +50,7 @@ const TONE: Record<CalItem['kind'], string> = { appt: 'blue', callback: 'amber',
 const pillTone = (it: CalItem) => it.kind === 'appt' ? (it.label === 'Confirmed' ? 'teal' : it.label === 'Booked' ? 'blue' : 'amber') : TONE[it.kind];
 
 /** onQuoText: when the agent has Quo, reminders open the Quo text box instead of the computer's own texting app. */
-export function AppointmentsPage({ agent, d, cal, onDial, onResult, onQuoText, onText }: { agent: string; d: D; cal?: GoogleCal; onDial: (id: string) => void; onResult: OnResult; onQuoText?: (id: string, at: number, tomorrow: boolean) => void; onText?: (id: string) => void }) {
+export function AppointmentsPage({ agent, agentName = '', d, cal, onDial, onResult, onQuoText, onText }: { agent: string; agentName?: string; d: D; cal?: GoogleCal; onDial: (id: string) => void; onResult: OnResult; onQuoText?: (id: string, at: number, tomorrow: boolean) => void; onText?: (id: string) => void }) {
   const [offset, setOffset] = useState(0);
   const [sel, setSel] = useState<string | null>(null);
   const mine = useMyEvents(agent);
@@ -174,7 +177,7 @@ export function AppointmentsPage({ agent, d, cal, onDial, onResult, onQuoText, o
   const downloadWeek = () => {
     const evs = d.contacts.filter(x => x.callAt != null && x.callAt >= Math.max(start, d.now) && x.callAt < end
       && (tagKind(x.tag) === 'scheduled' || tagKind(x.tag) === 'callback'))
-      .map(x => ({ ...eventFor(x, tagKind(x.tag) === 'scheduled' ? 'appt' : 'callback', x.callAt!, { email: x.email }), uid: `${x.id}-${x.callAt}` }));
+      .map(x => ({ ...eventFor(x, tagKind(x.tag) === 'scheduled' ? 'appt' : 'callback', x.callAt!, { email: x.email, note: eventNote(x, d.now, !!x.email?.trim()) }), uid: `${x.id}-${x.callAt}` }));
     if (!evs.length) return d.say('Nothing upcoming this week to add.', 'warn');
     saveText(`appointments-${dayNum.format(start).replace(' ', '-')}.ics`, toIcs(evs, Date.now()), 'text/calendar');
   };
@@ -244,7 +247,7 @@ export function AppointmentsPage({ agent, d, cal, onDial, onResult, onQuoText, o
           <section className="panel adetail">
             {pickedMine ? <MineDetail e={pickedMine} onEdit={() => setCreating({ at: pickedMine.start, edit: pickedMine })}
                 onDelete={all => deleteMine(pickedMine, all)} />
-              : picked && c ? <Detail it={picked} c={c} d={d} onDial={onDial} onResult={onResult} onQuoText={onQuoText} onText={onText} onCancel={canMove(picked) ? () => cancelItem(picked) : undefined} />
+              : picked && c ? <Detail agentName={agentName} it={picked} c={c} d={d} onDial={onDial} onResult={onResult} onQuoText={onQuoText} onText={onText} onCancel={canMove(picked) ? () => cancelItem(picked) : undefined} />
               : <div className="pad16">{undoMine && <p className="undoline">{undoMine.text} <button className="linkish" onClick={() => { undoMine.undo(); setUndoMine(null); }}>Undo</button></p>}<div className="eyebrow">Details</div><p className="hint">Pick anything on the week to see the contact, confirm it, or record how it went.{view === 'grid' ? ' Drag a block to a new time. Click open time to book a contact there or block it off for yourself.' : ''}</p></div>}
           </section>
           <section className="panel needs2">
@@ -337,7 +340,7 @@ function MineDetail({ e, onEdit, onDelete }: { e: Occurrence; onEdit: () => void
   </div>;
 }
 
-function Detail({ it, c, d, onDial, onResult, onQuoText, onText, onCancel }: { it: CalItem; c: Contact; d: D; onDial: (id: string) => void; onResult: OnResult; onQuoText?: (id: string, at: number, tomorrow: boolean) => void; onText?: (id: string) => void; onCancel?: () => void }) {
+function Detail({ agentName, it, c, d, onDial, onResult, onQuoText, onText, onCancel }: { agentName: string; it: CalItem; c: Contact; d: D; onDial: (id: string) => void; onResult: OnResult; onQuoText?: (id: string, at: number, tomorrow: boolean) => void; onText?: (id: string) => void; onCancel?: () => void }) {
   const phone = c.phone || c.backup;
   const open = tagKind(c.tag) === 'scheduled' && it.kind === 'appt';
   const soon = open && it.at >= d.now && it.at < startOfDay(d.now, TZ) + 2 * DAY_MS;
@@ -346,7 +349,7 @@ function Detail({ it, c, d, onDial, onResult, onQuoText, onText, onCancel }: { i
   const notes = notesNewestFirst(c.notes).slice(0, 4);
   const target = resultTarget(it);
   const ics = () => saveText(`${c.first}-${c.last}.ics`.toLowerCase(),
-    toIcs([{ ...eventFor(c, it.kind === 'callback' ? 'callback' : 'appt', it.at, { email: c.email }), uid: `${c.id}-${it.at}` }], Date.now()), 'text/calendar');
+    toIcs([{ ...eventFor(c, it.kind === 'callback' ? 'callback' : 'appt', it.at, { email: c.email, note: eventNote(c, d.now, !!c.email?.trim()) }), uid: `${c.id}-${it.at}` }], Date.now()), 'text/calendar');
   return (
     <div className="pad16">
       <div className="eyebrow">{it.label}{it.detail ? ' · ' + it.detail : ''}</div>
@@ -380,6 +383,7 @@ function Detail({ it, c, d, onDial, onResult, onQuoText, onText, onCancel }: { i
         </div>
       )}
       {target && <ChangeResult at={it.at} target={target} c={c} d={d} onResult={onResult} />}
+      {(it.kind === 'appt' || it.kind === 'callback') && it.at >= d.now - 3_600_000 && d.byId.has(c.id) && <Prep c={c} kind={it.kind === 'appt' ? 'appt' : 'callback'} agentName={agentName} now={d.now} />}
       <div className="dacts sub2">
         {d.byId.has(c.id) && <button className="linkish" onClick={() => onDial(c.id)}>Open in dialer</button>}
         {(it.kind === 'appt' || it.kind === 'callback') && it.at >= d.now && <button className="linkish" onClick={ics}>Add to my calendar</button>}
@@ -389,6 +393,22 @@ function Detail({ it, c, d, onDial, onResult, onQuoText, onText, onCancel }: { i
         {notes.map((l, i) => { const m = l.match(/^(\d{1,2}\/\d{1,2}):\s*(.*)$/); return <div className="hl" key={i}><span>{m ? m[1] : ''}</span><p><NoteText text={m ? m[2] : l} /></p></div>; })}</div>}
     </div>
   );
+}
+
+/** Prep for a booked appointment or callback (George, 2026-11-27): Claude's brief, the last call's AI notes and
+ * what the calls taught us about the person. The same notes go on the calendar event (unless the client is invited). */
+function Prep({ c, kind, agentName, now }: { c: Contact; kind: 'appt' | 'callback'; agentName: string; now: number }) {
+  const last = lastCallNotes(c.notes), known = factsByTopic(c.profile, now);
+  const ai = useAiBrief(c, kind, agentName, now, TZ);
+  if (!ai.b && !ai.busy && !last && !known.length) return null;
+  return <div className="brief b-known prep">
+    <div className="bhead"><span className="eyebrow">Prep</span><small>{ai.b ? 'written by Claude' : ai.busy ? 'Claude is writing…' : ''}</small></div>
+    {ai.b && <><p><b>Who.</b> {ai.b.who}</p><p><b>Where it stands.</b> {ai.b.stands}</p><p className="open"><b>Open with.</b> {ai.b.openWith}</p>
+      {ai.b.watch.length > 0 && <ul>{ai.b.watch.map(w => <li key={w}>{w}</li>)}</ul>}</>}
+    {last && <p className="blast"><b>Last call · {last.day}.</b> {last.text}</p>}
+    {known.length > 0 && <div className="bknown"><span className="eyebrow">What we know</span>
+      <dl>{known.map(g => <Fragment key={g.topic}><dt>{g.topic}</dt><dd>{g.items.map(f => f.fact).join(' · ')}</dd></Fragment>)}</dl></div>}
+  </div>;
 }
 
 /** Change a result that was already saved: switch it to another result, or fix the details of the same one. */

@@ -31,3 +31,21 @@ describe('profile facts', () => {
     expect(r?.tags.facts).toEqual([{ topic: 'Best time', fact: 'After 6 PM' }]);
   });
 });
+
+import { eventNote, briefKey } from '../src/brief/text';
+import { contact } from './helpers';
+describe('appointment prep notes', () => {
+  const c = { ...contact({ first: 'Pat' }), notes: '11/25: Call notes (AI): Works nights at the hub, wife Jen decides with him.', profile: mergeFacts(undefined, [{ topic: 'Family', fact: 'Wife Jen' }], 0) };
+  it('go on the event when only the agent sees it', () => {
+    const n = eventNote(c, 1000, false);
+    expect(n).toContain('LAST CALL (11/25): Works nights');
+    expect(n).toContain('• Family: Wife Jen');
+  });
+  it('never go on an invite the client gets', () => {
+    expect(eventNote(c, 1000, true)).not.toContain('Jen');
+  });
+  it('the brief is rewritten only when something changed', () => {
+    expect(briefKey(c, 'appt')).toBe(briefKey({ ...c }, 'appt'));
+    expect(briefKey(c, 'appt')).not.toBe(briefKey({ ...c, notes: c.notes + ' | 11/26: VM' }, 'appt'));
+  });
+});

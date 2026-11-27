@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { LIVE, db } from './supabase';
 import type { Contact } from '../rules/types';
 import { tagKind } from '../rules/tags';
+import { eventNote } from '../brief/text';
 import { eventFor } from '../calendar/events';
 import { addNote } from '../rules/engine';
 import { mdTime } from '../rules/time';
@@ -27,7 +28,8 @@ export function wantedEvents(contacts: Contact[], now: number): WantedEvent[] {
     const k = tagKind(c.tag);
     if (c.callAt == null || c.callAt < now - 2 * 3_600_000 || (k !== 'scheduled' && k !== 'callback')) continue;
     const kind = k === 'scheduled' ? 'appt' : 'callback';
-    out.push({ ...eventFor(c, kind, c.callAt, { email: kind === 'appt' ? c.email : undefined }), uid: `${c.id}:${kind}`, contactId: c.id });
+    const email = kind === 'appt' ? c.email?.trim() : undefined;   // prep notes on the event (George, 2026-11-27), never on a client's invite
+    out.push({ ...eventFor(c, kind, c.callAt, { email, note: eventNote(c, now, !!email) }), uid: `${c.id}:${kind}`, contactId: c.id });
   }
   return out;
 }
