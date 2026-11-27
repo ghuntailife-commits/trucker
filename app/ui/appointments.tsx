@@ -105,6 +105,10 @@ export function AppointmentsPage({ agent, agentName = '', d, cal, onDial, onResu
       `${x.first} ${x.last}: callback moved to ${md.format(at)}.`);
   };
 
+  // The agent's own Google Calendar events (busy, read only), when Google Calendar is connected.
+  const gEvents = useMemo(() => (cal?.others ?? []).filter(e => !e.allDay), [cal?.others]);
+  const gBusy = gEvents.map(e => ({ start: e.start, len: Math.max(BLOCK_MS, e.end - e.start) }));
+  const pickedG = sel?.startsWith('g') ? gEvents.find(e => 'g' + e.id === sel) : undefined;
   // Own events, with repeats spread out: this week for the calendar, the next two weeks for openings and clashes.
   const occ = useMemo(() => occurrencesBetween(mine.events, start, end, TZ), [mine.events, start, end]);
   const soon = useMemo(() => occurrencesBetween(mine.events, d.now - DAY_MS, d.now + 15 * DAY_MS, TZ), [mine.events, d.now]);
@@ -112,7 +116,7 @@ export function AppointmentsPage({ agent, agentName = '', d, cal, onDial, onResu
   // "Next 3 openings" lists three to offer a contact on the call.
   const openings = (n: number) => {
     const taken = d.contacts.filter(x => x.callAt != null && x.callAt > d.now && (tagKind(x.tag) === 'scheduled' || tagKind(x.tag) === 'callback')).map(x => x.callAt!);
-    return nextOpenings(n, d.now, mine.hours, taken, soon.map(e => ({ start: e.start, len: e.mins * 60_000 })), t => startOfDay(t, TZ), t => parts(t, TZ).wd);
+    return nextOpenings(n, d.now, mine.hours, taken, [...soon.map(e => ({ start: e.start, len: e.mins * 60_000 })), ...gBusy], t => startOfDay(t, TZ), t => parts(t, TZ).wd);
   };
   const nextOpen = () => openings(1)[0] ?? startOfDay(d.now, TZ) + DAY_MS + mine.hours.start * 60_000;
   const [showOpen, setShowOpen] = useState(false);
@@ -216,7 +220,7 @@ export function AppointmentsPage({ agent, agentName = '', d, cal, onDial, onResu
       </div>
 
       <main className="apptwork">
-        {view === 'grid' ? <WeekGrid days={days} items={items} mine={occ} hours={mine.hours} onResizeMine={resizeMine} onMoveMine={moveMine}
+        {view === 'grid' ? <WeekGrid days={days} items={items} mine={occ} outside={gEvents} hours={mine.hours} onResizeMine={resizeMine} onMoveMine={moveMine}
           onMenu={(key, x, y) => setMenu({ key, x, y })}
           onSlot={at => at < d.now - BLOCK_MS ? d.say('That time has passed. Pick a time still ahead.', 'warn') : setCreating({ at })} today={today} now={d.now} sel={sel} onPick={setSel} canMove={canMove} onMove={moveTo}
           tone={pillTone} nameOf={it => { const x = contactFor(d, it); return { name: x ? `${x.first} ${x.last}` : 'Deleted contact', company: x?.company ?? '' }; }} /> :
@@ -245,7 +249,10 @@ export function AppointmentsPage({ agent, agentName = '', d, cal, onDial, onResu
 
         <aside className="apptside">
           <section className="panel adetail">
-            {pickedMine ? <MineDetail e={pickedMine} onEdit={() => setCreating({ at: pickedMine.start, edit: pickedMine })}
+            {pickedG ? <div className="pad16"><div className="eyebrow">Google Calendar</div><h2 className="dn">{pickedG.title}</h2>
+                <dl className="dl"><dt>When</dt><dd>{whenFull.format(pickedG.start)} – {timeOnly(pickedG.end)} {TZ_ABBR}</dd></dl>
+                <p className="hint">From your Google Calendar. Shown here as busy time; change it in Google Calendar.</p></div>
+              : pickedMine ? <MineDetail e={pickedMine} onEdit={() => setCreating({ at: pickedMine.start, edit: pickedMine })}
                 onDelete={all => deleteMine(pickedMine, all)} />
               : picked && c ? <Detail agentName={agentName} it={picked} c={c} d={d} onDial={onDial} onResult={onResult} onQuoText={onQuoText} onText={onText} onCancel={canMove(picked) ? () => cancelItem(picked) : undefined} />
               : <div className="pad16">{undoMine && <p className="undoline">{undoMine.text} <button className="linkish" onClick={() => { undoMine.undo(); setUndoMine(null); }}>Undo</button></p>}<div className="eyebrow">Details</div><p className="hint">Pick anything on the week to see the contact, confirm it, or record how it went.{view === 'grid' ? ' Drag a block to a new time. Click open time to book a contact there or block it off for yourself.' : ''}</p></div>}
@@ -293,7 +300,9 @@ export function AppointmentsPage({ agent, agentName = '', d, cal, onDial, onResu
           const c2 = d.contacts.find(x => x.id !== skip && x.callAt != null && (tagKind(x.tag) === 'scheduled' || tagKind(x.tag) === 'callback') && x.callAt < end && x.callAt + BLOCK_MS > at);
           if (c2) return `${c2.first} ${c2.last} (${tagKind(c2.tag) === 'scheduled' ? 'appointment' : 'callback'}) at ${timeOnly(c2.callAt!)}`;
           const e2 = soon.find(e => e.seriesId !== creating.edit?.seriesId && e.start < end && e.start + e.mins * 60_000 > at);
-          return e2 ? `“${e2.title}” at ${timeOnly(e2.start)}` : '';
+          if (e2) return `“${e2.title}” at ${timeOnly(e2.start)}`;
+          const g2 = gEvents.find(e => e.start < end && e.end > at);
+          return g2 ? `“${g2.title}” on your Google Calendar at ${timeOnly(g2.start)}` : '';
         }} onClose={() => setCreating(null)}
         onBook={(id, kind, at, email) => { d.book(id, kind, at, email); setSel((kind === 'appt' ? 'a' : 'c') + id); }}
         onSave={saveMine} />}
@@ -442,7 +451,7 @@ export function ChangeResult({ at, target, c, d, onResult, onDone }: { at: numbe
 /** Google Calendar on the Appointments page: connect, or what it's doing (George, 2026-11-26). */
 function GcalStatus({ cal }: { cal: GoogleCal }) {
   if (cal.status === 'checking') return <span className="gcal">Google Calendar…</span>;
-  if (cal.status === 'connected') return <span className="gcal on" title={`Booked appointments and callbacks are kept on ${cal.email ?? 'your'} Google Calendar. Moves in Google Calendar come back here.`}>
+  if (cal.status === 'connected') return <span className="gcal on" title={`Booked appointments and callbacks are kept on ${cal.email ?? 'your'} Google Calendar. Moves in Google Calendar come back here, and your other Google events show here as busy time.`}>
     <i />Google Calendar on{cal.lastSync ? ` · synced ${new Date(cal.lastSync).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}
     <button className="linkish" onClick={() => void cal.sync()}>Sync now</button></span>;
   return <span className="gcal">

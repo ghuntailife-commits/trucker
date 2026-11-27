@@ -1317,3 +1317,5 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 .tzpick { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; } .tzpick .chip { justify-content: space-between; display: flex; }
 .numline .othernum { display: inline-flex; align-items: center; gap: 8px; }
 .numline .callalt { display: inline-flex; align-items: center; gap: 6px; color: var(--green-ink); border-color: var(--green-ink); }
+/* the agent's own Google Calendar events: busy, read only */
+.wgrid .wg-ev.gcal { background: repeating-linear-gradient(135deg, var(--panel2) 0 6px, var(--panel) 6px 12px); border-left-color: var(--muted); color: var(--muted); }

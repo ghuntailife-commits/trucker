@@ -19,8 +19,8 @@ type Drag = { key: string; x0: number; y0: number; grab: number; moved: boolean;
 /** One block on the grid: a contact's appointment/callback/result, or one of the agent's own events. */
 type Block = { key: string; at: number; len: number; name: string; company: string; label: string; kind: string; tone: string; movable: boolean };
 
-export function WeekGrid({ days, items, mine, today, now, sel, onPick, canMove, onMove, onMoveMine, onResizeMine, onSlot, onMenu, nameOf, tone, hours }: {
-  hours?: WorkHours; days: number[]; items: CalItem[]; mine: MyEvent[]; today: number; now: number; sel: string | null;
+export function WeekGrid({ days, items, mine, today, now, sel, onPick, canMove, onMove, onMoveMine, onResizeMine, onSlot, onMenu, nameOf, tone, hours, outside = [] }: {
+  hours?: WorkHours; outside?: { id: string; title: string; start: number; end: number }[]; days: number[]; items: CalItem[]; mine: MyEvent[]; today: number; now: number; sel: string | null;
   onPick: (key: string) => void; canMove: (it: CalItem) => boolean; onMove: (it: CalItem, at: number) => void;
   onMoveMine: (id: string, at: number) => void; onResizeMine: (id: string, mins: number) => void; onSlot: (at: number) => void; onMenu: (key: string, x: number, y: number) => void;
   nameOf: (it: CalItem) => { name: string; company: string }; tone: (it: CalItem) => string;
@@ -30,6 +30,8 @@ export function WeekGrid({ days, items, mine, today, now, sel, onPick, canMove, 
   const blocks: Block[] = [
     ...items.filter(it => !it.allDay).map(it => { const n = nameOf(it); return { key: it.key, at: it.at, len: BLOCK_MS, name: n.name, company: n.company, label: it.label, kind: it.kind, tone: tone(it), movable: canMove(it) }; }),
     ...mine.map(e => ({ key: 'm' + e.id, at: e.start, len: e.mins * 60_000, name: e.title, company: e.note ?? '', label: 'My event', kind: 'mine', tone: 'grey', movable: true })),
+    // the agent's own Google Calendar events: busy time, read only (George, 2026-11-27)
+    ...outside.map(e => ({ key: 'g' + e.id, at: e.start, len: Math.max(BLOCK_MS, e.end - e.start), name: e.title, company: 'Google Calendar', label: 'Google', kind: 'gcal', tone: 'grey', movable: false })),
   ].filter(b => dayOf(b.at) >= 0);
   const minsOf = (at: number) => Math.round((at - days[dayOf(at)]) / 60_000);
   const [first, last] = hourRange(blocks.flatMap(b => [minsOf(b.at), minsOf(b.at) + b.len / 60_000 - SLOT_MIN]));
@@ -125,8 +127,8 @@ export function WeekGrid({ days, items, mine, today, now, sel, onPick, canMove, 
           const here = blocks.filter(b => dayOf(b.at) === i);
           const lay = lanes(here.map(b => ({ key: b.key, start: b.at, len: b.len })));
           const others = here.filter(b => b.key !== drag?.key);
-          const starts = others.filter(b => b.kind !== 'mine').map(b => b.at);
-          const busy = others.filter(b => b.kind === 'mine').map(b => ({ start: b.at, len: b.len }));
+          const starts = others.filter(b => b.kind !== 'mine' && b.kind !== 'gcal').map(b => b.at);
+          const busy = others.filter(b => b.kind === 'mine' || b.kind === 'gcal').map(b => ({ start: b.at, len: b.len }));
           const free = (at: number) => isOpen(starts, at, busy);
           const past = t < today;
           const hoverAt = hover?.day === i ? slotAt(i, hover.slot) : 0;

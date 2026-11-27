@@ -133,3 +133,4 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 | 2026-11-27 | Fix: AI call notes failed since the coaching tags were added (Opus 5.5 refuses a forced tool choice). Now asks with tool choice auto; missed calls get their notes on the next Dispatch open | Bug |
 | 2026-11-27 | Each agent picks their own time zone (profile menu); all their times and day boundaries follow it, saved with their account | George |
 | 2026-11-27 | Dialer: Call backup / Call main button dials the other number right away (ends the current call timer) | George |
+| 2026-11-27 | Appointments calendar shows the agent's own Google Calendar events as busy time (read only), and openings and double-booking warnings count them | George |

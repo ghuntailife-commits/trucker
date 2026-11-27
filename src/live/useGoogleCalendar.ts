@@ -10,9 +10,9 @@ import { eventNote } from '../brief/text';
 import { eventFor } from '../calendar/events';
 import { addNote } from '../rules/engine';
 import { mdTime } from '../rules/time';
-import type { WantedEvent, Move } from '../calendar/google';
+import type { WantedEvent, Move, OtherEvent } from '../calendar/google';
 
-export type CalState = { status: 'off' | 'checking' | 'connected' | 'reconnect' | 'error'; email?: string | null; error?: string; lastSync?: number };
+export type CalState = { status: 'off' | 'checking' | 'connected' | 'reconnect' | 'error'; email?: string | null; error?: string; lastSync?: number; others?: OtherEvent[] };
 
 async function call(path: string, init: RequestInit = {}) {
   const { data } = await db().auth.getSession();
@@ -57,7 +57,7 @@ export function useGoogleCalendar(agent: string, contacts: Contact[], tz: string
             notes: addNote(c.notes, `${mdTime(Date.now(), tz)}: Moved in Google Calendar to ${mdTime(m.start, tz)}`) }] : []; });
           if (changed.length) apply(changed, `${changed.length} appointment${changed.length === 1 ? '' : 's'} moved in Google Calendar.`);
         }
-        setSt(s => ({ ...s, status: 'connected', error: undefined, lastSync: Date.now() }));
+        setSt(s => ({ ...s, status: 'connected', error: undefined, lastSync: Date.now(), ...(Array.isArray(j.others) ? { others: j.others as OtherEvent[] } : {}) }));
         if (!j.more) break;
       }
     } catch (e) { setSt(s => ({ ...s, status: 'error', error: (e as Error).message })); }

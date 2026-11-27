@@ -3,7 +3,7 @@
 // that were moved in Google Calendar so Dispatch can move them too. At most 40 writes per call; the browser calls again.
 import { NextResponse } from 'next/server';
 import { adminDb, whoIsCalling } from '../../../../src/live/server';
-import { accessToken, deleteEvent, hashOf, listOurs, planSync, putEvent, type Row, type WantedEvent } from '../../../../src/calendar/google';
+import { accessToken, deleteEvent, hashOf, listOthers, listOurs, planSync, putEvent, type Row, type WantedEvent } from '../../../../src/calendar/google';
 
 export const maxDuration = 60;
 const MAX = 40;
@@ -46,7 +46,9 @@ export async function POST(req: Request) {
     }
     if (plan.forget.length) await db.from('calendar_events').delete().eq('agent_id', agent).in('uid', plan.forget.map(r => r.uid));
     const more = plan.upsert.length + plan.remove.length > writes;
-    return NextResponse.json({ connected: true, moves: plan.moves, written: writes, more });
+    // the agent's own Google events, shown on the Appointments calendar as busy time
+    const others = more ? undefined : await listOthers(token, now - 8 * 86_400_000, now + 36 * 86_400_000).catch(() => undefined);
+    return NextResponse.json({ connected: true, moves: plan.moves, written: writes, more, others });
   } catch (e) {
     const msg = (e as Error).message;
     return NextResponse.json(msg === 'RECONNECT' ? { connected: false, reconnect: true } : { error: msg }, { status: msg === 'RECONNECT' ? 200 : 500 });

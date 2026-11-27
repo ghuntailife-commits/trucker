@@ -74,6 +74,29 @@ export async function listOurs(token: string, agent: string, now: number) {
   return out;
 }
 
+/** The agent's own Google events (not Dispatch's), so the Appointments calendar shows them as busy time (George, 2026-11-27). */
+export interface OtherEvent { id: string; title: string; start: number; end: number; allDay: boolean }
+export async function listOthers(token: string, from: number, to: number): Promise<OtherEvent[]> {
+  const out: OtherEvent[] = [];
+  let page: string | undefined;
+  type Item = { id: string; status: string; summary?: string; transparency?: string; start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string };
+    extendedProperties?: { private?: Record<string, string> } };
+  for (let i = 0; i < 5; i++) {
+    const p = new URLSearchParams({ timeMin: new Date(from).toISOString(), timeMax: new Date(to).toISOString(), singleEvents: 'true', orderBy: 'startTime', maxResults: '500' });
+    if (page) p.set('pageToken', page);
+    const j = await g<{ items?: Item[]; nextPageToken?: string }>(token, `${API}?${p}`);
+    for (const e of j?.items ?? []) {
+      if (e.status === 'cancelled' || e.extendedProperties?.private?.dispatchAgent) continue;
+      const allDay = !e.start?.dateTime;
+      const start = Date.parse(e.start?.dateTime ?? `${e.start?.date}T12:00:00Z`), end = Date.parse(e.end?.dateTime ?? `${e.end?.date}T12:00:00Z`);
+      if (!Number.isFinite(start)) continue;
+      out.push({ id: e.id, title: (e.summary ?? 'Busy').slice(0, 120), start, end: Number.isFinite(end) ? end : start + 1_800_000, allDay });
+    }
+    page = j?.nextPageToken; if (!page) break;
+  }
+  return out;
+}
+
 const body = (e: WantedEvent, agent: string) => ({
   summary: e.title, description: `${e.description}\n\nAdded by Dispatch.`, location: e.location || undefined,
   start: { dateTime: new Date(e.start).toISOString() }, end: { dateTime: new Date(e.end).toISOString() },
