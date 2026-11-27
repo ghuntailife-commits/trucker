@@ -20,7 +20,7 @@ import { REAL_SEED } from '../src/app-store/realSeed';
 import { ResultForm, type ResultKind, type ResultInitial } from './ui/forms';
 import type { AmendTarget } from '../src/rules/amend';
 import { saleAlp } from '../src/rules/results';
-import { TZ, ZONE_TZ, chipClass, localTime, Ico, IC, fmtSecs, ZONE_NAME, timeOnly, saveText, NoteText } from './ui/shared';
+import { Dialog, TZ, TZ_ABBR, TZ_NAME, ZONE_TZ, chipClass, localTime, Ico, IC, fmtSecs, ZONE_NAME, timeOnly, saveText, NoteText } from './ui/shared';
 import { useTeam, type Team } from '../src/app-store/useTeam';
 import { pagesFor, viewers, type AgentId, type Page, type ViewerId } from '../src/team/agents';
 import { TeamPage, HealthList } from './ui/team';
@@ -35,6 +35,8 @@ import { ProfileMenu, ShortcutsDialog, IntegrationsPage } from './ui/profile';
 import { buildBrief, briefKind } from '../src/brief/brief';
 import { factsByTopic, lastCallNotes, readFacts } from '../src/brief/profile';
 import { profileBackfill } from '../src/live/coachClient';
+import { TZ_CHOICES, saveMyTz } from '../src/rules/myZone';
+import { loadState, saveState } from '../src/app-store/store';
 import { useAiBrief } from '../src/live/useAiBrief';
 import { MENU_PAGES } from '../src/team/agents';
 import { Sidebar, useSidebar, Mark, Wordmark } from './ui/sidebar';
@@ -116,12 +118,17 @@ const hourLabel = (h: number) => (h % 12 || 12) + (h < 12 ? 'a' : 'p');
 
 function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 'light' | 'dark' | null; setTheme: (x: 'light' | 'dark') => void }) {
   const me = t.team.agents.find(a => a.id === agent)!;
-  const d0 = useDialer(agent, t.cfg);
+  const d0 = useDialer(agent, useMemo(() => ({ ...t.cfg, tz: TZ }), [t.cfg]));   // the agent's own time zone (profile menu)
   // the monthly goal lives in Settings, so George can set everyone's
   const d = { ...d0, goal: me.goal, setGoal: (g: number) => { t.setAgent(agent, { goal: g }); d0.say(`Monthly goal set to $${g.toLocaleString('en-US')}.`); } };
   const ns = useNumberSheet(agent, d0.contacts ?? [], d0.now, TZ, d0.batch, d0.say, !!d0.ready);
   const lib = useLibrary(agent, { contacts: d0.contacts ?? [], batch: d0.batch }, TZ, !LIVE || t.person?.role === 'admin', t.team.agents.map(a => a.id));
   const [licOpen, setLicOpen] = useState(false);
+  const [tzOpen, setTzOpen] = useState(false);
+  // The agent's time zone follows them to other computers (kv dispatch-tz-<id>); a change reloads so every screen uses it.
+  const tzKey = `dispatch-tz-${t.person?.agent_id ?? agent}`;
+  useEffect(() => { loadState<string>(tzKey).then(v => { if (v && v !== TZ && saveMyTz(v)) location.reload(); }).catch(() => {}); }, [tzKey]);
+  const pickTz = (tz: string) => { saveState(tzKey, tz); if (saveMyTz(tz)) setTimeout(() => location.reload(), 300); };
   const calApply = useCallback((changed: Contact[], msg: string) => d0.batch('Moved in Google Calendar', { changed }, msg), [d0.batch]);
   const cal = useGoogleCalendar(agent, d0.contacts ?? [], TZ, !!d0.ready, calApply);
   // admin "View as" (George, 2026-11-26): any agent's Dispatch, from the top bar
@@ -483,6 +490,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
           <ProfileMenu t={t} me={me} theme={theme} setTheme={setTheme} items={[
             { key: 'settings', label: 'Settings', sub: 'Goals, rules, Quo, coaching', onClick: () => setPage('settings'), hidden: !pages.includes('settings') },
             { key: 'integrations', label: 'Integrations', sub: 'Quo, Google, Claude AI', onClick: () => setPage('integrations') },
+            { key: 'tz', label: 'My time zone', sub: `${TZ_NAME} (${TZ_ABBR})`, onClick: () => setTzOpen(true) },
             { key: 'lic', label: 'My licensed states', sub: me.states.length ? `${me.states.length} state${me.states.length === 1 ? '' : 's'}` : 'None set yet', onClick: () => setLicOpen(true) },
             { key: 'goal', label: 'My monthly goal', sub: `${money(monthAlp)} of ${money(me.goal)}`, onClick: () => setPage('results') },
             { key: 'keys', label: 'Keyboard shortcuts', onClick: () => setKeysOpen(true) },
@@ -604,7 +612,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
                     <span className="aacts">
                       {a.confirm && <button className="cf" onClick={() => d.confirm(a.id)}>Confirmed</button>}
                       {a.confirm && a.phone && a.at && quoOn && <button className="txt" onClick={() => setQuo({ id: a.id, apptAt: a.at, first: a.tomorrow ? 'confirmTomorrow' : 'confirmToday' })}>Text with Quo</button>}
-                      {a.confirm && a.phone && a.at && !quoOn && <a className="txt" href={`sms:${a.phone.replace(/[^\d+]/g, '')}?&body=${encodeURIComponent(`Hi ${a.first}, just a reminder about our appointment ${a.tomorrow ? 'tomorrow' : 'today'} at ${timeOnly(a.at)} ET. Talk soon!`)}`}>Text reminder</a>}
+                      {a.confirm && a.phone && a.at && !quoOn && <a className="txt" href={`sms:${a.phone.replace(/[^\d+]/g, '')}?&body=${encodeURIComponent(`Hi ${a.first}, just a reminder about our appointment ${a.tomorrow ? 'tomorrow' : 'today'} at ${timeOnly(a.at)} ${TZ_ABBR}. Talk soon!`)}`}>Text reminder</a>}
                       <button onClick={() => setModal({ kind: 'sold', id: a.id })}>Sold</button>
                       <button onClick={() => setModal({ kind: 'presented', id: a.id })}>Presented</button>
                       {!a.ci && <button onClick={() => d.outcome(a.id, 'noshow')}>No-show</button>}
@@ -710,7 +718,12 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
                 </button>
               )}
               <div className="numline">
-                {otherNum ? <button className="linkish" onClick={() => setBackupMode(!backupMode)} title="Switch number (B)">{backupMode ? 'Main' : 'Backup'} {otherNum}</button> : <span />}
+                {otherNum ? <span className="othernum">
+                  {/* George 2026-11-27: call the other number right after, without picking a result first */}
+                  <button className="btn sm callalt" onClick={() => { const alt = !backupMode; endCall(current.id); setBackupMode(alt); startCall(current, alt); }}
+                    title="Ends this call and dials the other number"><Ico d={IC.phone} size={14} /> Call {backupMode ? 'main' : 'backup'} {otherNum}</button>
+                  <button className="linkish" onClick={() => setBackupMode(!backupMode)} title="Switch number without calling (B)">switch</button>
+                </span> : <span />}
                 <span>{quoOn && dialNum && <button className="linkish quobtn" onClick={() => setQuo({ id: current.id, apptAt: tagKind(current.tag) === 'scheduled' ? current.callAt : null })}>Text with Quo</button>}
                   {current.dials} dials · last {current.lastDialed ? md(current.lastDialed, TZ) : 'never'}</span>
               </div>
@@ -817,6 +830,13 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       {quo && d.byId.get(quo.id) && <QuoText c={d.byId.get(quo.id)!} agent={me} apptAt={quo.apptAt} first={quo.first} onClose={() => setQuo(null)}
         onSent={body => { d.note(quo.id, `Texted (Quo): "${body}"`); setQuo(null); }} />}
       {keysOpen && <ShortcutsDialog onClose={() => setKeysOpen(false)} />}
+      {tzOpen && <Dialog title="My time zone" onClose={() => setTzOpen(false)}>
+        <div className="newev">
+          <p className="hint">Every time on your screens shows in this zone, and your day starts at your midnight. Contacts are still only called inside their own hours.</p>
+          <div className="tzpick">{TZ_CHOICES.map(z => <button key={z.tz} className={`chip ${z.tz === TZ ? 'on' : ''}`} onClick={() => { setTzOpen(false); if (z.tz !== TZ) pickTz(z.tz); }}>
+            {z.name} <small>{new Intl.DateTimeFormat('en-US', { timeZone: z.tz, hour: 'numeric', minute: '2-digit' }).format(d.now)}</small></button>)}</div>
+        </div>
+      </Dialog>}
       {licOpen && <LicensesDialog states={me.states} onClose={() => setLicOpen(false)} onSave={st => { t.setAgent(agent, { states: st }); d.say(`Licensed states saved: ${st.length}.`); }} />}
       {healthOpen && (
         <div className="drill-bg" onClick={e => { if (e.target === e.currentTarget) setHealthOpen(false); }} onKeyDown={e => { if (e.key === 'Escape') setHealthOpen(false); }}>

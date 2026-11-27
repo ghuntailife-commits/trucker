@@ -1,4 +1,5 @@
 'use client';
+import { TZ } from './shared';
 // Live-only screens: sign-in, "not on the team", the save status, and George's switch-over from the sheets.
 import { useEffect, useState, type ReactNode } from 'react';
 import { db, signInEmail, signInGoogle, signOut, whoAmI, type Person } from '../../src/live/supabase';
@@ -95,7 +96,7 @@ function built(agent: string, tabs: SheetTabs, skip: string[]) {
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US');
-const when = (t: number | null) => t == null ? '' : new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit' }).format(t);
+const when = (t: number | null) => t == null ? '' : new Intl.DateTimeFormat('en-US', { timeZone: TZ, month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit' }).format(t);
 
 export function SwitchPage({ onDone }: { onDone: () => void }) {
   const [token, setToken] = useState<string | null>(null);

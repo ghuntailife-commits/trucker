@@ -6,14 +6,14 @@ import { useState } from 'react';
 import type { Contact } from '../../src/rules/types';
 import { quoNumbers, type AgentSetting } from '../../src/team/agents';
 import { textFor, textParts, checkText, e164, TEXT_LABEL, type TextKey } from '../../src/quo/quo';
-import { Dialog, timeOnly } from './shared';
+import { Dialog, TZ, timeOnly } from './shared';
 
 const fmt = (e: string | null) => (e ? `(${e.slice(2, 5)}) ${e.slice(5, 8)}-${e.slice(8)}` : '');
 
 export function QuoText({ c, agent, apptAt, first = 'missed', onClose, onSent }: {
   c: Contact; agent: AgentSetting; apptAt?: number | null; first?: TextKey; onClose: () => void; onSent: (body: string, kind: TextKey) => void;
 }) {
-  const fill = { agent: agent.name, time: apptAt ? timeOnly(apptAt) : '', when: apptAt ? new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(apptAt) : '' };
+  const fill = { agent: agent.name, time: apptAt ? timeOnly(apptAt) : '', when: apptAt ? new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'long', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(apptAt) : '' };
   const keys: TextKey[] = apptAt ? ['confirmToday', 'confirmTomorrow', 'booked', 'missed'] : ['missed', 'followUp'];
   const [kind, setKind] = useState<TextKey>(keys.includes(first) ? first : keys[0]);
   const [body, setBody] = useState(() => textFor(keys.includes(first) ? first : keys[0], c, fill));

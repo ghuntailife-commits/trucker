@@ -7,13 +7,13 @@ import type { MyEvent } from '../../src/calendar/myEvents';
 import { EVENT_LENGTHS, REPEAT_LABEL, type Repeat } from '../../src/calendar/myEvents';
 import { parts, zoned } from '../../src/rules/time';
 import { tagShort } from '../../src/rules/tags';
-import { Dialog, TZ, timeOnly } from './shared';
+import { Dialog, TZ, TZ_ABBR, timeOnly } from './shared';
 
 type Kind = 'appt' | 'callback' | 'mine';
 const pad = (n: number) => String(n).padStart(2, '0');
 const dateOf = (t: number) => { const p = parts(t, TZ); return `${p.y}-${pad(p.m)}-${pad(p.d)}`; };
 const minOf = (t: number) => { const p = parts(t, TZ); return p.h * 60 + p.mi; };
-const TIMES = Array.from({ length: 34 }, (_, i) => 6 * 60 + i * 30);   // 6:00 AM to 10:30 PM
+const TIMES = Array.from({ length: 34 }, (_, i) => 6 * 60 + i * 30);   // 6:00 AM to 10:30 PM, agent's time
 const label = (m: number) => { const h = Math.floor(m / 60); return `${h % 12 || 12}:${pad(m % 60)} ${h < 12 ? 'AM' : 'PM'}`; };
 const lengthLabel = (m: number) => m < 60 ? `${m} minutes` : `${m / 60} hour${m === 60 ? '' : 's'}`;
 
@@ -59,7 +59,7 @@ export function NewEvent({ at, contacts, edit, onClose, onBook, onSave, clash }:
       </div>}
       <div className="nerow">
         <label><span>Day</span><input type="date" value={date} onChange={e => setDate(e.target.value)} /></label>
-        <label><span>Time (ET)</span><select value={min} onChange={e => setMin(+e.target.value)}>{times.map(m => <option key={m} value={m}>{label(m)}</option>)}</select></label>
+        <label><span>Time ({TZ_ABBR})</span><select value={min} onChange={e => setMin(+e.target.value)}>{times.map(m => <option key={m} value={m}>{label(m)}</option>)}</select></label>
         {kind === 'mine' && <label><span>How long</span><select value={mins} onChange={e => setMins(+e.target.value)}>{EVENT_LENGTHS.map(m => <option key={m} value={m}>{lengthLabel(m)}</option>)}</select></label>}
       </div>
       {kind === 'mine' ? <>
@@ -86,7 +86,7 @@ export function NewEvent({ at, contacts, edit, onClose, onBook, onSave, clash }:
       {(() => { const hit = !Number.isNaN(when) && clash ? clash(when, kind === 'mine' ? mins : 30, who?.id) : ''; return hit ? <p className="clash">Heads up: this overlaps {hit}. You can still save it.</p> : null; })()}
       {!Number.isNaN(when) && when < Date.now() - 30 * 60_000 && <p className="clash">That time has already passed.</p>}
       <div className="bar">
-        <span className="muted">{!Number.isNaN(when) && `${new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'long', month: 'short', day: 'numeric' }).format(when)} at ${timeOnly(when)} ET`}</span>
+        <span className="muted">{!Number.isNaN(when) && `${new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'long', month: 'short', day: 'numeric' }).format(when)} at ${timeOnly(when)} ${TZ_ABBR}`}</span>
         <button className="btn" onClick={onClose}>Cancel</button>
         <button className="btn primary" disabled={!ok} onClick={save}>{kind === 'mine' ? (edit ? 'Save' : 'Add to calendar') : kind === 'appt' ? 'Book appointment' : 'Set callback'}</button>
       </div>

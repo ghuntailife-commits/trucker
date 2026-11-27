@@ -1,6 +1,9 @@
 // Small pieces shared by the screens.
 'use client';
-export const TZ = 'America/New_York';
+import { myTz, zoneOf } from '../../src/rules/myZone';
+/** The agent's own time zone (set in the profile menu; Eastern unless changed). */
+export const TZ = myTz();
+export const TZ_ABBR = zoneOf(TZ).abbr, TZ_NAME = zoneOf(TZ).name;
 export const ZONE_TZ: Record<string, string> = { ET: 'America/New_York', CT: 'America/Chicago', MT: 'America/Denver', PT: 'America/Los_Angeles' };
 
 export function chipClass(why: string) {

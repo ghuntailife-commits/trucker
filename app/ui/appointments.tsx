@@ -10,7 +10,7 @@ import { notesNewestFirst } from '../../src/rules/notes';
 import { LIVE, connectGoogleCalendar } from '../../src/live/supabase';
 import type { GoogleCal } from '../../src/live/useGoogleCalendar';
 import { calendarItems, weekStart, eventFor, toIcs, type CalItem } from '../../src/calendar/events';
-import { TZ, ZONE_NAME, saveText, timeOnly, localTime, NoteText, Reach } from './shared';
+import { TZ, TZ_ABBR, TZ_NAME, ZONE_NAME, saveText, timeOnly, localTime, NoteText, Reach } from './shared';
 import { WeekGrid } from './weekGrid';
 import { NewEvent } from './newEvent';
 import { useMyEvents } from '../../src/app-store/useMyEvents';
@@ -329,7 +329,7 @@ function MineDetail({ e, onEdit, onDelete }: { e: Occurrence; onEdit: () => void
     <div className="eyebrow">My event</div>
     <h2 className="dn">{e.title}</h2>
     <dl className="dl">
-      <dt>When</dt><dd>{whenFull.format(e.start)} – {timeOnly(e.start + e.mins * 60_000)} ET</dd>
+      <dt>When</dt><dd>{whenFull.format(e.start)} – {timeOnly(e.start + e.mins * 60_000)} {TZ_ABBR}</dd>
       {e.repeat && <><dt>Repeats</dt><dd>{REPEAT_LABEL[e.repeat]}</dd></>}
       {e.note && <><dt>Note</dt><dd>{e.note}</dd></>}
     </dl>
@@ -357,8 +357,8 @@ function Detail({ agentName, it, c, d, onDial, onResult, onQuoText, onText, onCa
       <p className="dsub">{[c.company, c.job].filter(Boolean).join(' — ')}</p>
       <div className="dacts reachrow"><Reach id={c.id} phone={phone} first={c.first} onText={d.byId.has(c.id) ? onText : undefined} /></div>
       <dl className="dl">
-        <dt>When</dt><dd>{it.allDay ? fmt({ weekday: 'short', month: 'numeric', day: 'numeric' }).format(it.at) : whenFull.format(it.at) + ' ET'}
-          {!it.allDay && c.zone && c.zone !== 'ET' && ZONE_NAME[c.zone] ? <span className="hint"> · {localTime(c.zone, it.at)} {ZONE_NAME[c.zone]}</span> : null}</dd>
+        <dt>When</dt><dd>{it.allDay ? fmt({ weekday: 'short', month: 'numeric', day: 'numeric' }).format(it.at) : whenFull.format(it.at) + ' ' + TZ_ABBR}
+          {!it.allDay && c.zone && c.zone !== TZ_ABBR && ZONE_NAME[c.zone] ? <span className="hint"> · {localTime(c.zone, it.at)} {ZONE_NAME[c.zone]}</span> : null}</dd>
         <dt>Phone</dt><dd>{phone ? <a href={`tel:${phone.replace(/[^\d+]/g, '')}`}>{phone}</a> : <span className="hint">No number</span>}</dd>
         <dt>Where</dt><dd>{[c.city, c.state].filter(Boolean).join(', ') || '—'}</dd>
         {c.email && <><dt>Email</dt><dd>{c.email}</dd></>}
@@ -464,7 +464,7 @@ function OpeningsPop({ times, hours, onPick, onClose, onHours, onCopied }: { tim
     return () => { window.removeEventListener('pointerdown', off); window.removeEventListener('keydown', key); };
   }, [onClose]);
   const words = times.map(t => spoken.format(t));
-  const line = words.length ? `I have ${words.length > 1 ? `${words.slice(0, -1).join(', ')} or ${words[words.length - 1]}` : words[0]} (Eastern). Which works best?` : '';
+  const line = words.length ? `I have ${words.length > 1 ? `${words.slice(0, -1).join(', ')} or ${words[words.length - 1]}` : words[0]} (${TZ_NAME} time). Which works best?` : '';
   return <div className="openpop" role="dialog" aria-label="Next openings">
     {times.map(t => <div key={t} className="opt"><span>{whenFull.format(t)}</span><button className="btn sm" onClick={() => onPick(t)}>Book</button></div>)}
     {!times.length && <p className="hint">No open time in the next two weeks inside your working hours.</p>}
@@ -483,8 +483,8 @@ function HoursDialog({ hours, onSave, onClose }: { hours: WorkHours; onSave: (h:
   return <Dialog title="My working hours" onClose={onClose}>
     <div className="newev">
       <div className="nerow">
-        <label><span>Start (ET)</span><select value={start} onChange={e => setStart(+e.target.value)}>{times.map(m => <option key={m} value={m}>{hm(m)}</option>)}</select></label>
-        <label><span>End (ET)</span><select value={end} onChange={e => setEnd(+e.target.value)}>{times.map(m => <option key={m} value={m}>{hm(m)}</option>)}</select></label>
+        <label><span>Start ({TZ_ABBR})</span><select value={start} onChange={e => setStart(+e.target.value)}>{times.map(m => <option key={m} value={m}>{hm(m)}</option>)}</select></label>
+        <label><span>End ({TZ_ABBR})</span><select value={end} onChange={e => setEnd(+e.target.value)}>{times.map(m => <option key={m} value={m}>{hm(m)}</option>)}</select></label>
       </div>
       <div><span className="hint">Days I work</span>
         <div className="daypick">{[1, 2, 3, 4, 5, 6, 0].map(x => <button key={x} className={`chip ${days.includes(x) ? 'on' : ''}`}
