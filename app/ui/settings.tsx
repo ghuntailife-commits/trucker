@@ -15,6 +15,10 @@ export function SettingsPage({ t }: { t: Team }) {
   const [agents, setAgents] = useState<AgentSetting[]>(() => structuredClone(t.team.agents));
   const [rules, setRules] = useState<RuleSettings>(() => structuredClone(t.team.rules));
   const [hour, setHour] = useState(t.team.coachingHour);
+  // Dispatch calling (Twilio): the team's numbers, recording and the recording notice (George, 2026-11-27)
+  const [twNums, setTwNums] = useState(t.team.twilioNumbers ?? '');
+  const [twRec, setTwRec] = useState(t.team.twilioRecord !== false);
+  const [twNotice, setTwNotice] = useState(t.team.twilioNotice !== false);
   const [review, setReview] = useState(false);
   const [goalText, setGoalText] = useState<Record<string, string>>(() => Object.fromEntries(t.team.agents.map(a => [a.id, String(a.goal)])));
 
@@ -23,7 +27,10 @@ export function SettingsPage({ t }: { t: Team }) {
   const num = (s: string) => Number(String(s).replace(/[$,\s%]/g, ''));
 
   const changes = [...agentChanges(t.team.agents, agents), ...ruleChanges(rules, t.team.rules),
-    ...(hour !== t.team.coachingHour ? [`Monday coaching note goes out at ${hourOpt(hour)} (was ${hourOpt(t.team.coachingHour)})`] : [])];
+    ...(hour !== t.team.coachingHour ? [`Monday coaching note goes out at ${hourOpt(hour)} (was ${hourOpt(t.team.coachingHour)})`] : []),
+    ...(twNums !== (t.team.twilioNumbers ?? '') ? [`Dispatch calling numbers: ${twNums || '(none)'}`] : []),
+    ...(twRec !== (t.team.twilioRecord !== false) ? [`Record Dispatch calls: ${twRec ? 'on' : 'off'}`] : []),
+    ...(twNotice !== (t.team.twilioNotice !== false) ? [`"This call may be recorded" notice: ${twNotice ? 'on' : 'off'}`] : [])];
   const problems = [...checkRules(rules), ...agents.filter(a => !(a.goal > 0)).map(a => `${a.name}'s goal needs a dollar amount.`),
     ...(agents.some(a => a.role === 'admin') ? [] : ['Keep at least one admin, or nobody can open Settings.'])];
   const fromApproved = ruleChanges(rules);
@@ -31,10 +38,11 @@ export function SettingsPage({ t }: { t: Team }) {
   const save = () => {
     for (const a of agents) t.setAgent(a.id, a);
     t.setRules(rules);
-    t.setTeamField({ coachingHour: hour });
+    t.setTeamField({ coachingHour: hour, twilioNumbers: twNums.trim(), twilioRecord: twRec, twilioNotice: twNotice });
     setReview(false);
   };
   const undoAll = () => { setAgents(structuredClone(t.team.agents)); setRules(structuredClone(t.team.rules)); setHour(t.team.coachingHour);
+    setTwNums(t.team.twilioNumbers ?? ''); setTwRec(t.team.twilioRecord !== false); setTwNotice(t.team.twilioNotice !== false);
     setGoalText(Object.fromEntries(t.team.agents.map(a => [a.id, String(a.goal)]))); };
 
   return (
@@ -50,7 +58,7 @@ export function SettingsPage({ t }: { t: Team }) {
         <Panel span={4} title="Agents" meta="Goals, Quo and the Monday coaching note, per agent">
           <div className="tscroll">
             <table className="rt settable">
-              <thead><tr><th>Agent</th><th>Role</th><th>Under</th><th>Licensed states</th><th>Monthly goal</th><th>Quo</th><th>Quo number</th><th>Monday note</th></tr></thead>
+              <thead><tr><th>Agent</th><th>Role</th><th>Under</th><th>Licensed states</th><th>Monthly goal</th><th>Quo</th><th>Quo number</th><th title="Calls through Dispatch itself (Twilio)">Dispatch calling</th><th>Monday note</th></tr></thead>
               <tbody>
                 {agents.map(a => (
                   <tr key={a.id}>
@@ -65,6 +73,7 @@ export function SettingsPage({ t }: { t: Team }) {
                     <td><Toggle on={a.quo} label={`Quo for ${a.name}`} onChange={v => setA(a.id, { quo: v })} /></td>
                     <td><input placeholder={a.quo ? 'One or more, with commas' : '—'} disabled={!a.quo} value={a.quoNumber} aria-label={`${a.name} Quo number`}
                       onChange={e => setA(a.id, { quoNumber: e.target.value })} /></td>
+                    <td><Toggle on={!!a.twilio} label={`Dispatch calling for ${a.name}`} onChange={v => setA(a.id, { twilio: v })} /></td>
                     <td><Toggle on={a.coaching} label={`Monday note for ${a.name}`} onChange={v => setA(a.id, { coaching: v })} /></td>
                   </tr>
                 ))}
@@ -117,6 +126,19 @@ export function SettingsPage({ t }: { t: Team }) {
         </Panel>
 
         {LIVE && <SignInEmails />}
+
+        <Panel span={4} title="Dispatch calling" meta="Calls inside Dispatch through Twilio. Off until you turn it on per agent above.">
+          <div className="setform">
+            <label>Team numbers (Twilio)</label>
+            <input placeholder="+13055550100, +16155550100" value={twNums} onChange={e => setTwNums(e.target.value)} aria-label="Team Twilio numbers" />
+            <p className="hint">Each call goes out from the number in the contact&rsquo;s state, else their time zone, else the first one. Someone calling one back rings the agent who called them last.</p>
+            <label>Record calls</label>
+            <Toggle on={twRec} label="Record Dispatch calls" onChange={setTwRec} />
+            <label>Tell them first</label>
+            <Toggle on={twNotice} label="Play This call may be recorded" onChange={setTwNotice} />
+            <p className="hint">When on, the contact hears &ldquo;This call may be recorded&rdquo; as they pick up. Some states require both sides to agree to recording.</p>
+          </div>
+        </Panel>
 
         <Panel span={4} title="Quo connection" meta="Built in for George and Gracie">
           <div className="quoset">

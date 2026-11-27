@@ -72,6 +72,7 @@ import { healthCheck, healthCount } from '../src/team/health';
 import { suggestText, type TextKey } from '../src/quo/quo';
 import { useMyTexts } from '../src/app-store/useMyTexts';
 import { useIncomingCall } from '../src/live/useIncomingCall';
+import { useTwilio } from '../src/live/useTwilio';
 import { MyTextsDialog } from './ui/myTexts';
 import { LIVE, signOut, type Person } from '../src/live/supabase';
 import { LiveGate, SwitchPage, useSaveStatus } from './ui/live';
@@ -181,7 +182,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const [quo, setQuo] = useState<QuoModal>(null);
   const [textsOpen, setTextsOpen] = useState(false);
   const myTexts = useMyTexts(agent);
-  const incoming = useIncomingCall(agent, !!me.quo);
+  const incoming = useIncomingCall(agent, !!me.quo && !me.twilio);   // Dispatch calling shows its own incoming card
   const [rowMenu, setRowMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [removeIds, setRemoveIds] = useState<string[] | null>(null);
   const [todaySet, setTodaySet] = useState(false);
@@ -193,7 +194,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const endRef = useRef<(id: string) => void>(() => {});
   const onCallRef = useRef(false);   // a call is going on this screen   // stops the call timer when Quo says the call ended
   useEffect(() => {
-    if (!LIVE || !quoOn || !d0.ready) return;
+    if (!LIVE || !(quoOn || me.twilio) || !d0.ready) return;
     let stop = false;
     const pull = async () => {
       const evs = await newQuoEvents(agent);
@@ -243,6 +244,10 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const [q, setQ] = useState('');
   const [modal, setModal] = useState<Modal>(null);
   const [call, setCall] = useState<{ id: string; at: number } | null>(null);
+  // calling inside Dispatch (Twilio), for agents who have it on (George, 2026-11-27)
+  const callNow = useRef(call); callNow.current = call;
+  const tw = useTwilio(LIVE && !!me.twilio, () => { const c = callNow.current; if (c) endRef.current(c.id); });
+  const [keypad, setKeypad] = useState(false);
   const callRef = useRef(call); callRef.current = call;
   const infoRef = useRef({ viewing: '', page: '' });
   const stale = useUpdateCheck(() => !!callRef.current, () => infoRef.current);   // a newer Dispatch is live: reload between calls
@@ -292,9 +297,12 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
     const num = (useBackup && c.backup ? c.backup : c.phone || c.backup).replace(/[^\d+]/g, '');
     if (!num) return;
     setPicked(c.id); setCall({ id: c.id, at: Date.now() }); setCountdown(null);
-    try { const a = document.createElement('a'); a.href = `tel:${num}`; a.rel = 'noopener'; a.click(); } catch { /* the number is on screen */ }
+    const phoneApp = () => { try { const a = document.createElement('a'); a.href = `tel:${num}`; a.rel = 'noopener'; a.click(); } catch { /* the number is on screen */ } };
+    if (tw.ready) void tw.start(num).then(ok => { if (!ok) phoneApp(); });
+    else phoneApp();
   };
   const endCall = (id: string) => {
+    if (tw.onCall() && call?.id === id) tw.hangup();   // a result or End call hangs up a Dispatch call
     if (call && call.id === id) { d.logCall(id, Math.round((Date.now() - call.at) / 1000)); setCall(null); }
   };
   endRef.current = endCall;
@@ -798,7 +806,8 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
                 </button>
               ) : (
                 <button className="callbtn" disabled={!dialNum} onClick={() => startCall(current, backupMode)}>
-                  <Ico d={IC.phone} size={20} /><span>{dialNum || 'No number'}</span>{quoOn && dialNum && <small className="via" title={localLine(me, dialNum)?.title}>{localLine(me, dialNum)?.label ?? 'Quo'}</small>}
+                  <Ico d={IC.phone} size={20} /><span>{dialNum || 'No number'}</span>{tw.ready && dialNum ? <small className="via" title="Calls through Dispatch from your local number">Dispatch</small>
+                    : quoOn && dialNum && <small className="via" title={localLine(me, dialNum)?.title}>{localLine(me, dialNum)?.label ?? 'Quo'}</small>}
                 </button>
               )}
               <div className="numline">
@@ -927,6 +936,30 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
             {z.name} <small>{new Intl.DateTimeFormat('en-US', { timeZone: z.tz, hour: 'numeric', minute: '2-digit' }).format(d.now)}</small></button>)}</div>
         </div>
       </Dialog>}
+      {(tw.live || tw.incoming) && (() => {
+        // the call bar for calls inside Dispatch: who, how long, mute, keypad, hang up; or answer an incoming call
+        const ph = tw.live?.phone ?? tw.incoming?.phone ?? '';
+        const c = (call && d.byId.get(call.id)) || matchContact(d.contacts, ph);
+        const p = ph.replace(/\D/g, '').slice(-10);
+        const num = p.length === 10 ? `(${p.slice(0, 3)}) ${p.slice(3, 6)}-${p.slice(6)}` : ph;
+        if (tw.incoming) return <div className="ringcard" role="alert">
+          <div className="ringhead"><span className="ringdot" />Incoming call · {num}</div>
+          {c ? <><div className="ringname">{c.first} {c.last}</div><div className="ringsub">{[c.company, c.job].filter(Boolean).join(' — ')}{c.tag ? ` · ${c.tag}` : ''}</div></> : <div className="ringsub">Not in your contacts</div>}
+          <div className="ringbar">
+            <button className="btn primary sm" onClick={() => { tw.answer(); if (c) { setPicked(c.id); setPage('today'); setCall({ id: c.id, at: Date.now() }); } }}>Answer</button>
+            <button className="btn sm" onClick={tw.decline}>Send to voicemail</button>
+          </div>
+        </div>;
+        const lv = tw.live!;
+        return <div className="callbar" role="status">
+          <span className="ringdot" />
+          <span className="cbwho"><b>{c ? `${c.first} ${c.last}` : num}</b><small>{lv.state === 'connecting' ? 'Connecting…' : lv.state === 'ringing' ? 'Ringing…' : call ? fmtSecs(Math.round((Date.now() - call.at) / 1000)) : 'On the call'}</small></span>
+          {keypad && <span className="cbkeys">{['1','2','3','4','5','6','7','8','9','*','0','#'].map(k => <button key={k} onClick={() => tw.digits(k)}>{k}</button>)}</span>}
+          <button className={`btn sm ${lv.muted ? 'primary' : ''}`} onClick={tw.mute}>{lv.muted ? 'Unmute' : 'Mute'}</button>
+          <button className="btn sm" onClick={() => setKeypad(k => !k)}>Keypad</button>
+          <button className="btn sm danger" onClick={() => { if (call) endCall(call.id); else tw.hangup(); }}>Hang up</button>
+        </div>;
+      })()}
       {incoming.ring && (() => {
         // who is calling the agent's Quo number (George, 2026-11-27)
         const c = matchContact(d.contacts, incoming.ring.phone);

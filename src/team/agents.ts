@@ -164,6 +164,7 @@ export function agentChanges(before: AgentSetting[], after: AgentSetting[]): str
     if (a.goal !== b.goal) out.push(`${a.name}: monthly goal $${b.goal.toLocaleString('en-US')} → $${a.goal.toLocaleString('en-US')}`);
     if (a.quo !== b.quo) out.push(`${a.name}: Quo ${a.quo ? 'on' : 'off'}`);
     if (a.quoNumber !== b.quoNumber) out.push(`${a.name}: Quo number ${a.quoNumber || '(none)'}`);
+    if (!!a.twilio !== !!b.twilio) out.push(`${a.name}: Dispatch calling ${a.twilio ? 'on' : 'off'}`);
     if (a.coaching !== b.coaching) out.push(`${a.name}: Monday coaching note ${a.coaching ? 'on' : 'off'}`);
     if (a.states.join() !== b.states.join()) out.push(`${a.name}: states ${a.states.join(', ') || '(none)'}`);
     if (a.active !== b.active) out.push(`${a.name}: ${a.active ? 'active' : 'paused'}`);
