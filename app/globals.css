@@ -283,8 +283,13 @@ input:focus, select:focus, textarea:focus, button:focus-visible, tr:focus-visibl
 .filters .filter { flex: 1; min-width: 0; padding: 7px 11px; }
 .filters select { width: auto; padding: 7px 10px; }
 select { appearance: auto; }
-.qt th.sortable { cursor: pointer; user-select: none; }
-.qt th.sortable:hover { color: var(--text); }
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: var(--text); }
+th.sortable[aria-sort="ascending"], th.sortable[aria-sort="descending"] { color: var(--text); }
+.why { display: flex; flex-wrap: nowrap; gap: 4px; }
+.why span { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--chip, rgba(127,127,127,.14)); color: var(--muted); white-space: nowrap; }
+.why span.bad { color: var(--red, #d9534f); }
+.score { font-variant-numeric: tabular-nums; }
 .strip.s4 { grid-template-columns: repeat(4, minmax(110px, auto)); }
 .work.single { grid-template-columns: minmax(0, 1fr); }
 .tscroll.tall { max-height: max(520px, calc(100vh - 300px)); }

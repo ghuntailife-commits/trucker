@@ -1,6 +1,7 @@
 // Results: the old Results, Sales, No Sales, Best Times and Daily Summary tabs as one page with subtabs.
 // Every number is computed from the Activity Log and the sale / no-sale records (src/reports/results.ts).
 'use client';
+import { useSort } from './sort';
 import { useEffect, useMemo, useState } from 'react';
 import type { useDialer } from '../../src/app-store/useDialer';
 import * as R from '../../src/reports/results';
@@ -248,7 +249,9 @@ function Sales({ d, who, all, pick }: { d: D; who: (id: string) => R.Who; all: R
   const [showAll, setShowAll] = useState(false);
   const [editGoal, setEditGoal] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  const list = R.salesIn(d.sales, all, who);
+  const list0 = R.salesIn(d.sales, all, who);
+  const { sorted: list, th } = useSort(list0, { at: x => x.at, name: x => `${x.who.last} ${x.who.first}`, phone: x => x.who.phone, co: x => x.who.company,
+    alp: x => x.alp, monthly: x => x.monthly, type: x => x.alpType, wl: x => x.wholeLife || null, adb: x => x.adb || null, email: x => x.email, note: x => x.note });
   const monthSales = R.salesIn(d.sales, s.month, who);
   const top = [...monthSales].sort((a, b) => b.alp - a.alp).slice(0, 8);
   const src = R.salesBySource(d.sales, who);
@@ -270,7 +273,7 @@ function Sales({ d, who, all, pick }: { d: D; who: (id: string) => R.Who; all: R
         <button className="linkish" onClick={() => saveText('sales.csv', salesCsv(list))}>Export CSV</button></>}>
       <div className="tscroll">
         <table className="rt">
-          <thead><tr><th>Date</th><th>Client</th><th>Phone</th><th>Union / company</th><th className="r">ALP</th><th className="r">Monthly</th><th>Type</th><th className="r">Whole life</th><th className="r">ADB</th><th>Email</th><th>Notes</th></tr></thead>
+          <thead><tr>{th('at', 'Date', '', -1)}{th('name', 'Client')}{th('phone', 'Phone')}{th('co', 'Union / company')}{th('alp', 'ALP', 'r')}{th('monthly', 'Monthly', 'r')}{th('type', 'Type')}{th('wl', 'Whole life', 'r')}{th('adb', 'ADB', 'r')}{th('email', 'Email')}{th('note', 'Notes')}</tr></thead>
           <tbody>{(showAll ? list : list.slice(0, 12)).map((x, i) => (
             <tr key={i} className="pick" onClick={() => one(x)}><td className="c-dials">{mdShort.format(x.at)}</td><td><b>{x.who.first} {x.who.last}</b>{x.source && <span className="spill violet mini">{SOURCE_LABEL[x.source]}</span>}</td><td className="muted num">{x.who.phone}</td><td>{x.who.company}</td>
               <td className={`r num ${x.alpType === 'Trial' ? 'c-trial' : 'c-sold'}`}><b>{fmt$(x.alp)}</b></td><td className="r num muted">${x.monthly.toFixed(2)}</td>
@@ -348,7 +351,10 @@ function Presentations({ d, r, who, pick }: { d: D; r: R.Range; who: (id: string
   const ob = R.objections(d.noSales, r);
   const top = ob.rows.reduce((m, x) => (x.count > m.count ? x : m), ob.rows[0]);
   const recent = d.noSales.filter(n => n.at >= r.from && n.at < r.to).sort((a, b) => b.at - a.at).slice(0, 12);
-  const fups = R.followUps(d.noSales, d.now, TZ);
+  const fups0 = R.followUps(d.noSales, d.now, TZ);
+  const { sorted: recentS, th: rth } = useSort(recent, { at: n => n.at, name: n => `${who(n.contactId).last} ${who(n.contactId).first}`, obj: n => n.objections.join(', ') });
+  const { sorted: fups, th: fth } = useSort(fups0, { due: n => n.due, name: n => `${who(n.contactId).last} ${who(n.contactId).first}`, phone: n => who(n.contactId).phone,
+    obj: n => n.objections.join(', '), note: n => n.followUpNote || n.reason });
   const wkStart = addDays(startOfDay(d.now, TZ), -((parts(d.now, TZ).wd + 6) % 7), TZ);
   const week = Array.from({ length: 7 }, (_, i) => {
     const a = addDays(wkStart, i, TZ), b = addDays(a, 1, TZ);
@@ -396,14 +402,14 @@ function Presentations({ d, r, who, pick }: { d: D; r: R.Range; who: (id: string
     </Panel>
     <Panel span={2} title="Recent no-sales" meta={`${recent.length} shown`} foot="Every no-sale, with its follow-up date and notes, is on the contact's history too.">
       <div className="tscroll"><table className="rt">
-        <thead><tr><th>Date</th><th>Client</th><th>What stopped it</th></tr></thead>
-        <tbody>{recent.map((n, i) => { const w = who(n.contactId); return (
+        <thead><tr>{rth('at', 'Date', '', -1)}{rth('name', 'Client')}{rth('obj', 'What stopped it')}</tr></thead>
+        <tbody>{recentS.map((n, i) => { const w = who(n.contactId); return (
           <tr key={i} className="pick" onClick={() => oneNs(n)}><td className="c-dials">{mdShort.format(n.at)}</td><td><b>{w.first} {w.last}</b></td><td><span className="c-pres">{n.objections.join(', ')}</span>{n.reason && <span className="muted"> · {n.reason}</span>}</td></tr>); })}</tbody>
       </table>{!recent.length && <p className="hint pad16">No no-sales in this range.</p>}</div>
     </Panel>
     <Panel span={2} title="Follow-ups due" meta="From no-sale forms · soonest first">
       <div className="tscroll"><table className="rt">
-        <thead><tr><th>Date</th><th>Client</th><th>Phone</th><th>Objections</th><th>Notes</th></tr></thead>
+        <thead><tr>{fth('due', 'Date')}{fth('name', 'Client')}{fth('phone', 'Phone')}{fth('obj', 'Objections')}{fth('note', 'Notes')}</tr></thead>
         <tbody>{fups.map((n, i) => { const w = who(n.contactId); const late = n.due < startOfDay(d.now, TZ); return (
           <tr key={i} className="pick" onClick={() => oneNs(d.noSales.find(y => y.at === n.at && y.contactId === n.contactId)!)}><td className={late ? 'c-noshow' : 'c-dials'}>{wdMd.format(n.due)}{late ? ' · late' : ''}</td><td><b>{w.first} {w.last}</b></td><td className="muted num">{w.phone}</td>
             <td className="c-pres">{n.objections.join(', ')}</td><td className="muted">{n.followUpNote || n.reason}</td></tr>); })}</tbody>
@@ -472,20 +478,24 @@ function Dialing({ d, r }: { d: D; r: R.Range }) {
 function History({ d }: { d: D }) {
   const [n, setN] = useState(14);
   const r: R.Range = { from: addDays(startOfDay(d.now, TZ), -(n - 1), TZ), to: addDays(startOfDay(d.now, TZ), 1, TZ), label: '' };
-  const rows = R.daily(d.log, d.sales, r, TZ).reverse();
+  const rows0 = R.daily(d.log, d.sales, r, TZ).reverse();
   const cols: [string, (x: R.DayRow) => string | number, string?][] = [
     ['Dials', x => x.dials], ['Connects', x => x.connects], ['Connect %', x => (x.dials ? pctTxt(x.connects, x.dials) : '–'), 'c-connects'],
     ['Scheduled', x => x.scheduled], ['Presented', x => x.presented], ['Sold', x => x.sold], ['Close %', x => (x.presented ? pctTxt(x.sold, x.presented) : '–'), 'c-sold'],
     ['Sale ALP', x => (x.alp ? fmt$(x.alp) : '–'), 'c-sold'], ['Monthly', x => (x.monthly ? fmt$(x.monthly) : '–')], ['Callbacks', x => x.callbacks], ['No-shows', x => x.noShows],
     ['Hung up', x => x.hungUp], ['Bad #', x => x.bad], ['DNC', x => x.dnc], ['Imported', x => x.imported],
   ];
+  // sort by the real number behind each column (percent and dollar columns show text)
+  const raw: Record<string, (x: R.DayRow) => number | null> = { 'Connect %': x => x.dials ? x.connects / x.dials : null, 'Close %': x => x.presented ? x.sold / x.presented : null,
+    'Sale ALP': x => x.alp, Monthly: x => x.monthly };
+  const { sorted: rows, th } = useSort(rows0, Object.fromEntries([['day', (x: R.DayRow) => x.day], ...cols.map(c => [c[0], raw[c[0]] ?? ((x: R.DayRow) => c[1](x))])]));
   const csv = () => saveText('daily-history.csv', [['Day', ...cols.map(c => c[0])], ...rows.map(x => [wdMd.format(x.day), ...cols.map(c => c[1](x))])]
     .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n'));
   return (
     <Panel span={4} title="Daily history" meta={<span className="seg mini">{[7, 14, 30].map(k => <button key={k} className={n === k ? 'on' : ''} onClick={() => setN(k)}>Last {k} days</button>)}</span>}
       foot={<button className="linkish" onClick={csv}>Export CSV</button>}>
       <div className="tscroll"><table className="rt dayhist">
-        <thead><tr><th>Day</th>{cols.map(c => <th key={c[0]} className="r">{c[0]}</th>)}</tr></thead>
+        <thead><tr>{th('day', 'Day', '', -1)}{cols.map(c => th(c[0], c[0], 'r'))}</tr></thead>
         <tbody>{rows.map(x => (
           <tr key={x.day} className={x.dials || x.sold || x.presented || x.imported ? '' : 'quiet'}><td>{wdMd.format(x.day)}</td>{cols.map(c => { const v = c[1](x); return <td key={c[0]} className={`r num ${v && v !== '–' ? c[2] ?? '' : 'muted'}`}>{v === 0 ? '–' : v}</td>; })}</tr>
         ))}</tbody>

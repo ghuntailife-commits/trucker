@@ -11,6 +11,7 @@ import { IMPORT_COLUMNS, planImport, type ImportLine } from '../../src/contacts/
 import { needsGroup } from '../../src/contacts/needs';
 import { EDIT_LABELS, planEdit, type EditFields } from '../../src/contacts/edit';
 import { TZ, ZONE_NAME, Dialog, saveText, NoteText } from './shared';
+import { useSort } from './sort';
 
 type D = ReturnType<typeof useDialer>;
 type Group = 'all' | 'working' | 'callback' | 'appt' | 'notint' | 'bad' | 'needs' | 'dnc' | 'sold';
@@ -47,7 +48,6 @@ export function ContactsPage({ d, onDial }: { d: D; onDial: (id: string) => void
   const [group, setGroup] = useState<Group>('all');
   const [list, setList] = useState('');
   const [q, setQ] = useState('');
-  const [sort, setSort] = useState<{ key: 'name' | 'list' | 'dials' | 'last'; dir: 1 | -1 }>({ key: 'list', dir: 1 });
   const [shown, setShown] = useState(PAGE);
   const [sel, setSel] = useState<string | null>(null);
   const [dialog, setDialog] = useState<null | 'add' | 'import' | 'delete'>(null);
@@ -58,24 +58,20 @@ export function ContactsPage({ d, onDial }: { d: D; onDial: (id: string) => void
     for (const c of d.contacts) if (!list || c.list === list) { m.all++; m[groupOf(c)]++; }
     return m;
   }, [d.contacts, list]);
-  const rows = useMemo(() => {
+  const filtered = useMemo(() => {
     const n = q.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim(), dg = q.replace(/\D/g, '');
     const out = d.contacts.filter(c => (!list || c.list === list) && (group === 'all' || groupOf(c) === group) && (!n
       || `${c.first} ${c.last}`.toLowerCase().includes(n) || c.company.toLowerCase().includes(n) || c.city.toLowerCase().includes(n)
       || (dg.length >= 4 && (c.phone + c.backup).replace(/\D/g, '').includes(dg))));
-    const key = (c: Contact): string | number => sort.key === 'name' ? `${c.last} ${c.first}`.toLowerCase() : sort.key === 'dials' ? c.dials
-      : sort.key === 'last' ? c.lastDialed ?? 0 : `${c.list}|${String(c.seq).padStart(6, '0')}`;
-    return out.sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0) * sort.dir);
-  }, [d.contacts, list, group, q, sort]);
+    return out.sort((a, b) => a.list.localeCompare(b.list) || a.seq - b.seq);
+  }, [d.contacts, list, group, q]);
+  const { sorted: rows, th } = useSort<Contact>(filtered, {
+    name: c => `${c.last} ${c.first}`, phone: c => c.phone, backup: c => c.backup, list: c => c.list, loc: c => `${c.state} ${c.city}`,
+    company: c => c.company, status: c => pillFor(c)[0], dials: c => c.dials, last: c => c.lastDialed, next: c => c.callAt,
+    note: c => notesNewestFirst(c.notes)[0]?.replace(/^\d{1,2}\/\d{1,2}:\s*/, '') ?? '' });
   useEffect(() => setShown(PAGE), [group, list, q]);
 
   const c = sel ? d.byId.get(sel) : undefined;
-  const th = (key: typeof sort.key, label: string, cls = '') => (
-    <th className={`sortable ${cls}`} aria-sort={sort.key === key ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}
-        onClick={() => setSort(s => ({ key, dir: s.key === key ? (s.dir === 1 ? -1 : 1) : key === 'dials' || key === 'last' ? -1 : 1 }))}>
-      {label}{sort.key === key ? (sort.dir === 1 ? ' ↑' : ' ↓') : ''}
-    </th>
-  );
   const exportCsv = () => saveText('contacts.csv', toCsv([
     ['List', 'First', 'Last', 'Phone', 'Backup', 'Job', 'Company', 'City', 'State', 'Zone', 'Tag', 'Dials', 'Last dialed', 'Call at', 'Status', 'LinkedIn', 'Qualifiers', 'Notes'],
     ...rows.map(c => [c.list, c.first, c.last, c.phone, c.backup, c.job, c.company, c.city, c.state, c.zone, c.tag, c.dials,
@@ -124,8 +120,8 @@ export function ContactsPage({ d, onDial }: { d: D; onDial: (id: string) => void
             <div className="tscroll">
               <table className="qt">
                 <thead><tr>
-                  {th('name', 'Contact')}<th>Phone</th><th>Backup</th>{th('list', 'List')}<th>Location · Zone</th><th>Company — Role</th>
-                  <th>Status</th>{th('dials', 'Dials', 'num')}{th('last', 'Last', 'num')}<th className="num">Next</th><th>Notes (newest)</th>
+                  {th('name', 'Contact')}{th('phone', 'Phone')}{th('backup', 'Backup')}{th('list', 'List')}{th('loc', 'Location · Zone')}{th('company', 'Company — Role')}
+                  {th('status', 'Status')}{th('dials', 'Dials', 'num')}{th('last', 'Last', 'num')}{th('next', 'Next', 'num')}{th('note', 'Notes (newest)')}
                 </tr></thead>
                 <tbody>
                   {rows.slice(0, shown).map(x => {

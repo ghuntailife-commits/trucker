@@ -1,6 +1,7 @@
 'use client';
 // Contact library (admin, George 2026-11-26): the Lead Library sheet, living in the app. Pick contacts, pick the agent,
 // see what will happen, send. Only agents licensed in a contact's state can get it.
+import { useSort } from './sort';
 import { useMemo, useState } from 'react';
 import type { AgentId } from '../../src/team/agents';
 import type { Team } from '../../src/app-store/useTeam';
@@ -35,8 +36,10 @@ export function LibraryPage({ t, lib, now, say, onLicenses }: { t: Team; lib: Li
     return lib.lib.filter(c => (state === 'all' || c.state === state) && (show === 'all' || (show === 'open' ? !c.givenTo : !!c.givenTo))
       && (!n || `${c.first} ${c.last} ${c.company} ${c.city} ${c.givenTo}`.toLowerCase().includes(n)));
   }, [lib.lib, state, show, q]);
+  const { sorted: sortedRows, th } = useSort(rows, { name: c => `${c.last} ${c.first}`, company: c => c.company, loc: c => `${c.state} ${c.city}`,
+    phone: c => c.phone, given: c => c.givenTo, at: c => c.givenAt });
   const canPick = (c: typeof rows[number]) => !c.givenTo && (!agent || licensed(agent.states, c.state));
-  const pickable = rows.filter(canPick);
+  const pickable = sortedRows.filter(canPick);
   const pick = (id: string, on: boolean) => setPicked(x => { const s = new Set(x); if (on) s.add(id); else s.delete(id); return s; });
   const pickFirst = () => setPicked(new Set(pickable.slice(0, firstN).map(c => c.id)));
   const choose = (id: AgentId | '') => {
@@ -119,10 +122,10 @@ export function LibraryPage({ t, lib, now, say, onLicenses }: { t: Team; lib: Li
               <thead><tr>
                 <th className="pickc"><input type="checkbox" aria-label="Pick every contact shown" checked={!!pickable.length && pickable.every(c => picked.has(c.id))}
                   onChange={e => setPicked(x => { const s = new Set(x); for (const c of pickable) { if (e.target.checked) s.add(c.id); else s.delete(c.id); } return s; })} /></th>
-                <th>Contact</th><th>Company — Role</th><th>Location</th><th>Phone</th><th>Given to</th><th>Date given</th>
+                {th('name', 'Contact')}{th('company', 'Company — Role')}{th('loc', 'Location')}{th('phone', 'Phone')}{th('given', 'Given to')}{th('at', 'Date given', 'num')}
               </tr></thead>
               <tbody>
-                {rows.slice(0, 400).map(c => {
+                {sortedRows.slice(0, 400).map(c => {
                   const ok = canPick(c), noLic = !c.givenTo && agent && !licensed(agent.states, c.state);
                   return <tr key={c.id} className={`${picked.has(c.id) ? 'typed' : ''} ${noLic ? 'nolic' : ''}`}>
                     <td className="pickc"><input type="checkbox" disabled={!ok} aria-label={`Pick ${c.first} ${c.last}`} checked={picked.has(c.id)} onChange={e => pick(c.id, e.target.checked)} /></td>

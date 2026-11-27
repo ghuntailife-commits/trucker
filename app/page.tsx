@@ -25,6 +25,7 @@ import { pagesFor, viewers, type AgentId, type Page, type ViewerId } from '../sr
 import { TeamPage, HealthList } from './ui/team';
 import { SettingsPage } from './ui/settings';
 import { QuoText } from './ui/quo';
+import { useSort } from './ui/sort';
 import { LibraryPage, LicensesDialog } from './ui/library';
 import { useLibrary } from '../src/app-store/useLibrary';
 import { ProfileMenu, ShortcutsDialog, IntegrationsPage } from './ui/profile';
@@ -302,7 +303,11 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
     return m;
   }, [d.today]);
   const soldIds = useMemo(() => new Set(salesToday.map(x => x.contactId)), [salesToday]);
-  const rows = d.today.map((r, i) => ({ ...r, n: i + 1 })).filter(r => filter === 'All' || groupOf(r.why) === filter);
+  const rows0 = useMemo(() => d.today.map((r, i) => ({ ...r, n: i + 1 })).filter(r => filter === 'All' || groupOf(r.why) === filter), [d.today, filter]);
+  const { sorted: rows, th: qth } = useSort(rows0, {
+    n: r => r.n, why: r => r.why, name: r => `${r.contact.last} ${r.contact.first}`, phone: r => r.contact.phone || r.contact.backup,
+    loc: r => `${r.contact.state} ${r.contact.city}`, company: r => r.contact.company, dials: r => r.contact.dials, last: r => r.contact.lastDialed,
+    next: r => r.contact.callAt, note: r => notesNewestFirst(r.contact.notes)[0]?.replace(/^\d{1,2}\/\d{1,2}:\s*/, '') ?? '' });
 
   const exportCsv = () => {
     const esc = (v: unknown) => { const t = String(v ?? ''); return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
@@ -443,7 +448,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
         health={hc} sheet={{ waiting: sheetWaitN, look: sheetLookN, needs: needsN }} wins={wins} monthDays={monthDays} daysInMonth={daysInMonth}
         go={setPage} openHealth={() => setHealthOpen(true)} onDial={id => { setPicked(id); setPage('today'); }} timeOnly={timeOnly} md={x => md(x, TZ)} />}
       {!switching && page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} />}
-      {!switching && page === 'needs' && <NeedsPage d={d} ns={ns} />}
+      {!switching && page === 'needs' && <NeedsPage d={d} ns={ns} states={me.states} />}
       {!switching && page === 'team' && <TeamPage t={t} now={d.now} live={{ id: agent, data: { contacts: d.contacts, log: d.log, sales: d.sales, noSales: d.noSales } }}
         onViewAs={id => t.setViewer(id)} onDial={id => { setPicked(id); setPage('today'); }} />}
       {!switching && page === 'library' && <LibraryPage t={t} lib={lib} now={d.now} say={d.say} onLicenses={() => setLicOpen(true)} />}
@@ -492,8 +497,8 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
             <div className="tscroll" ref={tableRef}>
               <table className="qt">
                 <thead><tr>
-                  <th className="num">#</th><th>Why</th><th>Contact</th><th>Phone</th><th>Location · Zone</th><th>Company — Role</th>
-                  <th className="num">Dials</th><th className="num">Last</th><th className="num">Next</th><th>Notes (newest)</th>
+                  {qth('n', '#', 'num', 1)}{qth('why', 'Why')}{qth('name', 'Contact')}{qth('phone', 'Phone')}{qth('loc', 'Location · Zone')}{qth('company', 'Company — Role')}
+                  {qth('dials', 'Dials', 'num')}{qth('last', 'Last', 'num')}{qth('next', 'Next', 'num')}{qth('note', 'Notes (newest)')}
                 </tr></thead>
                 <tbody>
                   {rows.map(r => {

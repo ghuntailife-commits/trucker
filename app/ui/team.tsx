@@ -1,6 +1,7 @@
 // Team: the leaderboard, each agent's numbers, the daily health check and the Monday coaching notes.
 // George (admin) sees everyone and can open any agent's screen; the boss sees results and totals only.
 'use client';
+import { useSort } from './sort';
 import { useEffect, useMemo, useState } from 'react';
 import type { Team } from '../../src/app-store/useTeam';
 import { loadAgentData } from '../../src/app-store/useTeam';
@@ -85,6 +86,9 @@ export function TeamPage({ t, now, live, onViewAs, onDial }: {
   const board = useMemo(() => (ready ? agents.map(a => boardRow(a, all[a.id]!, r, now)).sort((x, y) => y.alp - x.alp || y.presented - x.presented) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [ready, rk, now, data, live?.data, t.team, grp]);
+  const { sorted: boardS, th } = useSort(board, { alp: b => b.alp, name: b => b.a.name, sold: b => b.sold, presented: b => b.presented,
+    close: b => b.presented ? b.sold / b.presented : null, booked: b => b.scheduled, show: b => b.presented - b.calledInto + b.noShows ? showRate(b) : null,
+    dials: b => b.dials, reached: b => b.dials ? b.connects / b.dials : null, goal: b => b.a.goal ? b.monthAlp / b.a.goal : null });
   if (!ready) return <div className="respage"><div className="empty">Loading the team…</div></div>;
 
   const tot = board.reduce((acc, b) => ({ alp: acc.alp + b.alp, sold: acc.sold + b.sold, presented: acc.presented + b.presented,
@@ -145,10 +149,10 @@ export function TeamPage({ t, now, live, onViewAs, onDial }: {
         <Panel span={4} title="Leaderboard" meta={boss ? "Ranked by ALP" : "Ranked by ALP · click an agent for their health check and coaching note"}>
           <div className="tscroll board">
             <table className="rt lb">
-              <thead><tr><th>#</th><th>Agent</th><th className="alpc">ALP</th><th className="num">Sales</th><th className="num">Presented</th><th className="num">Close</th>
-                <th className="num">Booked</th><th className="num">Show rate</th><th className="num">Dials</th><th className="num">Reached</th><th className="goalc">Month goal</th></tr></thead>
+              <thead><tr><th>#</th>{th('name', 'Agent')}{th('alp', 'ALP', 'alpc', -1)}{th('sold', 'Sales', 'num')}{th('presented', 'Presented', 'num')}{th('close', 'Close', 'num')}
+                {th('booked', 'Booked', 'num')}{th('show', 'Show rate', 'num')}{th('dials', 'Dials', 'num')}{th('reached', 'Reached', 'num')}{th('goal', 'Month goal', 'goalc', -1)}</tr></thead>
               <tbody>
-                {board.map((b, i) => {
+                {boardS.map((b, i) => {
                   const g = b.a.goal ? b.monthAlp / b.a.goal : 0;
                   return (
                     <tr key={b.a.id} className={`pick ${sel === b.a.id && !boss ? 'sel' : ''}`} tabIndex={0} onClick={() => setSel(b.a.id)}

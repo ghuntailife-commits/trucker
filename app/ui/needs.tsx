@@ -11,6 +11,8 @@ import { CHECK_EVERY_MIN } from '../../src/app-store/useNumberSheet';
 import { BANNER, LEFT_HEAD, LEFT_TITLE, LEFT_TYPE, RIGHT_HEAD, RIGHT_TITLE, RIGHT_TYPE, WIDTHS, FIRST_DATA_ROW, isDone, isOpen, leftValues, needsLook, planSend, rightValues, tone, type SendPlan, type SheetRow } from '../../src/numbers/sheet';
 import { mdTime } from '../../src/rules/time';
 import { Toggle } from './settings';
+import { priorityScorer, mixOrder, type Priority } from '../../src/contacts/priority';
+import { useSort } from './sort';
 
 type D = ReturnType<typeof useDialer>;
 type Tab = NeedsGroup | 'sheet';
@@ -24,7 +26,7 @@ const DRAFT = 'trucker-needs-draft';
 const blank = (id: string): NeedsEntry => ({ id, phone: '', backup: '', note: '', cannotFind: false });
 const typed = (e: NeedsEntry) => !!(e.phone.trim() || e.backup.trim() || e.note.trim() || e.cannotFind);
 
-export function NeedsPage({ d, ns }: { d: D; ns: NumberSheet }) {
+export function NeedsPage({ d, ns, states = [] }: { d: D; ns: NumberSheet; states?: string[] }) {
   const [tab, setTab] = useState<Tab>('needs');
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [sendPlan, setSendPlan] = useState<SendPlan | null>(null);
@@ -39,14 +41,18 @@ export function NeedsPage({ d, ns }: { d: D; ns: NumberSheet }) {
   useEffect(() => { try { const r = localStorage.getItem(DRAFT); if (r) setDraft(JSON.parse(r)); } catch { /* */ } }, []);
   useEffect(() => { try { localStorage.setItem(DRAFT, JSON.stringify(draft)); } catch { /* */ } }, [draft]);
 
+  const score = useMemo(() => {
+    const f = priorityScorer({ states, log: d.log, sales: d.sales, noSales: d.noSales, contacts: d.contacts });
+    const memo = new Map<string, Priority>();
+    return (c: Contact) => { let p = memo.get(c.id); if (!p) { p = f(c); memo.set(c.id, p); } return p; };
+  }, [states, d.log, d.sales, d.noSales, d.contacts]);
   const groups = useMemo(() => {
     const m: Record<NeedsGroup, Contact[]> = { needs: [], newNumber: [], cannotFind: [] };
     for (const c of d.contacts) { const g = needsGroup(c); if (g) m[g].push(c); }
-    // like the sheet: UPS contacts last, then by list and original order
-    const ups = (c: Contact) => (/^ups\b/i.test(c.company) ? 1 : 0);
-    for (const k of Object.keys(m) as NeedsGroup[]) m[k].sort((a, b) => ups(a) - ups(b) || a.list.localeCompare(b.list) || a.seq - b.seq);
+    // best first: licensed state, talked before, companies that buy, easy to find (src/contacts/priority.ts)
+    for (const k of Object.keys(m) as NeedsGroup[]) m[k] = mixOrder(m[k], c => score(c).score, c => c.company, (a, b) => a.list.localeCompare(b.list) || a.seq - b.seq);
     return m;
-  }, [d.contacts]);
+  }, [d.contacts, score]);
   const entries = Object.values(draft).filter(typed);
   const set = (id: string, patch: Partial<NeedsEntry>) => setDraft(x => ({ ...x, [id]: { ...(x[id] ?? blank(id)), ...patch } }));
 
@@ -58,8 +64,12 @@ export function NeedsPage({ d, ns }: { d: D; ns: NumberSheet }) {
     setDraft(x => { const n = { ...x }; for (const o of ok) delete n[o.id]; return n; });
     setReview(null);
   };
-  const rows = tab === 'sheet' ? [] : groups[tab];
-  const pickable = rows.filter(c => !onSheet.has(c.id));
+  const [limit, setLimit] = useState(200);
+  const { sorted: rows, th } = useSort<Contact>(tab === 'sheet' ? [] : groups[tab], {
+    best: c => score(c).score, name: c => `${c.last} ${c.first}`, company: c => c.company, loc: c => `${c.state} ${c.city}`, dials: c => c.dials,
+    note: c => notesNewestFirst(c.notes)[0] ?? '' });
+  useEffect(() => setLimit(200), [tab]);
+  const pickable = rows.slice(0, limit).filter(c => !onSheet.has(c.id));
   const pick = (id: string, on: boolean) => setPicked(x => { const n = new Set(x); if (on) n.add(id); else n.delete(id); return n; });
 
   return (
@@ -99,17 +109,19 @@ export function NeedsPage({ d, ns }: { d: D; ns: NumberSheet }) {
               <thead><tr>
                 {tab !== 'cannotFind' && <th className="pickc"><input type="checkbox" aria-label="Pick all for the number sheet" checked={!!pickable.length && pickable.every(c => picked.has(c.id))}
                   onChange={e => setPicked(x => { const n = new Set(x); for (const c of pickable) { if (e.target.checked) n.add(c.id); else n.delete(c.id); } return n; })} /></th>}
-                <th>Contact</th><th>Company — Role</th><th>Location</th><th className="num">Dials</th><th>Notes (newest)</th>
+                {th('best', 'Priority', 'num')}{th('name', 'Contact')}<th>Why</th>{th('company', 'Company — Role')}{th('loc', 'Location')}{th('dials', 'Dials', 'num')}{th('note', 'Notes (newest)')}
                 {tab === 'cannotFind' ? <th /> : <><th>{tab === 'newNumber' ? 'New number' : 'Phone'}</th>{tab === 'needs' && <th>Backup</th>}<th>Note</th><th>Cannot find</th></>}
               </tr></thead>
               <tbody>
-                {rows.map(c => {
-                  const e = draft[c.id] ?? blank(c.id);
+                {rows.slice(0, limit).map(c => {
+                  const e = draft[c.id] ?? blank(c.id), p = score(c);
                   return (
                     <tr key={c.id} className={typed(e) ? 'typed' : ''}>
                       {tab !== 'cannotFind' && <td className="pickc">{onSheet.has(c.id) ? <span className="onsheet" title="Waiting on the number sheet">✓</span>
                         : <input type="checkbox" aria-label={`Send ${c.first} ${c.last} to the number sheet`} checked={picked.has(c.id)} onChange={ev => pick(c.id, ev.target.checked)} />}</td>}
+                      <td className="num score" title={p.why.join(' · ')}>{p.score}</td>
                       <td className="strong">{c.first} {c.last}{onSheet.has(c.id) && <span className="spill green mini">On sheet</span>}{c.linkedin && /^https:\/\//.test(c.linkedin) && <> <a href={c.linkedin} target="_blank" rel="noopener noreferrer" className="li">in</a></>}</td>
+                      <td><div className="why" title={p.why.join(' · ')}>{p.why.filter(w => w !== 'LinkedIn').slice(0, 2).map(w => <span key={w} className={/^Not licensed|^Missing|^No state/.test(w) ? 'bad' : ''}>{w}</span>)}</div></td>
                       <td>{c.company}{c.job ? ` — ${c.job}` : ''}</td>
                       <td>{c.city}{c.city ? ', ' : ''}{c.state}</td>
                       <td className="num">{c.dials}</td>
@@ -125,7 +137,8 @@ export function NeedsPage({ d, ns }: { d: D; ns: NumberSheet }) {
                     </tr>
                   );
                 })}
-                {!rows.length && <tr><td colSpan={9} className="emptyrow">{tab === 'needs' ? 'Every contact has a number.' : tab === 'newNumber' ? 'No bad numbers waiting.' : 'Nobody is on the Cannot Find list.'}</td></tr>}
+                {rows.length > limit && <tr><td colSpan={11} className="emptyrow"><button className="btn sm" onClick={() => setLimit(l => l + 500)}>Show 500 more ({rows.length - limit} not shown)</button></td></tr>}
+                {!rows.length && <tr><td colSpan={11} className="emptyrow">{tab === 'needs' ? 'Every contact has a number.' : tab === 'newNumber' ? 'No bad numbers waiting.' : 'Nobody is on the Cannot Find list.'}</td></tr>}
               </tbody>
             </table>
           </div>}
@@ -133,7 +146,7 @@ export function NeedsPage({ d, ns }: { d: D; ns: NumberSheet }) {
             ? <><span>{sheetRows.length} row{sheetRows.length === 1 ? '' : 's'} · checked every {CHECK_EVERY_MIN} minutes{ns.sheet?.lastCheck ? ` · last checked ${mdTime(ns.sheet.lastCheck, TZ)}` : ''}</span>
               <span>Demo: a pretend sheet in this browser. At go-live it is a real Google Sheet only you (and your number finder) can open.</span></>
             : <><span>{rows.length} contact{rows.length === 1 ? '' : 's'}{tab !== 'cannotFind' ? ' · tick contacts to send them to your number sheet, or type numbers here' : ''}</span>
-              <span>A new number is dialed first for its next two dials.</span></>}</div>
+              <span>Best first: licensed states, people you talked to, companies that buy, easy to find, mixed so no one company fills the top. Click any column to sort.</span></>}</div>
         </section>
       </main>
 
