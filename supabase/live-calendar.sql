@@ -18,3 +18,7 @@ create table if not exists calendar_events (
   primary key (agent_id, uid)
 );
 alter table calendar_events enable row level security;
+
+-- Let the website's server (service_role) use both tables, and tell Supabase to see them right away.
+grant all on table google_tokens, calendar_events to service_role;
+notify pgrst, 'reload schema';

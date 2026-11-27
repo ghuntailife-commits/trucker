@@ -95,3 +95,9 @@ export async function putEvent(token: string, agent: string, e: WantedEvent, goo
 export async function deleteEvent(token: string, googleId: string, guests: boolean) {
   await g(token, `${API}/${encodeURIComponent(googleId)}?sendUpdates=${guests ? 'all' : 'none'}`, { method: 'DELETE' });
 }
+
+/** Plain words for a database error on the calendar tables, keeping Supabase's own words for checking. */
+export const calMsg = (m: string) =>
+  /permission denied/i.test(m) ? `Calendar tables need permission (run the calendar SQL again, it now grants it). Supabase said: ${m}`
+  : /schema cache|does not exist/i.test(m) ? `Calendar tables not found. Supabase said: ${m}`
+  : `Calendar: ${m}`;
