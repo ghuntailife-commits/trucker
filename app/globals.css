@@ -1023,6 +1023,7 @@ kbd { font: 600 12px var(--mono); background: var(--panel2); border: 1px solid v
 .lic { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
 .lic li { display: flex; flex-direction: column; padding: 6px 10px; background: var(--panel2); border-radius: 7px; } .lic span { color: var(--muted); }
 .libbar .libq { flex: 1; min-width: 180px; max-width: 280px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); }
+.libbar .libstate { padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); font: inherit; }
 .libbar .tbtns { flex-wrap: wrap; align-items: center; }
 .sendto, .firstn { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--muted); }
 .sendto select, .firstn input { padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--text); font: inherit; }

@@ -44,7 +44,7 @@ export function LibraryPage({ t, lib, now, say, onLicenses, mine = [] }: { t: Te
     return lib.lib.filter(c => (state === 'all' || c.state === state) && (show === 'all' || (show === 'open' ? !c.givenTo : !!c.givenTo))
       && (!n || `${c.first} ${c.last} ${c.company} ${c.city} ${c.givenTo}`.toLowerCase().includes(n)));
   }, [lib.lib, state, show, q]);
-  const { sorted: sortedRows, th } = useSort(rows, { name: c => `${c.last} ${c.first}`, company: c => c.company, loc: c => `${c.state} ${c.city}`,
+  const { sorted: sortedRows, th } = useSort(rows, { name: c => `${c.last} ${c.first}`, company: c => c.company, st: c => c.state, loc: c => `${c.city} ${c.state}`,
     phone: c => c.phone, given: c => c.givenTo, at: c => c.givenAt });
   const canPick = (c: typeof rows[number]) => !c.givenTo && (!agent || licensed(agent.states, c.state));
   const pickable = sortedRows.filter(canPick);
@@ -162,6 +162,10 @@ export function LibraryPage({ t, lib, now, say, onLicenses, mine = [] }: { t: Te
               {([['open', 'Not given out'], ['given', 'Given out'], ['all', 'All']] as [Show, string][]).map(([k, l]) =>
                 <button key={k} role="tab" aria-selected={show === k} className={show === k ? 'on' : ''} onClick={() => setShow(k)}>{l}</button>)}
             </div>
+            <select className="libstate" aria-label="Show one state" value={state} onChange={e => setState(e.target.value)}>
+              <option value="all">All states</option>
+              {[...counts].sort((a, b) => a.state.localeCompare(b.state)).map(s => <option key={s.state} value={s.state}>{s.state} ({s.open.toLocaleString('en-US')} not given out)</option>)}
+            </select>
             <input className="libq" placeholder="Search name, company, city" value={q} onChange={e => setQ(e.target.value)} />
             <div className="tbtns">
               <label className="sendto">Send to
@@ -182,7 +186,7 @@ export function LibraryPage({ t, lib, now, say, onLicenses, mine = [] }: { t: Te
               <thead><tr>
                 <th className="pickc"><input type="checkbox" aria-label="Pick every contact shown" checked={!!pickable.length && pickable.every(c => picked.has(c.id))}
                   onChange={e => setPicked(x => { const s = new Set(x); for (const c of pickable) { if (e.target.checked) s.add(c.id); else s.delete(c.id); } return s; })} /></th>
-                {th('name', 'Contact')}{th('company', 'Company — Role')}{th('loc', 'Location')}{th('phone', 'Phone')}{th('given', 'Given to')}{th('at', 'Date given', 'num')}
+                {th('name', 'Contact')}{th('company', 'Company — Role')}{th('st', 'State')}{th('loc', 'City')}{th('phone', 'Phone')}{th('given', 'Given to')}{th('at', 'Date given', 'num')}
               </tr></thead>
               <tbody>
                 {sortedRows.slice(0, limit).map(c => {
@@ -192,13 +196,14 @@ export function LibraryPage({ t, lib, now, say, onLicenses, mine = [] }: { t: Te
                     <td className="pickc"><input type="checkbox" disabled={!ok} aria-label={`Pick ${c.first} ${c.last}`} checked={picked.has(c.id)} onChange={e => pick(c.id, e.target.checked)} /></td>
                     <td className="strong">{c.first} {c.last}{c.linkedin && /^https:\/\//.test(c.linkedin) && <> <a href={c.linkedin} target="_blank" rel="noopener noreferrer" className="li">in</a></>}</td>
                     <td>{c.company}{c.job ? ` — ${c.job}` : ''}</td>
-                    <td>{c.city}{c.city ? ', ' : ''}{c.state}{noLic && <span className="spill grey mini">Not licensed</span>}</td>
+                    <td className="strong">{c.state}{noLic && <span className="spill grey mini">Not licensed</span>}</td>
+                    <td>{c.city}</td>
                     <td className="mono">{c.phone || <span className="muted">Needs a number</span>}</td>
                     <td>{c.givenTo ? <span className={`spill mini ${known.has(c.givenTo.toLowerCase()) ? 'teal' : 'grey'}`}>{c.givenTo}</span> : <span className="muted">—</span>}</td>
                     <td className="muted">{c.givenAt ? md(c.givenAt) : ''}</td>
                   </tr>;
                 })}
-                {!rows.length && <tr><td colSpan={7} className="emptyrow">No contacts match.</td></tr>}
+                {!rows.length && <tr><td colSpan={8} className="emptyrow">No contacts match.</td></tr>}
               </tbody>
             </table>
           </div>
