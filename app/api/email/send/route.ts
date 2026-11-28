@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     const body = await req.json() as { email: FollowUp; signature: Signature; certificate?: string; test?: boolean };
     const cert = body.certificate ? Buffer.from(body.certificate, 'base64') : null;
     if (cert && cert.subarray(0, 4).toString() !== '%PDF') return NextResponse.json({ error: 'The certificate has to be a PDF.' }, { status: 400 });
-    const missing = emailProblems(body.email, { hasUpload: !!cert });
+    const missing = emailProblems(body.email, { hasUpload: !!cert }).filter(p => !body.test || (p !== 'a valid email address' && p !== 'a valid cc address'));
     if (missing.length) return NextResponse.json({ error: `Still needed: ${missing.join(', ')}.` }, { status: 400 });
 
     const { data: tok } = await db.from('google_tokens').select('refresh_token,email').eq('agent_id', me.agentId).maybeSingle();

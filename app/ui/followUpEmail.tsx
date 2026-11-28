@@ -118,6 +118,8 @@ export function FollowUpEmailDialog({ agent, agentName, agentEmail, start, onClo
       add: hasAdd ? { amount: num(amount), group, cert: saleCert } : null, childKit, willKit }
     : { kind: 'nosale', first, to, cc, when, amount: num(amount), group, cert: noCert, childKit };
   const problems = emailProblems(email, { hasUpload: !!file });
+  // a test goes to the agent, so it doesn't need the client's address (Bradley, 2026-11-28)
+  const testProblems = problems.filter(p => p !== 'a valid email address' && p !== 'a valid cc address');
   const built = useMemo(() => (sig ? buildFollowUp(email, sig, Date.now()) : null), [JSON.stringify(email), sig]); // eslint-disable-line react-hooks/exhaustive-deps
   const preview = built ? built.html.replace(/cid:siglogo/g, '/email/logo.png').replace(/cid:sigphoto/g, sig?.photo ?? '') : '';
   const needsCertFile = (sale ? hasAdd && saleCert === 'attach' : noCert === 'attach');
@@ -125,7 +127,7 @@ export function FollowUpEmailDialog({ agent, agentName, agentEmail, start, onClo
   const tooBig = file && file.size > 2.8 * 1024 * 1024;
 
   const send = async (test: boolean) => {
-    if (!sig || problems.length || tooBig) return;
+    if (!sig || (test ? testProblems : problems).length || tooBig) return;
     setErr(''); setReconnect(false); setBusy(test ? 'Sending a test to you…' : 'Sending…');
     try {
       const { data } = await db().auth.getSession();
@@ -205,7 +207,7 @@ export function FollowUpEmailDialog({ agent, agentName, agentEmail, start, onClo
     <div className="bar">
       <span className="muted">{busy || (problems.length ? `Still needed: ${problems.join(', ')}` : !LIVE ? 'Sending works on the live Dispatch.' : '')}</span>
       <button className="btn" disabled={!!busy} onClick={onClose}>Not now</button>
-      <button className="btn" disabled={!!busy || !!problems.length || !!tooBig || !LIVE} onClick={() => void send(true)}>Send me a test</button>
+      <button className="btn" disabled={!!busy || !!testProblems.length || !!tooBig || !LIVE} title={testProblems.length ? `Still needed: ${testProblems.join(', ')}` : undefined} onClick={() => void send(true)}>Send me a test</button>
       <button className="btn primary" disabled={!!busy || !!problems.length || !!tooBig || !LIVE} onClick={() => void send(false)}>Send to {first || 'client'}</button>
     </div>
     {sigOpen && <SignatureDialog agent={agent} name={agentName} email={agentEmail} onClose={() => setSigOpen(false)} onSaved={setSig} />}
