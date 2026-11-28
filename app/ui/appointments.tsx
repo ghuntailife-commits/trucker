@@ -50,7 +50,8 @@ const TONE: Record<CalItem['kind'], string> = { appt: 'blue', callback: 'amber',
 const pillTone = (it: CalItem) => it.kind === 'appt' ? (it.label === 'Confirmed' ? 'teal' : it.label === 'Booked' ? 'blue' : 'amber') : TONE[it.kind];
 
 /** onQuoText: when the agent has Quo, reminders open the Quo text box instead of the computer's own texting app. */
-export function AppointmentsPage({ agent, agentName = '', d, cal, onDial, onResult, onQuoText, onText, open, onOpened }: { agent: string; agentName?: string; d: D; cal?: GoogleCal; onDial: (id: string) => void; onResult: OnResult; onQuoText?: (id: string, at: number, tomorrow: boolean) => void; onText?: (id: string) => void;
+export function AppointmentsPage({ agent, agentName = '', d, cal, onDial, onResult, onQuoText, onText, onMail, open, onOpened }: { agent: string; agentName?: string; d: D; cal?: GoogleCal; onDial: (id: string) => void; onResult: OnResult; onQuoText?: (id: string, at: number, tomorrow: boolean) => void; onText?: (id: string) => void;
+  /** policy summary / no-cost benefits emails from the right-click menu (George, 2026-11-28) */ onMail?: (c: Contact, kind: 'sale' | 'nosale') => void;
   /** from Home: open this contact's appointment card (George, 2026-11-27) */ open?: { id: string; at: number | null } | null; onOpened?: () => void }) {
   const [offset, setOffset] = useState(0);
   const [sel, setSel] = useState<string | null>(null);
@@ -303,6 +304,7 @@ export function AppointmentsPage({ agent, agentName = '', d, cal, onDial, onResu
           ...(it.kind === 'appt' && open && it.at >= d.now && it.label !== 'Confirmed' ? [['Mark confirmed', () => d.confirm(x.id)]] : []),
           ...(open ? [['Move…', () => onResult('reschedule', x.id)]] : []),
           ['Open in dialer', () => onDial(x.id)],
+          ...(onMail ? [['Email policy summary…', () => onMail(x, 'sale')], ['Email no-cost benefits…', () => onMail(x, 'nosale')]] : []),
           ...(open ? [[it.kind === 'appt' ? 'Cancel appointment' : 'Remove callback', () => cancelItem(it), 'danger']] : []),
         ] as [string, () => void, string?][];
       })()} />}

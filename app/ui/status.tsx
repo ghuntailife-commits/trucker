@@ -7,7 +7,8 @@ import { db, LIVE } from '../../src/live/supabase';
 import { linesFor, worst, type AgentRaw, type Level } from '../../src/status/check';
 import type { Team } from '../../src/app-store/useTeam';
 
-type Resp = { now: number; build: string; agents: AgentRaw[]; setup: { anthropic: boolean; google: boolean; quo: string[]; unassignedQuo: number }; error?: string };
+type Crash = { agent: string; at: number; message: string; stack: string; page: string; ua: string };
+type Resp = { now: number; build: string; agents: AgentRaw[]; crashes?: Crash[]; setup: { anthropic: boolean; google: boolean; quo: string[]; unassignedQuo: number }; error?: string };
 const DOT: Record<Level, [string, string]> = { ok: ['All good', 'green'], warn: ['Look', 'amber'], bad: ['Problem', 'red'], off: ['Not used', 'grey'] };
 const ORDER: Record<Level, number> = { bad: 0, warn: 1, ok: 2, off: 3 };
 
@@ -41,6 +42,11 @@ export function StatusPage({ t }: { t: Team }) {
       </section>
       {err && <p className="preview err">{err}</p>}
       {r && <div className="rgrid">
+        {!!r.crashes?.length && <Panel span={4} title="Screen errors (last 7 days)" meta={<span className="spill red">{r.crashes.length}</span>}
+          foot="The newest error per agent. They saw a Reload button; nothing saved was lost.">
+          <div className="stlines">{r.crashes.map(c => <div key={c.agent + c.at}><b>{c.agent}</b> · {new Date(c.at).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · {c.page}
+            <pre style={{ whiteSpace: 'pre-wrap', fontSize: 11, margin: '4px 0 10px' }}>{c.message}{'\n'}{c.stack.split('\n').slice(1, 5).join('\n')}</pre></div>)}</div>
+        </Panel>}
         <Panel span={4} title="Setup" meta={<span className={`spill ${r.setup.anthropic && r.setup.google ? 'green' : 'amber'}`}>{r.setup.anthropic && r.setup.google ? 'All set' : 'Look'}</span>}>
           <div className="stlines">
             <Ln l={r.setup.anthropic ? 'ok' : 'bad'} label="Claude AI" d={r.setup.anthropic ? 'Key is set: call notes, call briefs and coaching work' : 'ANTHROPIC_API_KEY is missing on Vercel'} />
