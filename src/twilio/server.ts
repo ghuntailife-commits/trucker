@@ -35,7 +35,11 @@ export async function lastAgentFor(db: SupabaseClient, t: TeamSettings | null, p
   if (d.length !== 10) return null;
   const { data } = await db.from('quo_events').select('agent_id,phone').like('phone', `%${d}`).not('agent_id', 'is', null).order('at', { ascending: false }).limit(5);
   const on = new Set((t?.agents ?? []).filter(a => a.twilio).map(a => a.id));
-  return ((data ?? []) as { agent_id: string }[]).map(r => r.agent_id).find(a => on.has(a)) ?? null;
+  const last = ((data ?? []) as { agent_id: string }[]).map(r => r.agent_id).find(a => on.has(a));
+  if (last) return last;
+  // never reached through Dispatch (called from Quo or a cell): ring the agent whose contact list has them (George, 2026-11-28)
+  for (const a of on) if (await contactName(db, a, phone).catch(() => '')) return a;
+  return null;
 }
 
 export const xml = (body: string) => new Response(body, { headers: { 'Content-Type': 'text/xml' } });
