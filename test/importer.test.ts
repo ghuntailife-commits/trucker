@@ -27,3 +27,13 @@ describe('import with results', () => {
     expect(planImport([row('').slice(0, 10)], [], opts)[0].contact).toMatchObject({ tag: '', dials: 0, lastDialed: null });
   });
 });
+
+describe('fill in results on contacts imported without them', () => {
+  it('updates a never-dialed contact here, and leaves worked ones alone', () => {
+    const [plain] = planImport([row('').slice(0, 10)], [], opts);
+    const [l] = planImport([row('Hung up')], [plain.contact!], opts);
+    expect(l).toMatchObject({ ok: true, update: true, contact: { id: plain.contact!.id, tag: TAGS.notInterested, dials: 2 } });
+    const worked = { ...plain.contact!, dials: 3 };
+    expect(planImport([row('Hung up')], [worked], opts)[0]).toMatchObject({ ok: false });
+  });
+});

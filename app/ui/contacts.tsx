@@ -321,11 +321,12 @@ function ImportDialog({ d, onClose, allAgents }: { d: D; onClose: () => void; al
   };
   const good = plan?.filter(x => x.ok) ?? [];
   const run = () => {
-    const added = good.map(x => x.contact!);
+    const added = good.filter(x => !x.update).map(x => x.contact!);
+    const changed = good.filter(x => x.update).map(x => x.contact!);
     const byList = new Map<string, number>();
     for (const c of added) byList.set(c.list, (byList.get(c.list) ?? 0) + 1);
     const events = [...byList].map(([list, n]) => ({ at: Date.now(), contactId: '', list, first: '', last: '', phone: '', kind: 'Import' as const, count: n, tag: '', dials: 0 }));
-    d.batch('import', { added, events }, `Imported ${added.length}, skipped ${(plan?.length ?? 0) - added.length}.`);
+    d.batch('import', { added, changed, events }, `Imported ${added.length}${changed.length ? `, filled in results on ${changed.length}` : ''}, skipped ${(plan?.length ?? 0) - good.length}.`);
     onClose();
   };
   return (
