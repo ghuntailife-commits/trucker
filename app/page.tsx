@@ -71,6 +71,7 @@ import { isOpen as sheetOpen, needsLook as sheetLook } from '../src/numbers/shee
 import { healthCheck, healthCount } from '../src/team/health';
 import { suggestText, type TextKey } from '../src/quo/quo';
 import { useMyTexts } from '../src/app-store/useMyTexts';
+import { FollowUpEmailDialog, SignatureDialog, type EmailStart } from './ui/followUpEmail';
 import { useIncomingCall } from '../src/live/useIncomingCall';
 import { useTwilio } from '../src/live/useTwilio';
 import { MyTextsDialog } from './ui/myTexts';
@@ -182,6 +183,12 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const [quo, setQuo] = useState<QuoModal>(null);
   const [textsOpen, setTextsOpen] = useState(false);
   const myTexts = useMyTexts(agent);
+  // follow-up emails after a sale or no-sale, and the signature they end with (George, 2026-11-27)
+  const [fuMail, setFuMail] = useState<EmailStart | null>(null);
+  const [sigOpen, setSigOpen] = useState(false);
+  const mailFor = (c: Contact, kind: 'sale' | 'nosale', sale?: { email?: string; monthly?: number; wholeLife?: number; alpType?: string }) =>
+    setFuMail({ kind, contactId: c.id, first: c.first, last: c.last, email: sale?.email || c.email || '', company: c.company,
+      monthly: sale?.monthly, wholeLife: sale?.wholeLife, trial: sale?.alpType === 'Trial' });
   const incoming = useIncomingCall(agent, !!me.quo && !me.twilio);   // Dispatch calling shows its own incoming card
   const [rowMenu, setRowMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [removeIds, setRemoveIds] = useState<string[] | null>(null);
@@ -576,6 +583,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
           </button>
           <ProfileMenu t={t} me={me} theme={theme} setTheme={setTheme} items={[
             { key: 'texts', label: 'My texts', sub: 'Reminders, confirmations and your own texts', onClick: () => setTextsOpen(true), hidden: !quoOn && !isAdmin },
+            { key: 'sig', label: 'My email signature', sub: 'Ends your policy summary and benefits emails', onClick: () => setSigOpen(true) },
             { key: 'settings', label: 'Settings', sub: 'Goals, rules, Quo, coaching', onClick: () => setPage('settings'), hidden: !pages.includes('settings') },
             { key: 'integrations', label: 'Integrations', sub: 'Quo, Google, Claude AI', onClick: () => setPage('integrations') },
             { key: 'catchup', label: 'Bring over sheet work', sub: 'For an agent who dialed in their old sheet today', onClick: () => setCatchOpen(true), hidden: !isAdmin },
@@ -600,7 +608,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       {!switching && page === 'home' && <HomePage note={note} stats={s} appts={homeAppts} nextAppts={nextAppts} nextLabel={nextLabel} waiting={{ ...waiting, newNumbers: newNums }} coach={coach}
         health={hc} sheet={{ waiting: sheetWaitN, look: sheetLookN, needs: needsN }} wins={wins} recent={recent} ago={x => ago(x, d.now, TZ)} monthDays={monthDays} daysInMonth={daysInMonth}
         go={setPage} openHealth={() => setHealthOpen(true)} onDial={id => { setPicked(id); setPage('today'); }} onAppt={(id, at) => { setOpenAppt({ id, at }); setPage('appts'); }} timeOnly={timeOnly} md={x => md(x, TZ)} />}
-      {!switching && page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onText={textContact} agentName={me.name}
+      {!switching && page === 'contacts' && <ContactsPage d={d} onMail={mailFor} onDial={id => { setPicked(id); setPage('today'); }} onText={textContact} agentName={me.name}
         allAgents={isAdmin ? t.team.agents.map(a => ({ id: a.id, name: a.name })) : undefined} onMove={isAdmin ? ids => setMoveIds(ids) : undefined} />}
       {!switching && page === 'coach' && <CoachPage me={me} admin={t.role === 'admin'} agents={t.team.agents} contacts={d.contacts} now={d.now} cal={cal} />}
       {!switching && page === 'needs' && <NeedsPage d={d} ns={ns} states={me.states} agent={agent} />}
@@ -914,15 +922,22 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
           if (modal.amend) d.amend(modal.amend, modal.kind === 'reschedule' ? 'scheduled' : modal.kind, form);
           else d.outcome(modal.id, modal.kind, form);
           setModal(null);
+          // then the follow-up email, filled in from what was just saved
+          const fc = d.byId.get(modal.id) ?? whoContact(modal);
+          if (!modal.amend && fc && modal.kind === 'sold' && 'sale' in form && form.sale) mailFor(fc, 'sale', form.sale);
+          else if (!modal.amend && fc && modal.kind === 'presented' && 'noSale' in form && form.noSale && !form.noSale.again) mailFor(fc, 'nosale');
         }} />}
       {rowMenu && d.byId.get(rowMenu.id) && <CtxMenu at={rowMenu} onClose={() => setRowMenu(null)}
-        entries={contactEntries(d, d.byId.get(rowMenu.id)!, { onToday: d.today.some(r => r.contact.id === rowMenu.id && !r.done), askRemove: ids => setRemoveIds(ids) })
+        entries={contactEntries(d, d.byId.get(rowMenu.id)!, { onToday: d.today.some(r => r.contact.id === rowMenu.id && !r.done), askRemove: ids => setRemoveIds(ids), mail: (c, k) => mailFor(c, k) })
           .map(([l, run, tone]) => [l, () => { run(); if (picked === rowMenu.id && /Replace|Pause|Rest|Take off/.test(l)) setPicked(null); }, tone] as [string, () => void, string?])} />}
       {removeIds && <RemoveDialog d={d} ids={removeIds} agentName={me.name} onClose={() => { if (removeIds.includes(picked ?? '')) setPicked(null); setRemoveIds(null); }} />}
       {todaySet && <TodaySettings d={d} onClose={() => setTodaySet(false)} />}
       {quo && d.byId.get(quo.id) && <QuoText key={`${quo.id}-${quo.first}`} c={d.byId.get(quo.id)!} agent={me} apptAt={quo.afterBook ? d.byId.get(quo.id)!.callAt : quo.apptAt} first={quo.first}
         mine={myTexts.texts} onEditTexts={() => setTextsOpen(true)} onClose={() => setQuo(null)}
         onSent={body => { d.noteFacts(quo.id, `Texted (Quo): "${body.slice(0, 300)}"`, [], Date.now()); setQuo(null); }} />}
+      {fuMail && <FollowUpEmailDialog agent={agent} agentName={me.name} agentEmail={t.person?.agent_id === agent ? t.person?.email ?? undefined : undefined} start={fuMail}
+        onClose={() => setFuMail(null)} onSent={(note) => { if (d.byId.has(fuMail.contactId)) d.noteFacts(fuMail.contactId, note, [], Date.now()); d0.say(`${note.replace(/^Emailed: /, 'Sent ')}.`); }} />}
+      {sigOpen && <SignatureDialog agent={agent} name={me.name} email={t.person?.email ?? undefined} onClose={() => setSigOpen(false)} />}
       {textsOpen && <MyTextsDialog agentName={me.name} texts={myTexts.texts} onSave={t => { myTexts.save(t); d0.say('Your texts are saved.'); }} onClose={() => setTextsOpen(false)} />}
       {keysOpen && <ShortcutsDialog onClose={() => setKeysOpen(false)} />}
       {catchOpen && isAdmin && <CatchUpDialog say={d0.say} onClose={() => setCatchOpen(false)} />}

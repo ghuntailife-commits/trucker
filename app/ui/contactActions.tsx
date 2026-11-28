@@ -29,7 +29,7 @@ export function CtxMenu({ at, entries, onClose }: { at: { x: number; y: number }
 }
 
 /** What an agent can do with one of their contacts, as menu entries. `onToday` = the contact is on Today right now. */
-export function contactEntries(d: D, c: Contact, opts: { onToday: boolean; askRemove: (ids: string[]) => void }): MenuEntry[] {
+export function contactEntries(d: D, c: Contact, opts: { onToday: boolean; askRemove: (ids: string[]) => void; mail?: (c: Contact, kind: 'sale' | 'nosale') => void }): MenuEntry[] {
   const now = Date.now(), held = isHeld(c, now), pinned = d.pins.some(p => p.id === c.id);
   return [
     ['Call next', () => d.pin(c.id, true)],
@@ -37,6 +37,7 @@ export function contactEntries(d: D, c: Contact, opts: { onToday: boolean; askRe
     ...(opts.onToday ? [[pinned ? 'Take off Today' : 'Replace (off Today today)', () => (pinned ? d.unpin(c.id) : d.replace(c.id))] as MenuEntry] : []),
     ...(held ? [[`Resume (${holdLabel(c, now, TZ).toLowerCase()})`, () => d.resume(c.id)] as MenuEntry]
       : [['Pause until I resume', () => d.hold(c.id, 'pause')] as MenuEntry, [`Rest ${REST_DAYS} days`, () => d.hold(c.id, 'rest')] as MenuEntry]),
+    ...(opts.mail ? [['Email policy summary…', () => opts.mail!(c, 'sale')] as MenuEntry, ['Email no-cost benefits…', () => opts.mail!(c, 'nosale')] as MenuEntry] : []),
     ['Remove from my contacts…', () => opts.askRemove([c.id]), 'danger'],
   ];
 }

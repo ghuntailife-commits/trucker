@@ -50,7 +50,7 @@ const fieldsOf = (c: Contact): EditFields => ({ first: c.first, last: c.last, ph
 let idSeq = 0;
 const newId = () => `c-${Date.now().toString(36)}-${(idSeq++).toString(36)}`;
 
-export function ContactsPage({ d, onDial, onText, agentName = 'agent', allAgents, onMove }: { d: D; onDial: (id: string) => void; onText?: (id: string) => void; agentName?: string;
+export function ContactsPage({ d, onDial, onText, agentName = 'agent', allAgents, onMove, onMail }: { d: D; onDial: (id: string) => void; onText?: (id: string) => void; agentName?: string; onMail?: (c: Contact, kind: 'sale' | 'nosale') => void;
   /** admin only: imports also check every other agent's contacts */ allAgents?: { id: string; name: string }[];
   /** admin only: move the ticked contacts to another agent (George, 2026-11-27) */ onMove?: (ids: string[]) => void }) {
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -198,7 +198,7 @@ export function ContactsPage({ d, onDial, onText, agentName = 'agent', allAgents
       {dialog === 'import' && <ImportDialog d={d} onClose={() => setDialog(null)} allAgents={allAgents} />}
       {dialog === 'delete' && c && <RemoveDialog d={d} ids={[c.id]} agentName={agentName} onClose={() => { if (!d.byId.has(c.id)) setSel(null); setDialog(null); }} />}
       {menu && d.byId.get(menu.id) && <CtxMenu at={menu} onClose={() => setMenu(null)}
-        entries={[['Open in dialer', () => onDial(menu.id)] as [string, () => void], ...contactEntries(d, d.byId.get(menu.id)!, { onToday: d.today.some(r => r.contact.id === menu.id && !r.done), askRemove: () => setDialog('delete') })]} />}
+        entries={[['Open in dialer', () => onDial(menu.id)] as [string, () => void], ...contactEntries(d, d.byId.get(menu.id)!, { onToday: d.today.some(r => r.contact.id === menu.id && !r.done), askRemove: () => setDialog('delete'), mail: onMail })]} />}
     </>
   );
 }

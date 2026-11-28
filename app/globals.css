@@ -1474,3 +1474,27 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 .localnums .lnlist { max-height: 46vh; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
 .lnusage { margin-top: 8px; } .lnusage summary { cursor: pointer; color: var(--link); font-size: 13.5px; }
 @media (max-width: 640px) { .localnums .lnsum { grid-template-columns: repeat(2, 1fr); } }
+
+/* Follow-up emails (George, 2026-11-27) */
+.fuemail { display: grid; grid-template-columns: minmax(300px, 400px) 1fr; gap: 18px; align-items: start; }
+.fuform { max-height: 68vh; overflow: auto; padding-right: 6px; }
+.fuform .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.fuform .covline { width: 100%; margin: 0 0 6px; }
+.fuform .chk { display: flex; gap: 8px; align-items: center; margin: 8px 0; font-size: 14px; }
+.fuform .chips.mini { display: flex; flex-wrap: wrap; gap: 4px; margin: -4px 0 10px; }
+.fuform .chips.mini button { font-size: 12px; padding: 3px 9px; }
+.fubox { border: 1px solid var(--line); background: var(--panel2); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
+.fubox .seg { display: flex; gap: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-bottom: 8px; }
+.fubox .seg button { flex: 1; border: 0; background: var(--panel); padding: 7px 6px; font-size: 13px; cursor: pointer; color: var(--text); }
+.fubox .seg button + button { border-left: 1px solid var(--line); }
+.fubox .seg button.on { background: var(--accent); color: var(--accent-ink); }
+.fuprev { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #fff; }
+.fuprev .eyebrow { padding: 8px 12px; background: var(--panel2); border-bottom: 1px solid var(--line); margin: 0; }
+.fuprev iframe { width: 100%; height: 62vh; border: 0; display: block; background: #fff; }
+.okline { color: var(--green-ink); font-weight: 600; margin: 8px 0; }
+.sigform .sigphoto { display: flex; gap: 12px; align-items: center; margin: 8px 0 12px; }
+.sigform .sigphoto img, .sigform .sigph { width: 64px; height: 64px; border-radius: 6px; object-fit: cover; }
+.sigform .sigph { display: grid; place-items: center; background: var(--panel2); border: 1px dashed var(--line); color: var(--faint); font-size: 11px; }
+@media (max-width: 860px) { .fuemail { grid-template-columns: 1fr; } .fuprev iframe { height: 50vh; } .fuform { max-height: none; } }
+.fuform label.chk { display: flex !important; flex-direction: row; justify-content: flex-start; gap: 8px; color: var(--text); }
+.fuform label.chk input { width: auto; margin: 0; flex: none; }
