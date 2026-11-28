@@ -946,7 +946,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       {todaySet && <TodaySettings d={d} onClose={() => setTodaySet(false)} />}
       {quo && d.byId.get(quo.id) && <QuoText key={`${quo.id}-${quo.first}`} c={d.byId.get(quo.id)!} agent={me} apptAt={quo.afterBook ? d.byId.get(quo.id)!.callAt : quo.apptAt} first={quo.first} via={textVia ?? 'quo'}
         mine={myTexts.texts} onEditTexts={() => setTextsOpen(true)} onClose={() => setQuo(null)}
-        onSent={body => { d.noteFacts(quo.id, `Texted (${textVia === 'dispatch' ? 'Dispatch' : 'Quo'}): "${body.slice(0, 300)}"`, [], Date.now()); setQuo(null); }} />}
+        onSent={body => { d.noteFacts(quo.id, `Texted (${textVia === 'dispatch' ? 'Dispatch' : 'Quo'}): "${body.slice(0, 300)}"`, [], Date.now()); }} />}
       {fuMail && <FollowUpEmailDialog agent={agent} agentName={me.name} agentEmail={t.person?.agent_id === agent ? t.person?.email ?? undefined : undefined} start={fuMail}
         onClose={() => setFuMail(null)} onSent={(note) => { if (d.byId.has(fuMail.contactId)) d.noteFacts(fuMail.contactId, note, [], Date.now()); d0.say(`${note.replace(/^Emailed: /, 'Sent ')}.`); }} />}
       {sigOpen && <SignatureDialog agent={agent} name={me.name} email={t.person?.email ?? undefined} onClose={() => setSigOpen(false)} />}

@@ -25,7 +25,7 @@ export function QuoText({ c, agent, apptAt, first = 'missed', mine, onEditTexts,
   const [kind, setKind] = useState<string>(replying ? 'reply' : start);
   const [body, setBody] = useState(() => (replying ? '' : textFor(start, c, fill, mine)));
   const chat = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (chat.current) chat.current.scrollTop = chat.current.scrollHeight; }, []);
+  useEffect(() => { if (chat.current) chat.current.scrollTop = chat.current.scrollHeight; }, [thread.length]);
   const to = c.phone || c.backup;
   const dsp = via === 'dispatch';
   const from = dsp ? '+10000000000' : quoNumbers(agent.quoNumber)[0] || '+10000000000';   // Dispatch picks its local number on the server     // the demo has no Quo number yet
@@ -53,13 +53,13 @@ export function QuoText({ c, agent, apptAt, first = 'missed', mine, onEditTexts,
         {err && <p className="warnline">{err}</p>}
       </div>
       <div className="bar">
-        <button className="btn" onClick={onClose}>Cancel</button>
+        <button className="btn" onClick={onClose}>{thread.length ? 'Close' : 'Cancel'}</button>
         <button className="btn primary" disabled={!!problem || sending} onClick={async () => {
-          if (!LIVE) return onSent(body.trim(), (kind === 'reply' ? 'followUp' : kind) as TextKey);
+          if (!LIVE) { onSent(body.trim(), (kind === 'reply' ? 'followUp' : kind) as TextKey); setBody(''); setKind('reply'); return; }
           setSending(true); setErr('');
           const e = await sendQuoText(to, body.trim(), via);
           setSending(false);
-          if (e) setErr(e); else onSent(body.trim(), (kind === 'reply' ? 'followUp' : kind) as TextKey);
+          if (e) setErr(e); else { onSent(body.trim(), (kind === 'reply' ? 'followUp' : kind) as TextKey); setBody(''); setKind('reply'); }   // stays open, like a texting app
         }}>{sending ? 'Sending…' : dsp ? 'Send text' : 'Send with Quo'}</button>
       </div>
     </Dialog>
