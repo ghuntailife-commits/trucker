@@ -37,6 +37,7 @@ import { recentEvents, ago, type Recent } from '../src/home/recent';
 import { useTeamFeed } from '../src/live/useTeamFeed';
 import { feedText, type Snap, type FeedKind } from '../src/team/feed';
 import { FeedToasts } from './ui/feedToasts';
+import { LiveWave } from './ui/liveWave';
 const NONE: never[] = [];
 const FEED_TONE: Record<FeedKind, Recent['tone']> = { leads: 'blue', sale: 'green', presented: 'amber', booked: 'violet' };
 const FEED_GO: Record<FeedKind, Recent['go']> = { leads: 'contacts', sale: 'results', presented: 'results', booked: 'appts' };
@@ -810,8 +811,8 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
               )}
               {call?.id === current.id ? (
                 <button className="callbtn live" title="Hung up? Click to end the call here, then pick how it went" onClick={() => endCall(current.id)}>
-                  <span className="cb-ico"><span className="wave"><i /><i /><i /><i /></span></span>
-                  <span className="cb-txt"><small className="cb-lbl">On the call <b>{fmtSecs(Math.round((Date.now() - call.at) / 1000))}</b></small><span className="cb-num">{dialNum}</span></span>
+                  <span className="cb-ico"><LiveWave level={tw.live ? tw.level : null} /></span>
+                  <span className="cb-txt"><small className="cb-lbl">{tw.live && tw.live.state !== 'open' ? (tw.live.state === 'ringing' ? 'Ringing…' : 'Connecting…') : 'On the call'} <b>{fmtSecs(Math.round((Date.now() - call.at) / 1000))}</b></small><span className="cb-num">{dialNum}</span></span>
                   <span className="endcall"><Ico d={IC.phone} size={16} /> End</span>
                 </button>
               ) : (

@@ -33,14 +33,17 @@ export function useTwilio(on: boolean, onEnded: () => void) {
   const call = useRef<TwCall | null>(null);
   const ring = useRef<TwCall | null>(null);
   const ended = useRef(onEnded); ended.current = onEnded;
+  /** how loud each side is right now (0 to 1), for the sound bars: i = the agent's mic, o = the contact */
+  const level = useRef({ i: 0, o: 0 });
 
   const watch = useCallback((c: TwCall, phone: string, incoming: boolean) => {
     call.current = c;
     setSt(s => ({ ...s, live: { phone, state: incoming ? 'open' : 'connecting', muted: false, incoming }, incoming: null }));
     c.on('ringing', () => setSt(s => (s.live ? { ...s, live: { ...s.live, state: 'ringing' } } : s)));
     c.on('accept', () => setSt(s => (s.live ? { ...s, live: { ...s.live, state: 'open' } } : s)));
+    c.on('volume', (i, o) => { level.current = { i: Number(i) || 0, o: Number(o) || 0 }; });
     c.on('mute', (m) => setSt(s => (s.live ? { ...s, live: { ...s.live, muted: !!m } } : s)));
-    const done = () => { if (call.current !== c) return; call.current = null; setSt(s => ({ ...s, live: null })); ended.current(); };
+    const done = () => { if (call.current !== c) return; call.current = null; level.current = { i: 0, o: 0 }; setSt(s => ({ ...s, live: null })); ended.current(); };
     c.on('disconnect', done); c.on('cancel', done); c.on('reject', done);
     c.on('error', (e) => { setSt(s => ({ ...s, error: (e as Error)?.message ?? 'Call failed' })); done(); });
   }, []);
@@ -85,5 +88,5 @@ export function useTwilio(on: boolean, onEnded: () => void) {
   const digits = useCallback((k: string) => { call.current?.sendDigits(k); }, []);
   const answer = useCallback(() => { const c = ring.current; if (!c) return; ring.current = null; c.accept(); watch(c, c.parameters?.From ?? '', true); }, [watch]);
   const decline = useCallback(() => { const c = ring.current; ring.current = null; c?.reject(); setSt(s => ({ ...s, incoming: null })); }, []);
-  return { ...st, ready: st.status === 'ready', onCall: () => !!call.current, start, hangup, mute, digits, answer, decline };
+  return { ...st, level, ready: st.status === 'ready', onCall: () => !!call.current, start, hangup, mute, digits, answer, decline };
 }
