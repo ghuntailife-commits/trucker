@@ -11,8 +11,8 @@ import { Dialog, TZ, TZ_ABBR, timeOnly } from './shared';
 
 const fmt = (e: string | null) => (e ? `(${e.slice(2, 5)}) ${e.slice(5, 8)}-${e.slice(8)}` : '');
 
-export function QuoText({ c, agent, apptAt, first = 'missed', mine, onEditTexts, onClose, onSent, via = 'quo' }: {
-  via?: 'quo' | 'dispatch'; c: Contact; agent: AgentSetting; apptAt?: number | null; first?: TextKey | 'reply'; mine?: MyTexts; onEditTexts?: () => void; onClose: () => void; onSent: (body: string, kind: TextKey) => void;
+export function QuoText({ c, agent, apptAt, first = 'missed', mine, onEditTexts, onClose, onSent, via = 'quo', onVia }: {
+  via?: 'quo' | 'dispatch'; onVia?: (v: 'quo' | 'dispatch') => void; c: Contact; agent: AgentSetting; apptAt?: number | null; first?: TextKey | 'reply'; mine?: MyTexts; onEditTexts?: () => void; onClose: () => void; onSent: (body: string, kind: TextKey) => void;
 }) {
   const fill = { agent: agent.name, tz: TZ_ABBR, time: apptAt ? timeOnly(apptAt) : '',
     day: apptAt ? new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'long' }).format(apptAt) : '',
@@ -38,6 +38,9 @@ export function QuoText({ c, agent, apptAt, first = 'missed', mine, onEditTexts,
     <Dialog title={dsp ? `Text ${c.first}` : `Text ${c.first} with Quo`} onClose={onClose}>
       <div className="quotext">
         <div className="qrow"><span>To</span><b>{c.first} {c.last} · {fmt(e164(to)) || to || 'no number'}</b></div>
+        {onVia && <div className="qrow"><span>Send from</span><div className="seg mini" role="group" aria-label="Send from">
+          <button className={dsp ? 'on' : ''} onClick={() => onVia('dispatch')}>Dispatch</button>
+          <button className={dsp ? '' : 'on'} onClick={() => onVia('quo')}>Quo</button></div></div>}
         <div className="qrow"><span>From</span><b>{dsp ? 'Your local Dispatch number (the one they see when you call)' : agent.quoNumber ? fmt(e164(quoNumbers(agent.quoNumber)[0])) : `${agent.name}'s Quo number`}</b></div>
         {thread.length > 0 && <div className="tthread" ref={chat} aria-label={`Texts with ${c.first}`}>
           {thread.map((m, i) => <div key={i} className={`tmsg ${m.mine ? 'me' : 'them'}`}>{(i === 0 || thread[i - 1].day !== m.day) && <small>{m.day}</small>}<span>{m.text}</span></div>)}

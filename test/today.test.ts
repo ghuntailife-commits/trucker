@@ -18,6 +18,10 @@ describe('Who is on the list', () => {
     const keep = contact({ dials: 2, lastDialed: et(8, 9), first: 'Due' });
     expect(names(buildToday([...out, keep], ctx, V27))).toEqual(['Due']);
   });
+  it('drops a contact booked from Today right away, even though it was dialed today and is in the saved order', () => {
+    const booked = contact({ first: 'Booked', tag: TAGS.scheduled, callAt: et(12, 18), dials: 1, lastDialed: et(10, 10) });
+    expect(buildToday([booked], { ...ctx, savedOrder: [booked.id] }, V27)).toHaveLength(0);
+  });
   it('leaves out contacts with no number to call', () => {
     expect(buildToday([contact({ phone: '' })], ctx, V27)).toHaveLength(0);
   });

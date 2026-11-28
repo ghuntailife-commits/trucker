@@ -186,9 +186,14 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const feed = useTeamFeed({ id: agent, name: me.name }, feedSnap, !!d0.ready, isAdmin);
   const quoOn = me.quo;
   /** Texts go through Dispatch's own numbers when that's on for the agent (George, 2026-11-27), else Quo. */
-  const textVia: 'dispatch' | 'quo' | null = me.twilioText ? 'dispatch' : quoOn ? 'quo' : null;
+  // agents with both pick in the text box which one sends; Dispatch remembers their last pick (George, 2026-11-28)
+  const textBoth = !!me.twilioText && !!quoOn;
+  const [textPick, setTextPick] = useState<'dispatch' | 'quo'>(() => {
+    try { return localStorage.getItem(`dispatch-textvia-${agent}`) === 'quo' ? 'quo' : 'dispatch'; } catch { return 'dispatch'; } });
+  const pickTextVia = (v: 'dispatch' | 'quo') => { setTextPick(v); try { localStorage.setItem(`dispatch-textvia-${agent}`, v); } catch { /* remembered for this visit */ } };
+  const textVia: 'dispatch' | 'quo' | null = textBoth ? textPick : me.twilioText ? 'dispatch' : quoOn ? 'quo' : null;
   const textOn = !!textVia;
-  const textBtn = textVia === 'dispatch' ? 'Text' : 'Text with Quo';
+  const textBtn = textVia === 'dispatch' || textBoth ? 'Text' : 'Text with Quo';
   const [quo, setQuo] = useState<QuoModal>(null);
   const [textIn, setTextIn] = useState<{ id: string; name: string; text: string } | null>(null);
   const [textsOpen, setTextsOpen] = useState(false);
@@ -968,7 +973,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
           .map(([l, run, tone]) => [l, () => { run(); if (picked === rowMenu.id && /Replace|Pause|Rest|Take off/.test(l)) setPicked(null); }, tone] as [string, () => void, string?])} />}
       {removeIds && <RemoveDialog d={d} ids={removeIds} agentName={me.name} onClose={() => { if (removeIds.includes(picked ?? '')) setPicked(null); setRemoveIds(null); }} />}
       {todaySet && <TodaySettings d={d} onClose={() => setTodaySet(false)} />}
-      {quo && d.byId.get(quo.id) && <QuoText key={`${quo.id}-${quo.first}`} c={d.byId.get(quo.id)!} agent={me} apptAt={quo.afterBook ? d.byId.get(quo.id)!.callAt : quo.apptAt} first={quo.first} via={textVia ?? 'quo'}
+      {quo && d.byId.get(quo.id) && <QuoText key={`${quo.id}-${quo.first}`} c={d.byId.get(quo.id)!} agent={me} apptAt={quo.afterBook ? d.byId.get(quo.id)!.callAt : quo.apptAt} first={quo.first} via={textVia ?? 'quo'} onVia={textBoth ? pickTextVia : undefined}
         mine={myTexts.texts} onEditTexts={() => setTextsOpen(true)} onClose={() => setQuo(null)}
         onSent={body => { d.noteFacts(quo.id, `Texted (${textVia === 'dispatch' ? 'Dispatch' : 'Quo'}): "${body.slice(0, 300)}"`, [], Date.now()); }} />}
       {fuMail && <FollowUpEmailDialog agent={agent} agentName={me.name} agentEmail={t.person?.agent_id === agent ? t.person?.email ?? undefined : undefined} start={fuMail}
