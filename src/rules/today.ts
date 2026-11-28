@@ -88,6 +88,9 @@ export function buildToday(contacts: Contact[], ctx: TodayContext, cfg: Config =
     const fuDay = tagKind(c.tag) === 'presented' ? ctx.followUps?.get(c.id) : undefined;
     const fu = fuDay != null && fuDay <= today && (((c.followUpTries ?? 0) < cfg.followUpTries
       && (c.lastDialed == null || c.lastDialed < fuDay || c.lastDialed < today)) || (wkd && inord));
+    // George (2026-11-28): a booked contact leaves Today right away, even one booked from Today, so nobody calls
+    // them again by accident. They are called from the Appointments tab.
+    if (tagKind(c.tag) === 'scheduled') return;
     const due = nxtd || frsh || (wkd && inord) || pmr || ctc || fu;
     const callable = (tagKind(c.tag) !== 'scheduled' && callOrder(c, cfg) != null || fu) && phoneToCall(c) !== '';
     if (!(due && (callable || (wkd && inord)))) return;
