@@ -38,6 +38,7 @@ import { useTeamFeed } from '../src/live/useTeamFeed';
 import { feedText, type Snap, type FeedKind } from '../src/team/feed';
 import { FeedToasts } from './ui/feedToasts';
 import { LiveWave } from './ui/liveWave';
+import { useCellPref, RingCellDialog } from './ui/ringCell';
 const NONE: never[] = [];
 const FEED_TONE: Record<FeedKind, Recent['tone']> = { leads: 'blue', sale: 'green', presented: 'amber', booked: 'violet' };
 const FEED_GO: Record<FeedKind, Recent['go']> = { leads: 'contacts', sale: 'results', presented: 'results', booked: 'appts' };
@@ -192,6 +193,8 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   // follow-up emails after a sale or no-sale, and the signature they end with (George, 2026-11-27)
   const [fuMail, setFuMail] = useState<EmailStart | null>(null);
   const [sigOpen, setSigOpen] = useState(false);
+  const [cellOpen, setCellOpen] = useState(false);
+  const cellPref = useCellPref(agent);
   const mailFor = (c: Contact, kind: 'sale' | 'nosale', sale?: { email?: string; monthly?: number; wholeLife?: number; alpType?: string }) =>
     setFuMail({ kind, contactId: c.id, first: c.first, last: c.last, email: sale?.email || c.email || '', company: c.company,
       monthly: sale?.monthly, wholeLife: sale?.wholeLife, trial: sale?.alpType === 'Trial' });
@@ -260,7 +263,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const [call, setCall] = useState<{ id: string; at: number } | null>(null);
   // calling inside Dispatch (Twilio), for agents who have it on (George, 2026-11-27)
   const callNow = useRef(call); callNow.current = call;
-  const tw = useTwilio(LIVE && !!me.twilio, () => { const c = callNow.current; if (c) endRef.current(c.id); });
+  const tw = useTwilio(LIVE && !!me.twilio, () => { const c = callNow.current; if (c) endRef.current(c.id); }, cellPref.ready);
   const [keypad, setKeypad] = useState(false);
   const callRef = useRef(call); callRef.current = call;
   const infoRef = useRef({ viewing: '', page: '' });
@@ -312,7 +315,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
     if (!num) return;
     setPicked(c.id); setCall({ id: c.id, at: Date.now() }); setCountdown(null);
     const phoneApp = () => { try { const a = document.createElement('a'); a.href = `tel:${num}`; a.rel = 'noopener'; a.click(); } catch { /* the number is on screen */ } };
-    if (tw.ready) void tw.start(num).then(ok => { if (!ok) phoneApp(); });
+    if (tw.ready) void tw.start(num, `${c.first} ${c.last}`.trim()).then(ok => { if (!ok && !cellPref.ready) phoneApp(); });
     else phoneApp();
   };
   const endCall = (id: string) => {
@@ -593,6 +596,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
           </button>
           <ProfileMenu t={t} me={me} theme={theme} setTheme={setTheme} items={[
             { key: 'texts', label: 'My texts', sub: 'Reminders, confirmations and your own texts', onClick: () => setTextsOpen(true), hidden: !textOn && !isAdmin },
+            { key: 'cell', label: 'Ring my cell', sub: cellPref.ready ? `On · ${cellPref.pref.cell}` : 'Take Dispatch calls on your phone', onClick: () => setCellOpen(true), hidden: !me.twilio },
             { key: 'sig', label: 'My email signature', sub: 'Ends your policy summary and benefits emails', onClick: () => setSigOpen(true) },
             { key: 'settings', label: 'Settings', sub: 'Goals, rules, Quo, coaching', onClick: () => setPage('settings'), hidden: !pages.includes('settings') },
             { key: 'integrations', label: 'Integrations', sub: 'Quo, Google, Claude AI', onClick: () => setPage('integrations') },
@@ -817,15 +821,15 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
               )}
               {call?.id === current.id ? (
                 <button className="callbtn live" title="Hung up? Click to end the call here, then pick how it went" onClick={() => endCall(current.id)}>
-                  <span className="cb-ico"><LiveWave level={tw.live ? tw.level : null} /></span>
-                  <span className="cb-txt"><small className="cb-lbl">{tw.live && tw.live.state !== 'open' ? (tw.live.state === 'ringing' ? 'Ringing…' : 'Connecting…') : 'On the call'} <b>{fmtSecs(Math.round((Date.now() - call.at) / 1000))}</b></small><span className="cb-num">{dialNum}</span></span>
+                  <span className="cb-ico"><LiveWave level={tw.live && !tw.live.cell ? tw.level : null} /></span>
+                  <span className="cb-txt"><small className="cb-lbl">{tw.live?.cell ? 'On your cell' : tw.live && tw.live.state !== 'open' ? (tw.live.state === 'ringing' ? 'Ringing…' : 'Connecting…') : 'On the call'} <b>{fmtSecs(Math.round((Date.now() - call.at) / 1000))}</b></small><span className="cb-num">{dialNum}</span></span>
                   <span className="endcall"><Ico d={IC.phone} size={16} /> End</span>
                 </button>
               ) : (
                 <button className="callbtn" disabled={!dialNum} onClick={() => startCall(current, backupMode)}>
                   <span className="cb-ico"><Ico d={IC.phone} size={22} /></span>
                   <span className="cb-txt"><small className="cb-lbl">{dialNum ? `Call ${current.first || ''}`.trim() : 'No number to call'}
-                    {tw.ready && dialNum ? <span className="via" title="Calls through Dispatch from your local number">Dispatch</span>
+                    {tw.ready && dialNum ? <span className="via" title={cellPref.ready ? `Rings your cell ${cellPref.pref.cell} first, then connects` : 'Calls through Dispatch from your local number'}>{cellPref.ready ? 'Your cell' : 'Dispatch'}</span>
                       : quoOn && dialNum && <span className="via" title={localLine(me, dialNum)?.title}>{localLine(me, dialNum)?.label ?? 'Quo'}</span>}</small>
                     <span className="cb-num">{dialNum || '—'}</span></span>
                 </button>
@@ -949,6 +953,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
         onSent={body => { d.noteFacts(quo.id, `Texted (${textVia === 'dispatch' ? 'Dispatch' : 'Quo'}): "${body.slice(0, 300)}"`, [], Date.now()); }} />}
       {fuMail && <FollowUpEmailDialog agent={agent} agentName={me.name} agentEmail={t.person?.agent_id === agent ? t.person?.email ?? undefined : undefined} start={fuMail}
         onClose={() => setFuMail(null)} onSent={(note) => { if (d.byId.has(fuMail.contactId)) d.noteFacts(fuMail.contactId, note, [], Date.now()); d0.say(`${note.replace(/^Emailed: /, 'Sent ')}.`); }} />}
+      {cellOpen && <RingCellDialog pref={cellPref.pref} onSave={p => { cellPref.save(p); d0.say(p.on ? `Dispatch calls will ring ${p.cell}.` : 'Dispatch calls ring the computer again.'); }} onClose={() => setCellOpen(false)} />}
       {sigOpen && <SignatureDialog agent={agent} name={me.name} email={t.person?.email ?? undefined} onClose={() => setSigOpen(false)} />}
       {textsOpen && <MyTextsDialog agentName={me.name} texts={myTexts.texts} onSave={t => { myTexts.save(t); d0.say('Your texts are saved.'); }} onClose={() => setTextsOpen(false)} />}
       {keysOpen && <ShortcutsDialog onClose={() => setKeysOpen(false)} />}

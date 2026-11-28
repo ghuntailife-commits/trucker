@@ -70,3 +70,23 @@ export async function twilioApi<T = Record<string, unknown>>(url: string, init: 
   if (!r.ok) throw new Error(j.message ?? `Twilio said ${r.status}`);
   return j;
 }
+
+/** The agent's "ring my cell" choice (kv dispatch-cell-<agent>, saved from their profile menu). */
+export async function readCell(db: SupabaseClient, agent: string): Promise<import('./cell').CellPref | null> {
+  const { data } = await db.from('kv').select('value').eq('key', `dispatch-cell-${agent}`).eq('part', 'all').maybeSingle();
+  return (data?.value as import('./cell').CellPref | undefined) ?? null;
+}
+
+/** A contact's name from the agent's saved list, for what the cell hears. Empty when not found. */
+export async function contactName(db: SupabaseClient, agent: string, phone: string): Promise<string> {
+  const { nameFor } = await import('./cell');
+  const { data } = await db.from('kv').select('value').eq('key', `dispatch-agent-${agent}`).like('part', 'c:%').range(0, 199);
+  return nameFor(((data ?? []) as { value: unknown }[]).map(r => r.value), phone);
+}
+
+/** The number this contact already knows us by (a past Dispatch call or text). */
+export async function lastFromFor(db: SupabaseClient, phone: string): Promise<string | null> {
+  const d = phone.replace(/\D/g, '').slice(-10); if (d.length !== 10) return null;
+  const { data } = await db.from('quo_events').select('payload').in('type', ['call.dialed', 'message.sent']).like('phone', `%${d}`).order('at', { ascending: false }).limit(1);
+  return (data?.[0] as { payload?: { from?: string } } | undefined)?.payload?.from ?? null;
+}

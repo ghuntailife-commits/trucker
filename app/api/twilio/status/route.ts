@@ -8,6 +8,8 @@ import { statusRow } from '../../../../src/twilio/twilio';
 export async function POST(req: Request) {
   const tw = await readTwilio(req);
   if (!tw) return new Response('not from Twilio', { status: 403 });
+  // ring my cell: the call to the agent's own phone. When they answered, the contact's own report covers it.
+  if (tw.q.get('cell') && tw.p.CallStatus === 'completed') return NextResponse.json({ ok: true });
   const row = statusRow(tw.p, tw.q.get('a') ?? '', tw.q.get('p') ?? tw.p.To ?? '');
   if (row) {
     const { error } = await adminDb().from('quo_events').upsert(row, { onConflict: 'id', ignoreDuplicates: true });

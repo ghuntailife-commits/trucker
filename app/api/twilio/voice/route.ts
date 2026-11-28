@@ -1,7 +1,8 @@
 // Twilio asks here what to do with a call: one the agent starts in Dispatch (from "client:<agent>"), or someone
 // calling one of the team's numbers (George, 2026-11-27). Set as the TwiML App's Voice URL and each number's Voice URL.
 import { adminDb, teamSettings } from '../../../../src/live/server';
-import { readTwilio, teamTwilioNumbers, lastAgentFor, xml, dialsToday, DAILY_CAP } from '../../../../src/twilio/server';
+import { readTwilio, teamTwilioNumbers, lastAgentFor, xml, dialsToday, DAILY_CAP, readCell, contactName } from '../../../../src/twilio/server';
+import { cellReady } from '../../../../src/twilio/cell';
 import { inboundTwiml, outboundTwiml, twilioE164 } from '../../../../src/twilio/twilio';
 import { pickFrom } from '../../../../src/quo/localMatch';
 
@@ -33,5 +34,11 @@ export async function POST(req: Request) {
   const agent = await lastAgentFor(db, team, from) ?? team?.agents.find(a => a.role === 'admin' && a.twilio)?.id ?? null;
   if (agent) await db.from('quo_events').upsert({ id: `call.ringing:${p.CallSid}`, agent_id: agent, type: 'call.ringing', call_id: p.CallSid, phone: from,
     at: new Date().toISOString(), applied: true, payload: { source: 'twilio', type: 'call.ringing', data: { object: { id: p.CallSid, direction: 'incoming' } } } }, { onConflict: 'id', ignoreDuplicates: true });
+  // ring my cell: the cell rings with the computer, and hears who is calling
+  const pref = agent ? await readCell(db, agent).catch(() => null) : null;
+  if (agent && cellReady(pref)) {
+    const name = await contactName(db, agent, from).catch(() => '');
+    return xml(inboundTwiml({ agent, base, from, cell: twilioE164(pref.cell), name }));
+  }
   return xml(inboundTwiml({ agent, base, from }));
 }

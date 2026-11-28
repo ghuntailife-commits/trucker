@@ -17,7 +17,7 @@ import type { WantedEvent, Move, OtherEvent } from '../calendar/google';
 
 export type CalState = { status: 'off' | 'checking' | 'connected' | 'reconnect' | 'error'; email?: string | null; error?: string; lastSync?: number; others?: OtherEvent[] };
 /** Google Meet presentations (George, 2026-11-27): 'reconnect' = Google hasn't given permission to read Meet transcripts yet. */
-export type MeetState = { status: 'idle' | 'busy' | 'reconnect' | 'error'; error?: string; saved?: number; at?: number; unmatched?: { eventId: string; title: string; at: number }[] };
+export type MeetState = { status: 'idle' | 'busy' | 'reconnect' | 'error'; error?: string; saved?: number; at?: number; found?: number; waiting?: number; unmatched?: { eventId: string; title: string; at: number }[] };
 
 async function call(path: string, init: RequestInit = {}) {
   const { data } = await db().auth.getSession();
@@ -130,7 +130,7 @@ export function useGoogleCalendar(agent: string, contacts: Contact[], tz: string
         if (j.error) { setMeet({ status: 'error', error: j.error }); return; }
         if (j.reconnect) { setMeet({ status: 'reconnect' }); return; }
         total += j.saved ?? 0;
-        setMeet({ status: j.more ? 'busy' : 'idle', saved: total, at: Date.now(), unmatched: j.unmatched ?? [] });
+        setMeet({ status: j.more ? 'busy' : 'idle', saved: total, at: Date.now(), found: j.found, waiting: j.waiting, unmatched: j.unmatched ?? [] });
         if (!j.more) { if (back) try { localStorage.setItem(flag, String(Date.now())); } catch { /* */ } break; }
       }
     } catch (e) { setMeet({ status: 'error', error: (e as Error).message }); }

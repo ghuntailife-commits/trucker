@@ -15,7 +15,7 @@ type TwDevice = {
 };
 
 export type TwStatus = 'off' | 'loading' | 'ready' | 'error';
-export interface TwState { status: TwStatus; error: string; live: null | { phone: string; state: 'connecting' | 'ringing' | 'open'; muted: boolean; incoming: boolean };
+export interface TwState { status: TwStatus; error: string; live: null | { phone: string; state: 'connecting' | 'ringing' | 'open'; muted: boolean; incoming: boolean; cell?: boolean };
   incoming: null | { phone: string } }
 
 async function getToken(): Promise<string> {
@@ -27,7 +27,8 @@ async function getToken(): Promise<string> {
 }
 
 /** onEnded: the call hung up (either side), so the screen can stop the timer and log it. */
-export function useTwilio(on: boolean, onEnded: () => void) {
+/** cell: ring the agent's own phone for outgoing calls instead of the computer (George, 2026-11-27). */
+export function useTwilio(on: boolean, onEnded: () => void, cell = false) {
   const [st, setSt] = useState<TwState>({ status: 'off', error: '', live: null, incoming: null });
   const dev = useRef<TwDevice | null>(null);
   const call = useRef<TwCall | null>(null);
@@ -35,6 +36,7 @@ export function useTwilio(on: boolean, onEnded: () => void) {
   const ended = useRef(onEnded); ended.current = onEnded;
   /** how loud each side is right now (0 to 1), for the sound bars: i = the agent's mic, o = the contact */
   const level = useRef({ i: 0, o: 0 });
+  const bridge = useRef<string | null>(null);   // the call to the agent's cell, while it lasts
 
   const watch = useCallback((c: TwCall, phone: string, incoming: boolean) => {
     call.current = c;
@@ -78,15 +80,35 @@ export function useTwilio(on: boolean, onEnded: () => void) {
   }, [on]);
 
   /** Calls a number. Returns false when calling isn't ready (the screen falls back to the phone app). */
-  const start = useCallback(async (to: string): Promise<boolean> => {
+  const start = useCallback(async (to: string, name = ''): Promise<boolean> => {
+    if (cell) {
+      if (bridge.current || call.current) return false;
+      try {
+        const { data } = await db().auth.getSession();
+        const r = await fetch('/api/twilio/bridge', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session?.access_token ?? ''}` }, body: JSON.stringify({ to, name }) });
+        const j = await r.json().catch(() => ({})) as { sid?: string; error?: string };
+        if (!r.ok || !j.sid) { setSt(s => ({ ...s, error: j.error ?? `Could not ring your cell (${r.status})` })); return false; }
+        bridge.current = j.sid;
+        setSt(s => ({ ...s, error: '', live: { phone: to, state: 'ringing', muted: false, incoming: false, cell: true } }));
+        return true;
+      } catch (e) { setSt(s => ({ ...s, error: (e as Error).message })); return false; }
+    }
     const d = dev.current; if (!d || call.current) return false;
     try { watch(await d.connect({ params: { To: to } }), to, false); return true; }
     catch (e) { setSt(s => ({ ...s, error: (e as Error).message })); return false; }
-  }, [watch]);
-  const hangup = useCallback(() => { call.current?.disconnect(); }, []);
+  }, [watch, cell]);
+  const hangup = useCallback(() => {
+    const sid = bridge.current;
+    if (sid) {
+      bridge.current = null; setSt(s => ({ ...s, live: null }));
+      void db().auth.getSession().then(({ data }) => fetch('/api/twilio/bridge', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session?.access_token ?? ''}` }, body: JSON.stringify({ hangup: sid }) })).catch(() => {});
+      return;
+    }
+    call.current?.disconnect();
+  }, []);
   const mute = useCallback(() => { const c = call.current; if (c) c.mute(!c.isMuted()); }, []);
   const digits = useCallback((k: string) => { call.current?.sendDigits(k); }, []);
   const answer = useCallback(() => { const c = ring.current; if (!c) return; ring.current = null; c.accept(); watch(c, c.parameters?.From ?? '', true); }, [watch]);
   const decline = useCallback(() => { const c = ring.current; ring.current = null; c?.reject(); setSt(s => ({ ...s, incoming: null })); }, []);
-  return { ...st, level, ready: st.status === 'ready', onCall: () => !!call.current, start, hangup, mute, digits, answer, decline };
+  return { ...st, level, ready: st.status === 'ready', onCall: () => !!call.current || !!bridge.current, start, hangup, mute, digits, answer, decline };
 }

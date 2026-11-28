@@ -85,8 +85,10 @@ export async function POST(req: Request) {
     const ids = matched.map(f => `meet:${f.e.id}`);
     const { data: have } = ids.length ? await db.from('quo_events').select('id').in('id', ids) : { data: [] };
     const done = new Set((have ?? []).map(h => h.id));
-    const todo = matched.filter(f => !done.has(`meet:${f.e.id}`));
-    if (!todo.length) return NextResponse.json({ connected: true, saved: 0, waiting: 0, unmatched });
+    // newest first, so a presentation from today isn't stuck behind a year of older recordings (George, 2026-11-27: Philip)
+    const startOf = (e: CalEvent) => Date.parse(e.start?.dateTime ?? `${e.start?.date}T12:00:00Z`) || 0;
+    const todo = matched.filter(f => !done.has(`meet:${f.e.id}`)).sort((a, b) => startOf(b.e) - startOf(a.e));
+    if (!todo.length) return NextResponse.json({ connected: true, saved: 0, waiting: 0, found: events.length, unmatched });
     if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: 'ANTHROPIC_API_KEY is not set on Vercel.' });
 
     const client = new Anthropic();
@@ -115,6 +117,6 @@ export async function POST(req: Request) {
       if (error) return NextResponse.json({ error: error.message, saved });
       if (got) saved++;   // a transcript Claude could not read is still marked done, so it isn't paid for again every run
     }
-    return NextResponse.json({ connected: true, saved, waiting: todo.length - saved, more: todo.length > PER_RUN, unmatched });
+    return NextResponse.json({ connected: true, saved, waiting: todo.length - saved, found: events.length, more: todo.length > PER_RUN, unmatched });
   } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 500 }); }
 }

@@ -100,7 +100,7 @@ export function PresentationsView({ me, who, admin, agents, contacts, now, days,
               {fixing === r.id && <ContactPick contacts={contacts} hint={r.title} onPick={c => assign(r.id.replace(/^meet:/, ''), c)} />}
             </div>}
           </article>); })}</div>
-        {LIVE && cal && cal.status === 'connected' && <p className="hint pad16">{cal.meet.status === 'busy' ? `Reading Meet transcripts… ${cal.meet.saved ?? 0} done so far.` : 'Checks the calendar for Meet transcripts every 15 minutes.'}{' '}
+        {LIVE && cal && cal.status === 'connected' && <p className="hint pad16">{cal.meet.status === 'busy' ? `Reading Meet transcripts, newest first… ${cal.meet.saved ?? 0} done so far${cal.meet.waiting ? `, ${cal.meet.waiting} to go` : ''}.` : `Checks the calendar for Meet transcripts every 15 minutes.${cal.meet.found != null ? ` Last check found ${cal.meet.found} recorded meeting${cal.meet.found === 1 ? '' : 's'}${cal.meet.at ? ` at ${new Date(cal.meet.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}.` : ''}`}{' '}
           {cal.meet.status !== 'busy' && <button className="linkish" onClick={() => void cal.meetSync(true)}>Check now</button>}
           {cal.meet.status === 'error' && <span className="warnline"> {cal.meet.error}</span>}</p>}
       </Panel>

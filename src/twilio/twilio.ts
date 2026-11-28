@@ -54,12 +54,15 @@ export function outboundTwiml(o: { to: string; callerId: string; base: string; a
 }
 
 /** Someone calls one of the team's numbers: ring the agent who talked with them last in Dispatch, else take a message. */
-export function inboundTwiml(o: { agent: string | null; base: string; from: string }): string {
+export function inboundTwiml(o: { agent: string | null; base: string; from: string; cell?: string; name?: string }): string {
   const q = `a=${encodeURIComponent(o.agent ?? '')}&p=${encodeURIComponent(o.from)}&vm=1`;
   const vm = `<Say voice="Polly.Joanna">Sorry we missed your call. Please leave your name and a good time to call you back.</Say>` +
     `<Record maxLength="120" playBeep="true" recordingStatusCallback="${esc(`${o.base}/api/twilio/recording?${q}`)}" recordingStatusCallbackEvent="completed"/>`;
   if (!o.agent) return `<?xml version="1.0" encoding="UTF-8"?><Response>${vm}</Response>`;
-  return `<?xml version="1.0" encoding="UTF-8"?><Response><Dial timeout="25" answerOnBridge="true"><Client>${esc(o.agent)}</Client></Dial>${vm}</Response>`;
+  // ring my cell: the computer and the cell ring together; the cell shows the caller's own number and hears their name
+  const cell = o.cell ? `<Number url="${esc(`${o.base}/api/twilio/whisper?n=${encodeURIComponent(o.name ?? '')}`)}">${esc(o.cell)}</Number>` : '';
+  const cid = o.cell && e164(o.from) ? ` callerId="${esc(e164(o.from))}"` : '';
+  return `<?xml version="1.0" encoding="UTF-8"?><Response><Dial timeout="25" answerOnBridge="true"${cid}><Client>${esc(o.agent)}</Client>${cell}</Dial>${vm}</Response>`;
 }
 
 /** The short line the contact hears when they pick up, before the agent is connected (recording notice). */
