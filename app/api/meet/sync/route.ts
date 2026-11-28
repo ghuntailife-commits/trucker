@@ -101,7 +101,8 @@ export async function POST(req: Request) {
       const r = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(doc.fileId!)}/export?mimeType=text/plain`, { headers: { Authorization: `Bearer ${token}` } });
       if (r.status === 403 || r.status === 401) {
         const t = await r.text();
-        if (/insufficient|scope|permission/i.test(t)) return NextResponse.json({ connected: true, reconnect: true, needs: 'meet', saved });
+        // Meet's own permission doesn't always cover the transcript file (George, 2026-11-27: Philip): reconnect with Drive read access
+        if (/insufficient|scope|permission|not granted/i.test(t)) return NextResponse.json({ connected: true, reconnect: true, needs: 'meet', saved });
         if (/has not been used|disabled/i.test(t)) return NextResponse.json({ error: 'Turn on the Google Drive API in Google Cloud (APIs & Services > Library > Google Drive API > Enable).', saved });
         skipped.push({ title: e.summary ?? '', why: `Google wouldn't open the transcript (${r.status}): ${t.slice(0, 160)}` });
         continue;

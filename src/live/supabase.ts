@@ -31,7 +31,7 @@ export async function connectGoogleCalendar() {
   return db().auth.signInWithOAuth({ provider: 'google', options: {
     redirectTo: location.origin + location.pathname,
     // calendar events, plus reading the files Google Meet makes (recording transcripts and Gemini notes) for presentation coaching
-    scopes: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/drive.meet.readonly https://www.googleapis.com/auth/gmail.send',
+    scopes: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/drive.meet.readonly https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/gmail.send',
     queryParams: { access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true' },
   } });
 }
