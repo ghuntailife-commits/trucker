@@ -1,11 +1,13 @@
 // "Get local numbers" in Settings (George, 2026-11-27), admin only.
 //  GET                       the team's Twilio numbers with today's calls on each (spam watch)
+//  GET ?stats=1              the Numbers report: 30 days of dials, connects, voicemails, talk time and texts per number
 //  POST {action:'search', targets:[{key, areaCode, state}]}  one available number per target (voice + texts + pictures)
 //  POST {action:'buy', numbers:[{phone, label}]}             buys them, points Voice at Dispatch, adds them to the
 //        "Dispatch" texting service and the approved caller-ID registrations (SHAKEN/STIR and the business profile)
 import { NextResponse } from 'next/server';
 import { adminDb, teamSettings, whoIsCalling } from '../../../../src/live/server';
-import { dialsToday, teamTwilioNumbers, twilioApi } from '../../../../src/twilio/server';
+import { DAILY_CAP, dialsToday, teamTwilioNumbers, twilioApi } from '../../../../src/twilio/server';
+import { numberStats, numberTotals, type Ev } from '../../../../src/twilio/numberStats';
 import { twilioEnv } from '../../../../src/twilio/twilio';
 
 export const maxDuration = 120;
@@ -25,6 +27,7 @@ async function admin(req: Request) {
 export async function GET(req: Request) {
   const a = await admin(req); if ('error' in a) return a.error;
   try {
+    if (new URL(req.url).searchParams.get('stats')) return NextResponse.json(await statsReport(a.db));
     const [owned, used, team] = await Promise.all([twilioApi<Owned>('/IncomingPhoneNumbers.json?PageSize=500'), dialsToday(a.db), teamSettings(a.db)]);
     const inTeam = new Set(teamTwilioNumbers(team).map(n => n.replace(/\D/g, '').slice(-10)));
     return NextResponse.json({ numbers: (owned.incoming_phone_numbers ?? []).map(n => {
@@ -79,4 +82,22 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 500 }); }
+}
+
+/** Numbers report (George, 2026-11-28): the last 30 days of calls and texts, worked out per number. */
+async function statsReport(db: ReturnType<typeof adminDb>) {
+  const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const [owned, team] = await Promise.all([twilioApi<Owned>('/IncomingPhoneNumbers.json?PageSize=500'), teamSettings(db)]);
+  const events: Ev[] = [];
+  for (let from = 0; from < 60_000; from += 1000) {
+    const { data, error } = await db.from('quo_events').select('id,type,call_id,phone,at,agent_id,payload')
+      .in('type', ['call.dialed', 'call.completed', 'call.amd', 'message.sent', 'message.received']).gte('at', since)
+      .order('at', { ascending: true }).range(from, from + 999);
+    if (error) throw new Error(error.message);
+    events.push(...((data ?? []) as Ev[]));
+    if (!data || data.length < 1000) break;
+  }
+  const rows = numberStats((owned.incoming_phone_numbers ?? []).map(n => n.phone_number), events, Date.now(), 'America/New_York', team?.twilioDailyCap ?? DAILY_CAP);
+  const names = Object.fromEntries((team?.agents ?? []).map(x => [x.id, x.name]));
+  return { rows, totals: numberTotals(rows), names, cap: team?.twilioDailyCap ?? DAILY_CAP, at: Date.now() };
 }

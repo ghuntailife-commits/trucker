@@ -16,6 +16,7 @@ import { TZ } from './shared';
 import { Panel, Kpi, Legend, Columns, fmt$, fmtK, pctTxt, type Hue } from './charts';
 import { useTips } from './results';
 import { TodayNow, DailyHistory } from './teamDaily';
+import { NumbersReport } from './numbers';
 
 type RangeKind = 'week' | 'lastweek' | 'month' | '30d';
 const RANGES: [RangeKind, string][] = [['week', 'This week'], ['lastweek', 'Last week'], ['month', 'This month'], ['30d', 'Last 30 days']];
@@ -70,7 +71,7 @@ export function TeamPage({ t, now, live, onViewAs, onDial }: {
   const [data, setData] = useState<Partial<Record<AgentId, Seed>>>({});
   const [rk, setRk] = useState<RangeKind>('month');
   const [sel, setSel] = useState<AgentId>(agents[0]?.id ?? 'george');
-  const [view, setView] = useState<'overview' | 'daily'>('overview');
+  const [view, setView] = useState<'overview' | 'daily' | 'numbers'>('overview');
   const boss = t.role === 'boss';
   useTips();
 
@@ -142,13 +143,14 @@ export function TeamPage({ t, now, live, onViewAs, onDial }: {
           <div className="seg mini" role="group" aria-label="Team view">
             <button className={view === 'overview' ? 'on' : ''} onClick={() => setView('overview')}>Overview</button>
             <button className={view === 'daily' ? 'on' : ''} onClick={() => setView('daily')}>Daily history</button>
+            {t.role === 'admin' && !boss && <button className={view === 'numbers' ? 'on' : ''} onClick={() => setView('numbers')}>Numbers</button>}
           </div>
           {view === 'overview' && <div className="seg mini" role="group" aria-label="Date range">
             {RANGES.map(([k, l]) => <button key={k} className={rk === k ? 'on' : ''} onClick={() => setRk(k)}>{l}</button>)}
           </div>}
         </div>
       </section>
-      {view === 'daily' ? <div className="rgrid"><DailyHistory agents={agents} all={all} now={now} /></div> :
+      {view === 'numbers' ? <NumbersReport now={now} /> : view === 'daily' ? <div className="rgrid"><DailyHistory agents={agents} all={all} now={now} /></div> :
       <div className="rgrid">
         <div className="span4 kgrid k6" aria-label="Team totals">
             <Kpi label="Team ALP" value={fmt$(tot.alp)} tone="c-sold" sub={`${r.label} · ${mdShort.format(r.from)} – ${mdShort.format(r.to - 1)}`} />
