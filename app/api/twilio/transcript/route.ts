@@ -24,7 +24,8 @@ export async function POST(req: Request) {
     const payload = { source: 'twilio', type: 'call.transcript.completed', data: { object: { id: sid, dialogue } } };
     let ai: string | null = null, tags: unknown = null;
     const text = transcriptText(payload);
-    if (text.length > 40 && process.env.ANTHROPIC_API_KEY) {
+    if (text.length <= 40) ai = '';   // a hang-up or a greeting: checked, nothing worth a note
+    else if (process.env.ANTHROPIC_API_KEY) {
       try { const got = await tagTranscript(new Anthropic(), text); ai = got?.note || null; tags = got?.tags ?? null; }
       catch (e) { console.error('twilio transcript: notes failed', (e as Error).message); }
     }

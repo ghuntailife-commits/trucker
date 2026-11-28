@@ -29,6 +29,20 @@ export function StatusPage({ t }: { t: Team }) {
   useEffect(() => { void load(); const id = setInterval(() => void load(), 60_000); return () => clearInterval(id); }, [load]);
 
   const name = useMemo(() => new Map(t.team.agents.map(a => [a.id, a.name])), [t.team.agents]);
+  const missing = r ? r.agents.reduce((n, a) => n + (a.quo?.notesMissing ?? 0), 0) : 0;
+  const [fixing, setFixing] = useState(false);
+  const [fixMsg, setFixMsg] = useState('');
+  const fix = async () => {
+    setFixing(true); setFixMsg('');
+    try {
+      const { data } = await db().auth.getSession();
+      const res = await fetch('/api/admin/status', { method: 'POST', headers: { Authorization: `Bearer ${data.session?.access_token ?? ''}` } });
+      const j = await res.json() as { error?: string; fixed?: number; empty?: number; failed?: number; left?: number };
+      if (!res.ok || j.error) throw new Error(j.error ?? `Failed (${res.status})`);
+      setFixMsg(`${j.fixed} filled in, ${j.empty} were hang-ups with nothing to note${j.left ? `, ${j.left} still to go (click again)` : ''}`);
+      void load();
+    } catch (e) { setFixMsg((e as Error).message); } finally { setFixing(false); }
+  };
   const rows = useMemo(() => (r ? r.agents.map(a => { const ls = linesFor(a, r.now, r.build); return { a, ls, w: worst(ls) }; })
     .sort((x, y) => ORDER[x.w] - ORDER[y.w] || (name.get(x.a.id) ?? x.a.id).localeCompare(name.get(y.a.id) ?? y.a.id)) : []), [r, name]);
   const counts = useMemo(() => { const c = { bad: 0, warn: 0, ok: 0, off: 0 }; for (const x of rows) c[x.w]++; return c; }, [rows]);
@@ -52,6 +66,8 @@ export function StatusPage({ t }: { t: Team }) {
             <Ln l={r.setup.anthropic ? 'ok' : 'bad'} label="Claude AI" d={r.setup.anthropic ? 'Key is set: call notes, call briefs and coaching work' : 'ANTHROPIC_API_KEY is missing on Vercel'} />
             <Ln l={r.setup.google ? 'ok' : 'warn'} label="Google sign-in & Calendar" d={r.setup.google ? 'Google keys are set' : 'Google keys are missing on Vercel'} />
             <Ln l={r.setup.quo.length ? 'ok' : 'warn'} label="Quo workspaces" d={r.setup.quo.length ? r.setup.quo.map(id => name.get(id) ?? id).join(', ') : 'None set up'} />
+            {missing > 0 && <Ln l="warn" label="Missing AI notes" d={<>{missing} call{missing === 1 ? '' : 's'} this week {missing === 1 ? 'has' : 'have'} no AI notes yet. They are retried every morning, or{' '}
+              <button className="linkish" disabled={fixing} onClick={() => void fix()}>{fixing ? 'filling in…' : 'fill them in now'}</button>{fixMsg && <> · {fixMsg}</>}</>} />}
             {r.setup.unassignedQuo > 0 && <Ln l="warn" label="Quo calls with no agent" d={`${r.setup.unassignedQuo} calls this week came from a number no agent has in Settings > Team`} />}
           </div>
         </Panel>
@@ -66,6 +82,6 @@ export function StatusPage({ t }: { t: Team }) {
   );
 }
 
-function Ln({ l, label, d }: { l: Level; label: string; d: string }) {
+function Ln({ l, label, d }: { l: Level; label: string; d: React.ReactNode }) {
   return <div className={`stline ${l}`}><i aria-label={DOT[l][0]} /><b>{label}</b><span>{d}</span></div>;
 }

@@ -2,6 +2,8 @@
 // Each event is checked against Quo's signing key, matched to the agent whose Quo number it was, and stored.
 // Transcripts get short call notes written by Claude. The agent's Dispatch puts them on the contact's notes.
 import { NextResponse } from 'next/server';
+
+export const maxDuration = 60;   // Claude's call notes can take longer than the default limit
 import Anthropic from '@anthropic-ai/sdk';
 import { adminDb, teamSettings, agentByNumber } from '../../../../src/live/server';
 import { verifySignature, verifyStandard } from '../../../../src/quo/quo';
@@ -63,7 +65,8 @@ export async function POST(req: Request) {
   let ai: string | null = null, tags: CallTags | null = null;
   if (ev.type === 'call.transcript.completed' && process.env.ANTHROPIC_API_KEY) {
     const text = transcriptText(body, ev.ours);
-    if (text.length > 40) {
+    if (text.length <= 40) ai = '';   // nothing said worth a note (a hang-up or a greeting): '' = checked, not failed
+    else {
       try {
         const got = await tagTranscript(new Anthropic(), text);
         ai = got?.note || null; tags = got?.tags ?? null;

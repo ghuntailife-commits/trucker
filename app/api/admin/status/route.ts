@@ -1,6 +1,7 @@
 // System status for the admin (George, 2026-11-27): one read of everything the server knows about each agent.
 import { NextResponse } from 'next/server';
 import { adminDb, whoIsCalling } from '../../../../src/live/server';
+import { repairNotes } from '../../../../src/quo/repair';
 import { quoWorkspaces } from '../../../../src/quo/keys';
 import type { AgentRaw, Screen } from '../../../../src/status/check';
 
@@ -61,7 +62,7 @@ export async function GET(req: Request) {
       x.last = Math.max(x.last ?? 0, at);
       if (r.type === 'call.completed') x.calls7++;
       if (/^message\./.test(r.type)) x.texts7++;
-      if (r.type === 'call.transcript.completed') { x.transcripts7++; if (!r.ai_note && now - at > 10 * 60_000) x.notesMissing++; }
+      if (r.type === 'call.transcript.completed') { x.transcripts7++; if (r.ai_note == null && now - at > 10 * 60_000) x.notesMissing++; }   // '' = nothing worth a note (a hang-up)
       if (!r.applied && now - at > 30 * 60_000 && /^(call\.completed|message\.received|call\.recording\.completed)$/.test(r.type)) x.stuck++;
       q.set(id, x);
     }
@@ -80,4 +81,15 @@ export async function GET(req: Request) {
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
+}
+
+/** "Fill in missing AI notes" on System status (George, 2026-11-28): retries notes that failed, about 45 seconds at a time. */
+export async function POST(req: Request) {
+  try {
+    const db = adminDb();
+    const me = await whoIsCalling(db, req.headers.get('authorization'));
+    if ('error' in me) return NextResponse.json({ error: me.error }, { status: 401 });
+    if (me.role !== 'admin') return NextResponse.json({ error: 'Only the admin can do this.' }, { status: 403 });
+    return NextResponse.json({ ok: true, ...(await repairNotes(db, 45_000)) });
+  } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 500 }); }
 }
