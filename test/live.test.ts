@@ -89,3 +89,11 @@ describe('readAgentSheet (Google is faked)', () => {
     } finally { globalThis.fetch = orig; }
   });
 });
+
+describe('ownerOf: agent-owned settings save under the agent', () => {
+  it('My texts and Meet picks belong to the agent, so their own screen can save them', async () => {
+    const { ownerOf } = await import('../src/live/parts');
+    expect(ownerOf('dispatch-texts-bradley')).toBe('bradley');
+    expect(ownerOf('dispatch-meet-pins-gracie')).toBe('gracie');
+  });
+});
