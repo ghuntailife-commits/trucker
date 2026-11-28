@@ -134,7 +134,7 @@ function whoContact(m: { initial?: ResultInitial }): Contact | undefined {
   return w ? ({ id: '', first: w.first, last: w.last, phone: w.phone, backup: '', company: w.company, job: '', list: w.list } as unknown as Contact) : undefined;
 }
 type Modal = null | { kind: ResultKind; id: string; amend?: AmendTarget; initial?: ResultInitial };
-type QuoModal = null | { id: string; apptAt?: number | null; first?: TextKey; afterBook?: boolean };
+type QuoModal = null | { id: string; apptAt?: number | null; first?: TextKey | 'reply'; afterBook?: boolean };
 const UNDO_LABEL: Record<string, string> = { noanswer: 'No answer', voicemail: 'Voicemail', callback: 'Callback', notint: 'Not interested',
   bad: 'Bad number', appt: 'Appointment', hungup: 'Hung up', calledinto: 'Called into', dnc: 'Do not call', note: 'note', sold: 'Sold', presented: 'Presented', noshow: 'No-show', reschedule: 'Move', confirm: 'Confirmed', tag: 'Qualifier' };
 type Filter = 'All' | 'Callback' | 'FollowUp' | 'NoShow' | 'NewNumber' | 'Retry' | 'Fresh';
@@ -186,6 +186,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const textOn = !!textVia;
   const textBtn = textVia === 'dispatch' ? 'Text' : 'Text with Quo';
   const [quo, setQuo] = useState<QuoModal>(null);
+  const [textIn, setTextIn] = useState<{ id: string; name: string; text: string } | null>(null);
   const [textsOpen, setTextsOpen] = useState(false);
   const myTexts = useMyTexts(agent);
   // follow-up emails after a sale or no-sale, and the signature they end with (George, 2026-11-27)
@@ -215,6 +216,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
         const c = matchContact(dRef.current.contacts ?? [], e.phone);
         // a text sent from Dispatch is already in the notes: Quo's delivered copy is not added again
         if (c && e.note && !(/^Texted \(Quo\)/.test(e.note) && c.notes.includes(e.note.slice(0, -1)))) dRef.current.noteFacts(c.id, e.note, e.facts, e.at);
+        if (c && /^Text from them: /.test(e.note)) setTextIn({ id: c.id, name: `${c.first} ${c.last}`.trim(), text: e.note.slice(17, -1) });   // pop-up with Reply
         if (c && /^(Quo|Dispatch) call: /.test(e.note)) { dRef.current.quoDialed(c.id, e.at, e.note.startsWith('Dispatch') ? 'Dispatch' : 'Quo'); endRef.current(c.id); }   // an outgoing call counts as a dial (George, 2026-11-27)
         else if (e.note && /^Text from/.test(e.note)) dRef.current.say(`A text from ${e.phone}, who is not in your contacts.`, 'warn');
       }
@@ -1018,6 +1020,9 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
         </div>
       )}
       {d.toast && <div className={`toast ${d.toast.kind}`}>{d.toast.text}</div>}
+      {textIn && <div className="textin" role="status"><div><b>Text from {textIn.name}</b><span>{textIn.text}</span></div>
+        <button className="btn primary sm" onClick={() => { setQuo({ id: textIn.id, apptAt: null, first: 'reply' }); setTextIn(null); }}>Reply</button>
+        <button className="linkish" onClick={() => setTextIn(null)} aria-label="Dismiss">✕</button></div>}
     </div>
   );
 }

@@ -29,3 +29,13 @@ describe('incoming texts and failures', () => {
   });
   it('STOP in plain words', () => { expect(smsProblem(21610)).toMatch(/texted STOP/); });
 });
+
+import { textThread } from '../src/quo/thread';
+describe('textThread', () => {
+  it('reads the back and forth from the notes, oldest first', () => {
+    const notes = '11/20: left vm | 11/27: Texted (Dispatch): "Hi Sam, this is Pat" | 11/27: Text from them: "Who is this?" | 11/27: Texted (Quo): "Pat with the union benefits"';
+    expect(textThread(notes)).toEqual([
+      { day: '11/27', mine: true, text: 'Hi Sam, this is Pat' }, { day: '11/27', mine: false, text: 'Who is this?' }, { day: '11/27', mine: true, text: 'Pat with the union benefits' }]);
+    expect(textThread('')).toEqual([]);
+  });
+});

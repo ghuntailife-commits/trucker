@@ -17,7 +17,11 @@ export async function POST(req: Request) {
     const to = twilioE164(p.To ?? '');
     if (!to || !team?.agents.some(a => a.id === agent && a.twilio)) return xml('<?xml version="1.0" encoding="UTF-8"?><Response><Say>This number cannot be called.</Say></Response>');
     const used = await dialsToday(db).catch(() => ({}));
-    const { from } = pickFrom(pool, to, null, { used, cap: team?.twilioDailyCap ?? DAILY_CAP });
+    // the number this contact already knows us by (a past Dispatch call or text), unless it is resting for the day
+    const { data: last } = await db.from('quo_events').select('payload').in('type', ['call.dialed', 'message.sent']).like('phone', `%${to.slice(-10)}`)
+      .order('at', { ascending: false }).limit(1);
+    const lastFrom = (last?.[0] as { payload?: { from?: string } } | undefined)?.payload?.from ?? null;
+    const { from } = pickFrom(pool, to, lastFrom, { used, cap: team?.twilioDailyCap ?? DAILY_CAP });
     if (!from) return xml('<?xml version="1.0" encoding="UTF-8"?><Response><Say>Add a Twilio number in Dispatch settings first.</Say></Response>');
     // counted for the spam watch (applied: the screen's pull skips it)
     await db.from('quo_events').upsert({ id: `call.dialed:${p.CallSid}`, agent_id: agent, type: 'call.dialed', call_id: p.CallSid, phone: to, at: new Date().toISOString(),
