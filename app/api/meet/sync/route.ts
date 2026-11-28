@@ -47,15 +47,30 @@ export async function POST(req: Request) {
     if (cl.status === 403 && /insufficient|scope/i.test(await cl.clone().text())) return NextResponse.json({ connected: true, reconnect: true, needs: 'calendars' });
     const cals = cl.ok ? ((await cl.json()) as { items?: { id: string }[] }).items?.map(c => c.id) ?? ['primary'] : ['primary'];
     const events: CalEvent[] = [];
+    const seenCodes = new Set<string>();
     for (const cal of cals.length ? cals : ['primary']) {
     let page: string | undefined;
     do {
       const q = new URLSearchParams({ timeMin: new Date(now - Math.min(365, Math.max(1, days ?? 14)) * DAY).toISOString(), timeMax: new Date(now).toISOString(), singleEvents: 'true', maxResults: '250',
-        fields: 'nextPageToken,items(id,status,summary,description,start,attachments,extendedProperties)', ...(page ? { pageToken: page } : {}) });
+        fields: 'nextPageToken,items(id,status,summary,description,start,end,attachments,extendedProperties,hangoutLink)', ...(page ? { pageToken: page } : {}) });
       const r = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal)}/events?${q}`, { headers: { Authorization: `Bearer ${token}` } });
       if (!r.ok) { if (cal === 'primary' || cals[0] === cal) return NextResponse.json({ error: `Google Calendar said ${r.status}: ${(await r.text()).slice(0, 200)}` }); break; }
       const j = await r.json() as { items?: (CalEvent & { status?: string })[]; nextPageToken?: string };
-      events.push(...(j.items ?? []).filter(e => e.status !== 'cancelled' && meetDocs(e).length));
+      const live = (j.items ?? []).filter(e => e.status !== 'cancelled');
+      events.push(...live.filter(e => meetDocs(e).length));
+      // Google doesn't always attach the transcript to the event (George, 2026-11-27: Philip's call). For recent events
+      // with a Meet link and nothing attached, look for the transcript by the meeting code ("pnk-nist-fnd (date) - Transcript").
+      for (const e of live.filter(x => !meetDocs(x).length && x.hangoutLink && Date.parse(x.start?.dateTime ?? '') > now - 14 * DAY).slice(-30)) {
+        const code = /meet\.google\.com\/([a-z]{3}-[a-z]{4}-[a-z]{3})/.exec(e.hangoutLink ?? '')?.[1];
+        if (!code || seenCodes.has(code)) continue;
+        seenCodes.add(code);
+        const fq = new URLSearchParams({ q: `name contains '${code}' and mimeType = 'application/vnd.google-apps.document' and trashed = false`, fields: 'files(id,name,mimeType)', pageSize: '5' });
+        const fr = await fetch(`https://www.googleapis.com/drive/v3/files?${fq}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!fr.ok) continue;
+        const files = ((await fr.json()) as { files?: { id: string; name: string; mimeType: string }[] }).files ?? [];
+        const found = files.map(f => ({ fileId: f.id, title: f.name, mimeType: f.mimeType }));
+        if (found.length) { e.attachments = found; if (meetDocs(e).length) events.push(e); }
+      }
       page = j.nextPageToken;
     } while (page && events.length < 1000);
     }
