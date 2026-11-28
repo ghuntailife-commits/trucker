@@ -179,7 +179,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const selfId = (t.person?.agent_id ?? 'george') as AgentId;
   const canViewAs = !LIVE || t.person?.role === 'admin';
   const isAdmin = canViewAs;   // search every agent: admin only
-  const pages = pagesFor(t.role).filter(p => p !== 'coach' || t.role === 'admin' || me.quo);
+  const pages = pagesFor(t.role).filter(p => p !== 'coach' || t.role === 'admin' || me.quo || me.twilio);
   // team feed (George, 2026-11-27): everyone's leads, sales, presentations and bookings
   const feedSnap = useMemo(() => ({ contacts: d0.contacts ?? NONE, log: d0.log ?? NONE, sales: d0.sales ?? NONE, noSales: d0.noSales ?? NONE }) as Snap,
     [d0.contacts, d0.log, d0.sales, d0.noSales]);
