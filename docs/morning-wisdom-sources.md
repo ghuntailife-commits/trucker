@@ -4,27 +4,27 @@ The Morning Wisdom section on Home (src/home/wisdom.ts). One entry each morning;
 
 Rules followed: the author and work are named for every entry; translated works name the translator and quote that translation as printed; scripture is the King James Version; quotes with doubtful or unverifiable attributions are left out (list below). Modern copyrighted works are quoted only in a sentence or two.
 
-## Distribution (149 entries)
+## Distribution (159 entries)
 
 | Theme | Entries |
 |---|---|
-| Discipline and consistency | 13 |
-| Gratitude and contentment | 10 |
+| Discipline and consistency | 14 |
+| Gratitude and contentment | 12 |
 | Courage | 13 |
 | Self-mastery | 15 |
 | Leadership, service and integrity | 13 |
-| Faith, trust and patience | 10 |
+| Faith, trust and patience | 12 |
 | Purposeful action | 14 |
-| Humility and learning | 11 |
-| Persistence and resilience | 13 |
+| Humility and learning | 12 |
+| Persistence and resilience | 14 |
 | Focus and presence | 15 |
-| Ambition and excellence | 11 |
-| Time and the value of life | 11 |
+| Ambition and excellence | 13 |
+| Time and the value of life | 12 |
 
 | Author | Entries |
 |---|---|
-| Bible (KJV) | 49 |
-| Simon Arias | 24 |
+| Bible (KJV) | 54 |
+| Simon Arias | 29 |
 | Marcus Aurelius | 8 |
 | Seneca | 7 |
 | Benjamin Franklin | 6 |
@@ -63,7 +63,7 @@ Rules followed: the author and work are named for every entry; translated works 
 | Winston Churchill | 1 |
 | Zig Ziglar | 1 |
 
-Exact English words: 96. Named translations: 29. Spoken (Simon Arias videos, from captions): 24.
+Exact English words: 101. Named translations: 29. Spoken (Simon Arias videos, from captions): 29.
 
 ## Research index
 
@@ -84,6 +84,7 @@ Each line: id, author, the quote's opening words, the source to check it against
 - `sa-schedule`: **Simon Arias**, "If it’s not on the schedule it don’t…" Source: “How To Master Self Discipline,” GRINDcast, August 4, 2023, at 5:33–6:12. Spoken on video; wording from the captions.
 - `sa-motive`: **Simon Arias**, "The root word of motivation is motive. And…" Source: “Discipline over Motivation,” GRINDcast, April 11, 2025, at 7:37. Spoken on video; wording from the captions.
 - `sa-consistency`: **Simon Arias**, "Consistency beats intensity over time. Show up daily,…" Source: “Discipline over Motivation,” GRINDcast, April 11, 2025, at 8:35. Spoken on video; wording from the captions.
+- `sa-balance`: **Simon Arias**, "The best way to get balance is that…" Source: “Work-Life Balance and Going All In,” GRINDcast, June 5, 2026, at 1:11–1:20. Spoken on video; wording from the captions.
 
 ### Gratitude and contentment
 
@@ -96,6 +97,8 @@ Each line: id, author, the quote's opening words, the source to check it against
 - `gr-keller-optimism`: **Helen Keller**, "Optimism is the faith that leads to achievement.…" Source: Optimism (1903). Original English.
 - `gr-emerson-best-day`: **Ralph Waldo Emerson**, "Write it on your heart that every day…" Source: “Works and Days,” Society and Solitude (1870). Original English.
 - `gr-nightingale-become`: **Earl Nightingale**, "We become what we think about.…" Source: The Strangest Secret (1956). Original English.
+- `gr-ps-107-1`: **Psalm 107:1**, "O give thanks unto the LORD, for he…" Source: King James Version. Original English.
+- `gr-1tim-6-6`: **1 Timothy 6:6**, "But godliness with contentment is great gain.…" Source: King James Version. Original English.
 - `sa-extract`: **Simon Arias**, "People don’t necessarily need more opportunities. You just…" Source: “Lack of Motivation: Your Real Problem Is Focus,” GRINDcast, October 2, 2026, at 4:22–4:36. Spoken on video; wording from the captions.
 
 ### Courage
@@ -160,6 +163,8 @@ Each line: id, author, the quote's opening words, the source to check it against
 - `fa-franklin-patience`: **Benjamin Franklin**, "He that can have patience, can have what…" Source: Poor Richard’s Almanack (1736). Original English.
 - `fa-tolstoy-warriors`: **Leo Tolstoy**, "The strongest of all warriors are these two—Time…" Source: War and Peace, Book 10, Chapter 16, trans. Louise and Aylmer Maude. Translation, quoted as printed.
 - `fa-emerson-pace`: **Ralph Waldo Emerson**, "Adopt the pace of Nature: her secret is…" Source: “Education,” in Lectures and Biographical Sketches (1883). Original English.
+- `fa-heb-11-1`: **Hebrews 11:1**, "Now faith is the substance of things hoped…" Source: King James Version. Original English.
+- `fa-lam-3-22`: **Lamentations 3:22–23**, "It is of the LORD’s mercies that we…" Source: King James Version. Original English.
 
 ### Purposeful action
 
@@ -190,6 +195,7 @@ Each line: id, author, the quote's opening words, the source to check it against
 - `hu-aristotle-swallow`: **Aristotle**, "For one swallow does not make a summer,…" Source: Nicomachean Ethics I.7, trans. W. D. Ross. Translation, quoted as printed.
 - `hu-wooden-cannot`: **John Wooden**, "Do not let what you cannot do interfere…" Source: They Call Me Coach (1972). Original English.
 - `sa-humility`: **Simon Arias**, "It takes humility in order to grow.…" Source: “Leadership Level, Mentorship, & Teamwork,” The GRIND Life, May 16, 2020, at 1:15–2:18. Spoken on video; wording from the captions.
+- `hu-prov-27-2`: **Proverbs 27:2**, "Let another man praise thee, and not thine…" Source: King James Version. Original English.
 - `sa-first-attempt`: **Simon Arias**, "Your first attempt is supposed to teach you…" Source: “Preparation vs Procrastination,” GRINDcast, August 14, 2026, at 5:32. Spoken on video; wording from the captions.
 
 ### Persistence and resilience
@@ -207,6 +213,7 @@ Each line: id, author, the quote's opening words, the source to check it against
 - `pe-lincoln-resolution`: **Abraham Lincoln**, "Always bear in mind that your own resolution…" Source: Letter to Isham Reavis, November 5, 1855. Original English.
 - `pe-epictetus-grapes`: **Epictetus**, "No great thing is created suddenly, any more…" Source: Discourses 1.15, trans. George Long. Translation, quoted as printed.
 - `sa-resistance`: **Simon Arias**, "That resistance is a signal not to stop…" Source: “Discipline over Motivation,” GRINDcast, April 11, 2025, at 15:44. Spoken on video; wording from the captions.
+- `sa-recipe`: **Simon Arias**, "They change the recipe before giving the recipe…" Source: “How to Finish What You Start,” GRINDcast, October 16, 2026, at 2:58. Spoken on video; wording from the captions.
 
 ### Focus and presence
 
@@ -239,6 +246,8 @@ Each line: id, author, the quote's opening words, the source to check it against
 - `ex-ziglar-help`: **Zig Ziglar**, "You can have everything in life you want,…" Source: See You at the Top (1975). Original English.
 - `ex-wooden-quick`: **John Wooden**, "Be quick, but don’t hurry.…" Source: Wooden: A Lifetime of Observations and Reflections On and Off the Court (1997). Original English.
 - `sa-basics`: **Simon Arias**, "Champions master the basics. They don’t skip steps.…" Source: “Discipline over Motivation,” GRINDcast, April 11, 2025, at 12:51. Spoken on video; wording from the captions.
+- `sa-master-multiply`: **Simon Arias**, "If you could master before you multiply, it…" Source: “How to Finish What You Start,” GRINDcast, October 16, 2026, at 9:09. Spoken on video; wording from the captions.
+- `sa-how-good`: **Simon Arias**, "How good do you want to be?…" Source: “Work-Life Balance and Going All In,” GRINDcast, June 5, 2026, at 5:43–5:46. Spoken on video; wording from the captions.
 
 ### Time and the value of life
 
@@ -253,6 +262,7 @@ Each line: id, author, the quote's opening words, the source to check it against
 - `ti-franklin-lost`: **Benjamin Franklin**, "Lost time is never found again.…" Source: Poor Richard’s Almanack (1748). Original English.
 - `ti-nietzsche-why`: **Friedrich Nietzsche**, "He who has a why to live for…" Source: Twilight of the Idols, Maxims 12, as rendered in Frankl’s Man’s Search for Meaning. Translation, quoted as printed.
 - `sa-journey`: **Simon Arias**, "You got to get comfortable with the journey…" Source: “Discipline over Motivation,” GRINDcast, April 11, 2025, at 11:29. Spoken on video; wording from the captions.
+- `sa-compounding`: **Simon Arias**, "Most people will never know what they were…" Source: “How to Finish What You Start,” GRINDcast, October 16, 2026, at 10:50–11:05. Spoken on video; wording from the captions.
 
 
 ## Left out (doubtful attribution, wording or tone)
@@ -288,3 +298,4 @@ Simon Arias entries come from his own recorded talks (GRINDcast and The GRIND Li
 - 2026-11-26: First Morning Wisdom collection, 125 entries in 12 themes, each with source, meaning, reflection and today's intention. It replaces the earlier quote of the day on Home.
 - 2026-11-26: Added six Simon Arias entries from his recorded talks (131 entries in all).
 - 2026-11-26: Added 18 more Simon Arias entries from four GRINDcast episodes (Focus, Discipline over Motivation, Preparation vs Procrastination, Protecting Your Energy). 149 entries in all.
+- 2026-11-28: Added 10 entries: five Simon Arias lines from two GRINDcast episodes (How to Finish What You Start; Work-Life Balance and Going All In) and five King James verses for faith, gratitude and humility. 159 entries in all.
