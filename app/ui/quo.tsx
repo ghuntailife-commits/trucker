@@ -7,16 +7,21 @@ import { textThread } from '../../src/quo/thread';
 import type { Contact } from '../../src/rules/types';
 import { quoNumbers, type AgentSetting } from '../../src/team/agents';
 import { textFor, renderText, textParts, checkText, e164, TEXT_LABEL, type TextKey, type MyTexts } from '../../src/quo/quo';
-import { Dialog, TZ, TZ_ABBR, timeOnly } from './shared';
+import { Dialog, TZ, TZ_ABBR } from './shared';
+import { contactTz, ZONE_IANA } from '../../src/rules/time';
+
+const zoneAbbr = (iana: string) => iana === 'America/Phoenix' ? 'MT' : Object.entries(ZONE_IANA).find(([, z]) => z === iana)?.[0] ?? '';
 
 const fmt = (e: string | null) => (e ? `(${e.slice(2, 5)}) ${e.slice(5, 8)}-${e.slice(8)}` : '');
 
 export function QuoText({ c, agent, apptAt, first = 'missed', mine, onEditTexts, onClose, onSent, via = 'quo', onVia }: {
   via?: 'quo' | 'dispatch'; onVia?: (v: 'quo' | 'dispatch') => void; c: Contact; agent: AgentSetting; apptAt?: number | null; first?: TextKey | 'reply'; mine?: MyTexts; onEditTexts?: () => void; onClose: () => void; onSent: (body: string, kind: TextKey) => void;
 }) {
-  const fill = { agent: agent.name, tz: TZ_ABBR, time: apptAt ? timeOnly(apptAt) : '',
-    day: apptAt ? new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'long' }).format(apptAt) : '',
-    when: apptAt ? new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'long', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(apptAt) : '' };
+  // times in the contact's own time zone: 2 PM on an Eastern calendar reads "1:00 PM CT" to a Central contact (George, 2026-11-28)
+  const zt = contactTz(c) || TZ, za = zoneAbbr(zt) || TZ_ABBR;
+  const fill = { agent: agent.name, tz: za, time: apptAt ? new Intl.DateTimeFormat('en-US', { timeZone: zt, hour: 'numeric', minute: '2-digit' }).format(apptAt) : '',
+    day: apptAt ? new Intl.DateTimeFormat('en-US', { timeZone: zt, weekday: 'long' }).format(apptAt) : '',
+    when: apptAt ? new Intl.DateTimeFormat('en-US', { timeZone: zt, weekday: 'long', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(apptAt) : '' };
   const keys: TextKey[] = apptAt ? ['booked', 'confirmTomorrow', 'confirmToday', 'hour', 'noShow'] : ['missed', 'noShow', 'followUp'];
   const thread = textThread(c.notes);
   // carrying on a conversation: a blank reply when they texted last (or the agent pressed Reply)
