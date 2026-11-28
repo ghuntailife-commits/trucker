@@ -177,7 +177,7 @@ export function FollowUpEmailDialog({ agent, agentName, agentEmail, start, onClo
           {num(amount) > 0 && <p className="hint">Pays {`$${num(amount).toLocaleString('en-US')}`} in full, half ({`$${(num(amount) / 2).toLocaleString('en-US')}`}) for one hand, foot or eye.</p>}
           <label className="fld"><span>Certificate</span></label>
           <div className="seg">
-            {(sale ? [['blank', 'Standard blank'], ['attach', 'Their certificate'], ['later', 'Not ready yet']] : [['blank', 'Standard blank'], ['attach', 'Their certificate'], ['digital', 'Signing digitally']])
+            {(sale ? [['blank', 'Standard blank'], ['attach', 'Their certificate'], ['later', 'Not ready yet']] : [['blank', 'Standard blank'], ['attach', 'Their certificate']])
               .map(([k, l]) => <button type="button" key={k} className={cert === k ? 'on' : ''} onClick={() => (sale ? setSaleCert(k as SaleCert) : setNoCert(k as NoSaleCert))}>{l}</button>)}
           </div>
           {needsCertFile && <label className="fld"><span>Their certificate (PDF)</span>
