@@ -36,17 +36,11 @@ export async function POST(req: Request) {
     const { from } = pickFrom(pool, to, lastFrom, { used, cap: team?.twilioDailyCap ?? DAILY_CAP });
     if (!from) return xml('<?xml version="1.0" encoding="UTF-8"?><Response><Say>Add a Twilio number in Dispatch settings first.</Say></Response>');
     // counted for the spam watch (applied: the screen's pull skips it)
-<<<<<<< HEAD
-    await db.from('quo_events').upsert({ id: `call.dialed:${p.CallSid}`, agent_id: agent, type: 'call.dialed', call_id: p.CallSid, phone: to, at: new Date().toISOString(),
-      applied: true, payload: { source: 'twilio', from: twilioE164(from) } }, { onConflict: 'id', ignoreDuplicates: true });
+    await within(3000, db.from('quo_events').upsert({ id: `call.dialed:${p.CallSid}`, agent_id: agent, type: 'call.dialed', call_id: p.CallSid, phone: to, at: new Date().toISOString(),
+      applied: true, payload: { source: 'twilio', from: twilioE164(from) } }, { onConflict: 'id', ignoreDuplicates: true }).then(() => null), null);
     // auto-dial asks Twilio to check for voicemail machines (Ref = the screen's own name for this call)
     const amdRef = p.Auto === '1' && /^[\w-]{6,64}$/.test(p.Ref ?? '') ? p.Ref : undefined;
     return xml(outboundTwiml({ to, callerId: twilioE164(from), base, agent, contactPhone: to, record: team?.twilioRecord !== false, notice: team?.twilioNotice !== false, amdRef }));
-=======
-    await within(3000, db.from('quo_events').upsert({ id: `call.dialed:${p.CallSid}`, agent_id: agent, type: 'call.dialed', call_id: p.CallSid, phone: to, at: new Date().toISOString(),
-      applied: true, payload: { source: 'twilio', from: twilioE164(from) } }, { onConflict: 'id', ignoreDuplicates: true }).then(() => null), null);
-    return xml(outboundTwiml({ to, callerId: twilioE164(from), base, agent, contactPhone: to, record: team?.twilioRecord !== false, notice: team?.twilioNotice !== false }));
->>>>>>> main
   }
   // someone calling in: show it on the agent's screen, ring their Dispatch, else take a message
   const from = twilioE164(p.From ?? '') || p.From || '';
