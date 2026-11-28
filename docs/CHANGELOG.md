@@ -171,3 +171,7 @@ Changes from the v27 Google Sheet, and why. "George" = approved by George; "Brie
 | 2026-11-27 | The default booking confirmation text ends with "Reply STOP to opt out." (needed for texting registration). |
 | 2026-11-27 | Public pages for texting registration: /privacy, /terms, /sms-consent (George Hunt Insurance Team). |
 | 2026-11-27 | Dispatch calling (Twilio), off until turned on per agent in Settings: calls from the browser from the team's local number, call bar (mute, keypad, hang up), incoming calls ring the agent who called them last, recordings and voicemails on the contact, "This call may be recorded" notice. |
+| 2026-11-27 | Prettier Call button: round phone icon, "Call <first name>" over the number; on a call it pulses with a red End button. |
+| 2026-11-27 | Local match picks the same area code first, then state, then time zone. |
+| 2026-11-27 | Settings > Dispatch calling > "Get local numbers": counts the team's contacts by area code, suggests one number per state plus the busiest area codes, shows the monthly cost, then buys and sets them up (calls, texting group, caller-ID registrations). |
+| 2026-11-27 | Spam watch: each number rests after a daily number of calls (default 100) and the next-best number takes over; calls per number today in Settings. |

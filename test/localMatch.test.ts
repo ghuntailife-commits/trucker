@@ -20,3 +20,18 @@ describe('pickFrom: exact area code first', () => {
     expect(r.why).toContain('786');
   });
 });
+
+describe('pickFrom: daily limit per number', () => {
+  const pool = ['+17865550100', '+16155550101', '+16155550102', '+15155550103'];
+  it('spreads calls over numbers in the same state, least used first', () => {
+    expect(pickFrom(pool, '615-555-0199', null, { used: { '6155550101': 40, '6155550102': 10 }, cap: 100 }).from).toBe('+16155550102');
+  });
+  it('a number at the limit rests; the next-best takes the call', () => {
+    const r = pickFrom(pool, '515-555-0199', null, { used: { '5155550103': 100 }, cap: 100 });
+    expect(r.from).not.toBe('+15155550103');
+  });
+  it('if every number is at the limit it still calls', () => {
+    const used = Object.fromEntries(pool.map(p => [p.slice(-10), 200]));
+    expect(pickFrom(pool, '515-555-0199', null, { used, cap: 100 }).from).toBe('+15155550103');
+  });
+});

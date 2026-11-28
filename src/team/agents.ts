@@ -51,6 +51,8 @@ export interface TeamSettings {
   /** Record Dispatch calls (default on), and play "This call may be recorded" to the contact first (default on). */
   twilioRecord?: boolean;
   twilioNotice?: boolean;
+  /** calls one number makes a day before it rests and the next-best number takes over (spam watch; default 100) */
+  twilioDailyCap?: number;
 }
 
 export const RULE_KEYS: RuleKey[] = ['retryDays', 'restDays', 'backupDials', 'callbackTries', 'noShowTries', 'listSize',

@@ -40,7 +40,7 @@ export function useTeam(person?: Person) {
     setTeam(t => (t ? { ...t, agents: t.agents.map(a => (a.id === id ? { ...a, ...change } : a)) } : t));
   }, []);
   const setRules = useCallback((rules: RuleSettings) => setTeam(t => (t ? { ...t, rules } : t)), []);
-  const setTeamField = useCallback((change: Partial<Pick<TeamSettings, 'coachingHour' | 'coachingCopyTo' | 'twilioNumbers' | 'twilioRecord' | 'twilioNotice'>>) => setTeam(t => (t ? { ...t, ...change } : t)), []);
+  const setTeamField = useCallback((change: Partial<Pick<TeamSettings, 'coachingHour' | 'coachingCopyTo' | 'twilioNumbers' | 'twilioRecord' | 'twilioNotice' | 'twilioDailyCap'>>) => setTeam(t => (t ? { ...t, ...change } : t)), []);
   const reset = useCallback(() => setTeam(defaultTeam()), []);
 
   const me = team?.agents.find(a => a.id === viewer);

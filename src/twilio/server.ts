@@ -35,3 +35,34 @@ export async function lastAgentFor(db: SupabaseClient, t: TeamSettings | null, p
 }
 
 export const xml = (body: string) => new Response(body, { headers: { 'Content-Type': 'text/xml' } });
+
+/** Default calls per number per day before it rests (spam watch, George 2026-11-27). */
+export const DAILY_CAP = 100;
+
+/** Midnight Eastern today, as an ISO time (the team's day). */
+export function etDayStart(now = Date.now()): string {
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+  for (const off of ['-05:00', '-04:00']) { const t = Date.parse(`${day}T00:00:00${off}`);
+    if (new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', hour: '2-digit', hourCycle: 'h23' }).format(t) === '00') return new Date(t).toISOString(); }
+  return new Date(Date.parse(`${day}T05:00:00Z`)).toISOString();
+}
+
+/** Calls each team number has placed today, by its 10 digits. */
+export async function dialsToday(db: SupabaseClient): Promise<Record<string, number>> {
+  const { data } = await db.from('quo_events').select('payload').eq('type', 'call.dialed').gte('at', etDayStart()).range(0, 9999);
+  const out: Record<string, number> = {};
+  for (const r of (data ?? []) as { payload: { from?: string } }[]) { const d = String(r.payload?.from ?? '').replace(/\D/g, '').slice(-10); if (d) out[d] = (out[d] ?? 0) + 1; }
+  return out;
+}
+
+/** Twilio REST with the team's API key. */
+export async function twilioApi<T = Record<string, unknown>>(url: string, init: { method?: string; form?: Record<string, string> } = {}): Promise<T> {
+  const env = twilioEnv(); if (!env) throw new Error('Twilio is not set up on Vercel yet.');
+  const full = url.startsWith('http') ? url : `https://api.twilio.com/2010-04-01/Accounts/${env.accountSid}${url}`;
+  const r = await fetch(full, { method: init.method ?? (init.form ? 'POST' : 'GET'),
+    headers: { Authorization: `Basic ${Buffer.from(`${env.apiKey}:${env.apiSecret}`).toString('base64')}`, ...(init.form ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}) },
+    body: init.form ? new URLSearchParams(init.form).toString() : undefined });
+  const j = await r.json().catch(() => ({})) as T & { message?: string };
+  if (!r.ok) throw new Error(j.message ?? `Twilio said ${r.status}`);
+  return j;
+}
