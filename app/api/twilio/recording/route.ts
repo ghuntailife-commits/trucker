@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     // then a transcript, for the call notes and coaching (Settings > Dispatch calling > Transcribe calls)
     const db = adminDb();
     const team = await teamSettings(db);
-    if (team?.twilioTranscribe !== false && tw.p.RecordingSid && Number(tw.p.RecordingDuration ?? 0) >= 5) {
+    if (team?.twilioTranscribe !== false && tw.p.RecordingSid && Number(tw.p.RecordingDuration ?? 0) >= (tw.q.get('vm') === '1' ? 3 : 20)) {   // short hang-ups aren't worth a transcript (George, 2026-11-28: cost)
       await startTranscript(tw.base, tw.p.RecordingSid, { agent: tw.q.get('a') ?? '', phone: tw.q.get('p') ?? '', callSid: tw.p.CallSid ?? '', voicemail: tw.q.get('vm') === '1' })
         .catch(e => console.error('twilio recording: transcript not started', (e as Error).message));
     }
