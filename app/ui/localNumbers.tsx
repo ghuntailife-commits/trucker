@@ -33,6 +33,7 @@ export function LocalNumbersDialog({ owned, onAdded, onClose }: { owned: string;
   const [busy, setBusy] = useState('');
   const [byState, setByState] = useState(true);
   const [top, setTop] = useState(25);
+  const [minState, setMinState] = useState(20);
   const [found, setFound] = useState<Found[] | null>(null);
   const [done, setDone] = useState<{ bought: { phone: string; texting: boolean; callerId: number }[]; failed: { phone: string; why: string }[] } | null>(null);
   const mine = useMemo(() => quoNumbers(owned), [owned]);
@@ -49,7 +50,7 @@ export function LocalNumbersDialog({ owned, onAdded, onClose }: { owned: string;
     })().catch(e => setErr((e as Error).message));
   }, []);
 
-  const plan = useMemo(() => (phones ? planNumbers(phones, mine, top) : null), [phones, mine, top]);
+  const plan = useMemo(() => (phones ? planNumbers(phones, mine, top, minState) : null), [phones, mine, top, minState]);
   const targets: NumberTarget[] = plan ? [...(byState ? plan.states : []), ...plan.areas] : [];
   const share = phones && plan ? exactShare(phones, mine, targets) : 0;
   const byKey = new Map(targets.map(t => [t.key, t]));
@@ -88,8 +89,8 @@ export function LocalNumbersDialog({ owned, onAdded, onClose }: { owned: string;
       {plan && !found && !done && <>
         <p className="hint">Each call shows the contact a number from their own area code when the team has one, else one from their state, else their time zone. You have {mine.length} number{mine.length === 1 ? '' : 's'} now. {plan.total.toLocaleString()} contacts across the team.</p>
         <label className="lnopt"><input type="checkbox" checked={byState} onChange={e => setByState(e.target.checked)} />
-          <span><b>One number in each state</b> your contacts are in ({plan.states.length} state{plan.states.length === 1 ? '' : 's'} without one). Each in that state&rsquo;s busiest area code.</span></label>
-        {byState && plan.states.length > 0 && <div className="chips">{plan.states.map(s => <span key={s.key} className="chip" title={`${s.contacts} contacts`}>{s.state} {s.areaCode}</span>)}</div>}
+          <span><b>One number in each state</b> with at least <select value={minState} onChange={e => setMinState(Number(e.target.value))} aria-label="Least contacts for a state">{[1, 10, 20, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}</select> contacts ({plan.states.length} state{plan.states.length === 1 ? '' : 's'}). Each in that state&rsquo;s busiest area code. Goes by the contact&rsquo;s phone area code.</span></label>
+        {byState && plan.states.length > 0 && <div className="chips">{plan.states.map(s => <span key={s.key} className="chip" title={`${s.contacts} contacts, busiest code ${s.areaCode}`}>{s.state} · {s.contacts}</span>)}</div>}
         <label className="lnopt"><span><b>Plus your busiest area codes</b></span>
           <select value={top} onChange={e => setTop(Number(e.target.value))}>{[0, 10, 25, 50, 75].map(n => <option key={n} value={n}>{n === 0 ? 'None' : `Top ${n}`}</option>)}</select></label>
         <div className="lnsum">

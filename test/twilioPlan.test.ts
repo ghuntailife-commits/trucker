@@ -29,3 +29,11 @@ describe('planNumbers', () => {
     expect(exactShare(phones, ['+17863848908'], p.states)).toBeCloseTo(6 / 8);
   });
 });
+
+describe('planNumbers: minimum contacts for a state', () => {
+  it('leaves out states with fewer contacts than the minimum', () => {
+    const p = planNumbers(phones, ['+17863848908'], 0, 3);
+    expect(p.states.map(s => s.state)).toEqual(['TN', 'TX']);
+    expect(planNumbers(phones, ['+17863848908'], 0, 4).states.map(s => s.state)).toEqual(['TN']);
+  });
+});

@@ -12,7 +12,7 @@ export interface NumberPlan { states: NumberTarget[]; areas: NumberTarget[]; tot
 /** about what one Twilio local number costs a month (US) */
 export const NUMBER_MONTHLY = 1.15;
 
-export function planNumbers(phones: string[], owned: string[], topAreas = 25): NumberPlan {
+export function planNumbers(phones: string[], owned: string[], topAreas = 25, minState = 1): NumberPlan {
   const byArea = new Map<string, number>();
   let total = 0;
   for (const p of phones) {
@@ -29,7 +29,7 @@ export function planNumbers(phones: string[], owned: string[], topAreas = 25): N
     s.n += n; if (n > s.topN) { s.top = ac; s.topN = n; }
     byState.set(st, s);
   }
-  const states: NumberTarget[] = [...byState].filter(([st]) => !ownStates.has(st))
+  const states: NumberTarget[] = [...byState].filter(([st, v]) => !ownStates.has(st) && v.n >= minState)
     .map(([st, s]) => ({ key: `st:${st}`, kind: 'state' as const, state: st, areaCode: s.top, contacts: s.n }))
     .sort((a, b) => b.contacts - a.contacts);
   // area codes that get their own number: the busiest ones not already owned and not already the state pick
