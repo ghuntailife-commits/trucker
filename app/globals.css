@@ -1566,3 +1566,44 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 .dhc.on { outline: 2px solid var(--text); outline-offset: -2px; }
 .notepick { display: flex; flex-wrap: wrap; gap: 6px; }
 .ringcell { display: flex; flex-direction: column; gap: 10px; } .ringcell p { margin: 0; line-height: 1.45; }
+
+/* Top dialers today (George, 2026-11-28) */
+.hcard.board { grid-column: span 4; position: relative; overflow: hidden;
+  background: radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, #f2b705 10%, var(--panel)) 0%, var(--panel) 60%); }
+.hcard.board .blive { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--green-ink); }
+.hcard.board .blive i, .hcard.board .ldot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 0 rgba(34,197,94,.6); animation: bpulse 1.8s infinite; }
+@keyframes bpulse { 0% { box-shadow: 0 0 0 0 rgba(34,197,94,.55); } 70% { box-shadow: 0 0 0 7px rgba(34,197,94,0); } 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); } }
+.podium { display: grid; grid-template-columns: 1fr 1.15fr 1fr; align-items: end; gap: 8px; margin: 6px 0 4px; }
+.pod { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; position: relative; }
+.pod .crown { position: absolute; top: -6px; font-size: 18px; color: #e0a800; text-shadow: 0 1px 0 rgba(0,0,0,.15); animation: bfloat 3s ease-in-out infinite; }
+@keyframes bfloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+.pod .av { position: relative; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; font: 700 15px var(--mono); color: #fff; margin-top: 14px;
+  box-shadow: 0 4px 14px rgba(20,30,60,.18), inset 0 1px 0 rgba(255,255,255,.35); }
+.pod.p1 .av { width: 56px; height: 56px; font-size: 18px; background: linear-gradient(145deg, #ffd65a, #e0a800 55%, #b98500); }
+.pod.p2 .av { background: linear-gradient(145deg, #eef1f6, #b8c0cf 55%, #8d97aa); color: #2a3346; }
+.pod.p3 .av { background: linear-gradient(145deg, #f3b98a, #cd7f32 55%, #a2602a); }
+.pod .ldot { position: absolute; right: 0; bottom: 2px; border: 2px solid var(--panel); width: 11px; height: 11px; }
+.pod .nm { margin-top: 6px; font-size: 13.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pod .dl { font: 700 24px var(--mono); line-height: 1.1; color: var(--text); }
+.pod.p1 .dl { font-size: 30px; background: linear-gradient(180deg, #e0a800, #a87400); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.pod small { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.pod .step { width: 100%; margin-top: 8px; border-radius: 8px 8px 0 0; display: grid; place-items: center; font: 700 15px var(--mono); color: rgba(255,255,255,.92);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.3); }
+.pod.p1 .step { height: 46px; background: linear-gradient(180deg, #f2c02a, #c99300); }
+.pod.p2 .step { height: 32px; background: linear-gradient(180deg, #c3cad7, #98a2b5); }
+.pod.p3 .step { height: 24px; background: linear-gradient(180deg, #db955a, #b06a2c); }
+.pod.empty { visibility: hidden; }
+.pod.me .nm { color: var(--link); }
+.pod.me .av { outline: 2px solid var(--link); outline-offset: 2px; }
+.brest { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; }
+.brest li { display: grid; grid-template-columns: 20px 26px minmax(0, 1fr) minmax(40px, 90px) 34px; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 8px; font-size: 13px; }
+.brest li.me { background: var(--cur); }
+.brest li b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.brest .rk { font: 600 12px var(--mono); color: var(--faint); text-align: right; }
+.brest .av.sm { position: relative; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 700 10px var(--mono); color: var(--text); background: var(--panel2); border: 1px solid var(--line); }
+.brest .av.sm .ldot { position: absolute; right: -2px; bottom: -2px; width: 8px; height: 8px; border: 2px solid var(--panel); }
+.brest .bbar { height: 6px; border-radius: 4px; background: var(--line2); overflow: hidden; }
+.brest .bbar i { display: block; height: 100%; border-radius: 4px; background: var(--s-dials); transition: width .6s ease; }
+.brest .n { font: 600 13px var(--mono); text-align: right; }
+@media (prefers-reduced-motion: reduce) { .hcard.board .blive i, .hcard.board .ldot, .pod .crown { animation: none; } }
+@media (max-width: 900px) { .hcard.board { grid-column: 1 / -1; } }
