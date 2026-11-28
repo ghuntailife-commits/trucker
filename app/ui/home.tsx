@@ -157,8 +157,6 @@ export function HomePage(h: HomeProps) {
           <button className="btn" onClick={() => h.go('results')}>See results</button></div>
       </section>
 
-      {h.board && <DialBoard {...h.board} />}
-
       <section className="hcard today">
         <header><Icon p="today" /><h2>Today</h2><button className="linkish" onClick={() => h.go('today')}>Open</button></header>
         <div className="hstats">
@@ -175,6 +173,8 @@ export function HomePage(h: HomeProps) {
           <ApptList list={h.nextAppts} h={h} />
         </>}
       </section>
+
+      {h.board && <DialBoard {...h.board} />}
 
       <section className="hcard waiting">
         <header><Icon p="today" /><h2>Waiting on Today</h2></header>
