@@ -65,7 +65,22 @@ export function suggestText(apptAt: number | null | undefined, now: number, noSh
 }
 
 /** Texts are short: Quo splits anything over 160 characters into parts. */
-export const textParts = (s: string) => (s.length <= 160 ? 1 : Math.ceil(s.length / 153));
+// Texts are billed per part (George, 2026-11-28): 160 plain characters fit one text (153 each once it splits).
+// Any character outside the plain texting alphabet (an emoji, curly quotes, a long dash) drops that to 70 (67 each).
+const GSM = '@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#¤%&\'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà';
+const GSM_EXT = '^{}\\[~]|€';
+const gsmLen = (s: string) => { let n = 0; for (const ch of s) { if (GSM.includes(ch)) n++; else if (GSM_EXT.includes(ch)) n += 2; else return -1; } return n; };
+/** The characters that make a text cost more (emojis, curly quotes...). */
+export const fancyChars = (s: string) => [...new Set([...s].filter(ch => !GSM.includes(ch) && !GSM_EXT.includes(ch)))];
+export const textParts = (s: string) => {
+  const g = gsmLen(s);
+  if (g >= 0) return g <= 160 ? 1 : Math.ceil(g / 153);
+  const u = [...s].reduce((n, ch) => n + (ch.length > 1 ? 2 : 1), 0);
+  return u <= 70 ? 1 : Math.ceil(u / 67);
+};
+/** Swaps curly quotes, long dashes and the like for plain ones, so the text stays cheap. Emojis are left for the agent to remove. */
+export const plainText = (s: string) => s.replace(/[\u2018\u2019\u201A\u2032]/g, "'").replace(/[\u201C\u201D\u201E\u2033]/g, '"').replace(/[\u2013\u2014\u2212]/g, '-')
+  .replace(/\u2026/g, '...').replace(/[\u00A0\u2009\u200A\u202F]/g, ' ').replace(/[\u200B\uFEFF]/g, '').replace(/\u2022/g, '-');
 
 export interface SendText { from: string; to: string; content: string }
 export function checkText(t: SendText): string | null {

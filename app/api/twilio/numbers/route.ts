@@ -99,5 +99,10 @@ async function statsReport(db: ReturnType<typeof adminDb>) {
   }
   const rows = numberStats((owned.incoming_phone_numbers ?? []).map(n => n.phone_number), events, Date.now(), 'America/New_York', team?.twilioDailyCap ?? DAILY_CAP);
   const names = Object.fromEntries((team?.agents ?? []).map(x => [x.id, x.name]));
-  return { rows, totals: numberTotals(rows), names, cap: team?.twilioDailyCap ?? DAILY_CAP, at: Date.now() };
+  const spent = async (period: 'Today' | 'ThisMonth') => {
+    const j = await twilioApi<{ usage_records?: { price?: string }[] }>(`/Usage/Records/${period}.json?Category=totalprice`).catch(() => null);
+    const p = j?.usage_records?.[0]?.price; return p != null ? Number(p) : null;
+  };
+  const [today, month] = await Promise.all([spent('Today'), spent('ThisMonth')]);
+  return { rows, totals: numberTotals(rows), names, cap: team?.twilioDailyCap ?? DAILY_CAP, at: Date.now(), spent: { today, month } };
 }

@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { textThread } from '../../src/quo/thread';
 import type { Contact } from '../../src/rules/types';
 import { quoNumbers, type AgentSetting } from '../../src/team/agents';
-import { textFor, renderText, textParts, checkText, e164, TEXT_LABEL, type TextKey, type MyTexts } from '../../src/quo/quo';
+import { textFor, renderText, textParts, fancyChars, plainText, checkText, e164, TEXT_LABEL, type TextKey, type MyTexts } from '../../src/quo/quo';
 import { Dialog, TZ, TZ_ABBR } from './shared';
 import { contactTz, ZONE_IANA } from '../../src/rules/time';
 
@@ -54,7 +54,7 @@ export function QuoText({ c, agent, apptAt, first = 'missed', mine, onEditTexts,
           {custom.map(t => <button key={t.id} className={kind === t.id ? 'on' : ''} onClick={() => { setKind(t.id); setBody(renderText(t.body, c, fill)); }}>{t.name}</button>)}
           {onEditTexts && <button className="linkish" onClick={onEditTexts}>Edit my texts</button>}</div>
         <textarea rows={4} autoFocus={kind === 'reply'} placeholder={kind === 'reply' ? `Write to ${c.first}…` : undefined} value={body} onChange={e => setBody(e.target.value)} aria-label="Text message" />
-        <div className="qmeta"><span>{body.length} characters · {textParts(body)} part{textParts(body) === 1 ? '' : 's'}</span>{problem && body.trim() && <span className="warnline">{problem}</span>}</div>
+        <div className="qmeta"><TextCost text={body} onFix={setBody} />{problem && body.trim() && <span className="warnline">{problem}</span>}</div>
         {kind !== 'reply' && <><div className="eyebrow">What {c.first} will see</div>
         <div className="bubble">{body}</div></>}
         <p className="hint">{LIVE ? <>Sends from your {dsp ? 'local Dispatch' : 'Quo'} number. Their reply shows up in {c.first}&rsquo;s notes.</> : <>Demo: nothing is sent. At go-live this goes out from your Quo number, and their reply shows up in {c.first}&rsquo;s notes.</>}</p>
@@ -72,4 +72,18 @@ export function QuoText({ c, agent, apptAt, first = 'missed', mine, onEditTexts,
       </div>
     </Dialog>
   );
+}
+
+/** "1 text" or "Costs as 2 texts", and what makes it cost more (George, 2026-11-28: keep texts cheap). */
+export function TextCost({ text, onFix }: { text: string; onFix?: (t: string) => void }) {
+  const n = textParts(text);
+  const fancy = fancyChars(text);
+  const fixed = plainText(text);
+  const helps = fixed !== text && textParts(fixed) < n;
+  return <span className={`tcost ${n > 1 ? 'more' : ''}`}>
+    {text.length} characters · {n > 1 ? <b>costs as {n} texts</b> : '1 text'}
+    {n > 1 && fancy.length > 0 && <> · <span title="These characters shrink a text from 160 to 70 characters">because of {fancy.slice(0, 4).join(' ')}</span></>}
+    {n > 1 && !fancy.length && <> · keep it under 160 characters for 1 text</>}
+    {helps && onFix && <> <button className="linkish" onClick={() => onFix(fixed)}>Make it {textParts(fixed) === 1 ? '1 text' : `${textParts(fixed)} texts`}</button></>}
+  </span>;
 }

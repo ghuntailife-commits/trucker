@@ -8,9 +8,10 @@ import { Panel, Kpi, pctTxt } from './charts';
 import { useSort } from './sort';
 import { TZ } from './shared';
 
-type Report = { rows: NumRow[]; totals: ReturnType<typeof numberTotals>; names: Record<string, string>; cap: number; at: number };
+type Report = { rows: NumRow[]; totals: ReturnType<typeof numberTotals>; names: Record<string, string>; cap: number; at: number; spent?: { today: number | null; month: number | null } };
 const fmtPhone = (d: string) => `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
 const secs = (s: number | null) => s == null ? '—' : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+const money = (v: number | null | undefined) => v == null ? '—' : `$${v.toFixed(2)}`;
 const pct = (r: number | null) => r == null ? '—' : `${Math.round(r * 100)}%`;
 const ago = (t: number | null, now: number) => {
   if (!t) return 'Never';
@@ -38,7 +39,7 @@ function demo(now: number): Report {
     for (let k = 0; k < (i < 4 ? 6 - i : 0); k++) ev.push({ id: `m${i}${k}`, type: 'message.sent', call_id: null, phone: 'x', at: new Date(now - k * 3_600_000).toISOString(), agent_id: 'george', payload: { from } });
   });
   const rows = numberStats(areas.map((a, i) => `+1${a}555${String(100 + i).padStart(4, '0')}`), ev, now, TZ, 100);
-  return { rows, totals: numberTotals(rows), names: { george: 'George', gracie: 'Gracie', anum: 'Anum' }, cap: 100, at: now };
+  return { rows, totals: numberTotals(rows), names: { george: 'George', gracie: 'Gracie', anum: 'Anum' }, cap: 100, at: now, spent: { today: 23.41, month: 187.96 } };
 }
 
 export function NumbersReport({ now }: { now: number }) {
@@ -75,8 +76,8 @@ export function NumbersReport({ now }: { now: number }) {
         <Kpi label="Numbers in rotation" value={t.numbers} sub={`${t.used7} used in the last 7 days`} />
         <Kpi label="Dials today" value={t.today.toLocaleString('en-US')} sub={t.resting ? `${t.resting} resting (hit ${rep.cap})` : `cap ${rep.cap} per number`} />
         <Kpi label="Dials, 7 days" value={t.d7.toLocaleString('en-US')} sub={`${t.d30.toLocaleString('en-US')} in 30 days`} />
-        <Kpi label="Connect rate, 7 days" value={pct(t.rate7)} tone="c-connects" sub="talked 20 seconds or more" />
-        <Kpi label="Avg talk time" value={secs(t.avgTalk)} sub={`${t.voicemails30} voicemails in 30 days`} />
+        <Kpi label="Connect rate, 7 days" value={pct(t.rate7)} tone="c-connects" sub={`talked 20s+ · avg talk ${secs(t.avgTalk)}`} />
+        <Kpi label="Twilio spent today" value={money(rep.spent?.today)} sub={rep.spent?.month != null ? `${money(rep.spent.month)} this month · can lag an hour` : 'from your Twilio bill'} />
         <Kpi label="Spam warnings" value={t.warned} tone={t.warned ? 'c-noshow' : ''} sub={t.warned ? 'see the flagged numbers' : 'all numbers connecting'} />
       </div>
       <Panel span={4} title="Every number" meta={<span className="numtools">

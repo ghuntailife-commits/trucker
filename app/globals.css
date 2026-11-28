@@ -1614,3 +1614,5 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 .numt .rbar i { display: block; height: 100%; background: var(--s-connects); border-radius: 4px; }
 .numt tr.warnrow td { background: color-mix(in srgb, var(--red) 6%, transparent); }
 .numwarn { margin-top: 12px; }
+.tcost.more b { color: var(--amber); }
+.tcost.more b { color: var(--amber); }

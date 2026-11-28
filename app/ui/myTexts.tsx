@@ -2,7 +2,8 @@
 // "My texts" (George, 2026-11-27): each agent rewrites the texts for each moment (confirmation after booking, morning
 // reminder, 1 hour before, no-show follow-up, ...) and makes their own. Used in the Text with Quo box.
 import { useState } from 'react';
-import { DEFAULT_TEXTS, TEXT_FIELDS, TEXT_KEYS, TEXT_LABEL, TEXT_WHEN, renderText, textParts, type MyTexts, type TextKey, type CustomText } from '../../src/quo/quo';
+import { TextCost } from './quo';
+import { DEFAULT_TEXTS, TEXT_FIELDS, TEXT_KEYS, TEXT_LABEL, TEXT_WHEN, renderText, plainText, type MyTexts, type TextKey, type CustomText } from '../../src/quo/quo';
 import { Dialog, TZ_ABBR } from './shared';
 
 const SAMPLE = { first: 'Jordan', last: 'Sample', company: 'UPS' };
@@ -42,7 +43,7 @@ export function MyTextsDialog({ agentName, texts, onSave, onClose }: { agentName
         <div className="chips"><span className="hint">Add:</span>{TEXT_FIELDS.map(f => <button key={f} className="chip" onClick={() => insert(f)}>{`{${f}}`}</button>)}</div>
         <div className="eyebrow">Example ({SAMPLE.first} at {SAMPLE.company}, 7:00 PM)</div>
         <div className="bubble">{preview}</div>
-        <p className="hint">{preview.length} characters · {textParts(preview)} part{textParts(preview) === 1 ? '' : 's'}. You can still change any text before it sends.</p>
+        <p className="hint"><TextCost text={preview} onFix={() => setCur(plainText(cur))} />. Names and companies change the length a little. You can still change any text before it sends.</p>
         <div className="bar"><span className="muted" />
           {isKey && edits[sel as TextKey] != null && edits[sel as TextKey] !== DEFAULT_TEXTS[sel as TextKey] &&
             <button className="linkish" onClick={() => setEdits(e => { const n = { ...e }; delete n[sel as TextKey]; return n; })}>Back to the default</button>}
