@@ -1538,3 +1538,30 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
   background: var(--panel); color: var(--text); border: 1px solid var(--line); border-left: 4px solid #2a9257; border-radius: 12px; padding: 12px 14px; box-shadow: 0 12px 30px -8px rgba(0,0,0,.3); }
 .textin > div { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .textin span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+/* Team: today right now + daily history (George, 2026-11-27) */
+.tnow { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; padding: 14px; }
+.tncard { text-align: left; border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; color: var(--text); cursor: pointer; }
+.tncard:hover { border-color: var(--line2, var(--line)); box-shadow: 0 4px 14px -8px rgba(0,0,0,.25); }
+.tncard.dialing { border-color: #2a9257; box-shadow: inset 3px 0 0 #2a9257; }
+.tnhead { display: flex; align-items: center; gap: 8px; } .tnhead b { flex: 1; } .tnhead small { color: var(--muted); font-size: 12px; }
+.tncard .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); flex: none; }
+.tncard .dot.dialing { background: #2a9257; box-shadow: 0 0 0 0 rgba(42,146,87,.5); animation: tnpulse 1.6s ease-out infinite; }
+.tncard .dot.break { background: var(--amber, #d9a400); }
+@keyframes tnpulse { 0% { box-shadow: 0 0 0 0 rgba(42,146,87,.5); } 70% { box-shadow: 0 0 0 7px rgba(42,146,87,0); } 100% { box-shadow: 0 0 0 0 rgba(42,146,87,0); } }
+@media (prefers-reduced-motion: reduce) { .tncard .dot.dialing { animation: none; } }
+.tnnums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.tnnums span { display: flex; flex-direction: column; font-size: 11px; color: var(--muted); }
+.tnnums b { font-size: 18px; color: var(--text); font-variant-numeric: tabular-nums; }
+.tnnums .won b { color: var(--green, #2a9257); }
+.tnspan { color: var(--faint); font-size: 12px; }
+.rt.dh th, .rt.dh td { text-align: center; padding: 6px 4px; }
+.rt.dh th:first-child, .rt.dh td:first-child { text-align: left; padding-left: 14px; white-space: nowrap; }
+.dhd button { background: none; border: 0; color: var(--muted); font: inherit; font-size: 12px; display: flex; flex-direction: column; align-items: center; margin: auto; cursor: pointer; border-radius: 6px; padding: 2px 6px; }
+.dhd small { font-size: 11px; color: var(--faint); } .dhd.we button { opacity: .6; }
+.dhd.on button { background: var(--text); color: var(--bg); opacity: 1; } .dhd.on small { color: inherit; }
+.dhc { cursor: pointer; font-size: 12px; font-variant-numeric: tabular-nums; min-width: 38px;
+  background: color-mix(in srgb, #2a9257 calc(var(--a, 0) * 85%), transparent); color: var(--text); }
+.dhc.hi { color: #fff; font-weight: 600; }
+.dhc.on { outline: 2px solid var(--text); outline-offset: -2px; }
+.notepick { display: flex; flex-wrap: wrap; gap: 6px; }

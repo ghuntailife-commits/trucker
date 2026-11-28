@@ -13,6 +13,10 @@ import { Panel, Kpi, Rows, pctTxt } from './charts';
 import { TZ } from './shared';
 import { useSort } from './sort';
 import { PlaybookView } from './playbook';
+import { CoachCard } from './team';
+import { mondayNote } from '../../src/team/coaching';
+import { loadAgentData } from '../../src/app-store/useTeam';
+import type { Seed } from '../../src/app-store/agentSeeds';
 import { PresentationsView } from './presentations';
 import type { GoogleCal } from '../../src/live/useGoogleCalendar';
 
@@ -20,7 +24,7 @@ const md = new Intl.DateTimeFormat('en-US', { timeZone: TZ, month: 'numeric', da
 const DAY = 86_400_000;
 const phoneTxt = (p: string) => { const d = p.replace(/\D/g, '').slice(-10); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : p; };
 
-export function CoachPage({ me, admin, agents, contacts, now, cal }: { me: AgentSetting; admin: boolean; agents: AgentSetting[]; contacts: Contact[]; now: number; cal?: GoogleCal }) {
+export function CoachPage({ me, admin, agents, contacts, now, cal, coachingHour = 7 }: { me: AgentSetting; admin: boolean; agents: AgentSetting[]; contacts: Contact[]; now: number; cal?: GoogleCal; coachingHour?: number }) {
   const quoAgents = agents.filter(a => a.quo);
   const [who, setWho] = useState<string>(me.id);              // an agent id, or 'all' (admin)
   const [days, setDays] = useState<7 | 30 | 365>(7);
@@ -28,7 +32,7 @@ export function CoachPage({ me, admin, agents, contacts, now, cal }: { me: Agent
   const [weekly, setWeekly] = useState<WeeklyNote | null>(null);
   const [err, setErr] = useState(''); const [busy, setBusy] = useState<'' | 'week' | 'tag'>('');
   const [reload, setReload] = useState(0);
-  const [tab, setTab] = useState<'book' | 'calls' | 'pres'>('book');
+  const [tab, setTab] = useState<'book' | 'calls' | 'pres' | 'notes'>('book');
   const since = now - days * DAY;
 
   useEffect(() => {
@@ -64,11 +68,11 @@ export function CoachPage({ me, admin, agents, contacts, now, cal }: { me: Agent
     <div className="respage">
       <section className="hero">
         <div className="title">
-          <div className="eyebrow">{tab === 'book' ? 'The whole team · learns from every transcribed call' : tab === 'pres' ? `${who === 'all' ? 'Everyone' : name(who)} · Google Meet presentations read by Claude` : `${who === 'all' ? 'Everyone with Quo' : name(who)} · from Claude’s call notes`}</div>
+          <div className="eyebrow">{tab === 'book' ? 'The whole team · learns from every transcribed call' : tab === 'notes' ? 'Each person’s week, from their own numbers' : tab === 'pres' ? `${who === 'all' ? 'Everyone' : name(who)} · Google Meet presentations read by Claude` : `${who === 'all' ? 'Everyone with Quo' : name(who)} · from Claude’s call notes`}</div>
           <h1>Coaching</h1>
         </div>
         <div className="rtools">
-          {admin && tab !== 'book' && <select className="coachwho" value={who} onChange={e => setWho(e.target.value)} aria-label="Whose coaching">
+          {admin && tab !== 'book' && tab !== 'notes' && <select className="coachwho" value={who} onChange={e => setWho(e.target.value)} aria-label="Whose coaching">
             {(tab === 'pres' ? agents : quoAgents).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             <option value="all">Everyone</option>
           </select>}
@@ -76,15 +80,17 @@ export function CoachPage({ me, admin, agents, contacts, now, cal }: { me: Agent
             <button className={tab === 'book' ? 'on' : ''} onClick={() => setTab('book')}>Team Playbook</button>
             <button className={tab === 'calls' ? 'on' : ''} onClick={() => setTab('calls')}>{admin ? 'Calls' : 'My calls'}</button>
             <button className={tab === 'pres' ? 'on' : ''} onClick={() => setTab('pres')}>Presentations</button>
+            <button className={tab === 'notes' ? 'on' : ''} onClick={() => setTab('notes')}>Monday notes</button>
           </div>
-          {tab !== 'book' && <div className="seg mini" role="group" aria-label="Date range">
+          {tab !== 'book' && tab !== 'notes' && <div className="seg mini" role="group" aria-label="Date range">
             {([[7, 'Last 7 days'], [30, 'Last 30 days'], [365, 'Last year']] as [7 | 30 | 365, string][]).map(([k, l]) => <button key={k} className={days === k ? 'on' : ''} onClick={() => setDays(k)}>{l}</button>)}
           </div>}
         </div>
       </section>
-      {!LIVE && tab !== 'pres' && <p className="hint coachdemo">Demo: made-up calls, to show what the Coaching tab looks like once Quo calls come in.</p>}
+      {!LIVE && tab !== 'pres' && tab !== 'notes' && <p className="hint coachdemo">Demo: made-up calls, to show what the Coaching tab looks like once Quo calls come in.</p>}
       {err && <p className="warnline coachdemo">{err}</p>}
       {tab === 'book' ? <PlaybookView agent={me.id} admin={admin} now={now} />
+        : tab === 'notes' ? <MondayNotes me={me} agents={admin ? agents.filter(a => a.active !== false) : [me]} now={now} coachingHour={coachingHour} />
         : tab === 'pres' ? <PresentationsView me={me} who={who} admin={admin} agents={agents} contacts={contacts} now={now} days={days} cal={cal} /> : calls === null ? <div className="empty">Loading calls…</div> : (
         <div className="rgrid">
           <div className="span4 kgrid k4">
@@ -129,6 +135,25 @@ export function CoachPage({ me, admin, agents, contacts, now, cal }: { me: Agent
           </Panel>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Each person's Monday coaching note (moved here from the Team tab, George 2026-11-27). Agents see their own. */
+function MondayNotes({ me, agents, now, coachingHour }: { me: AgentSetting; agents: AgentSetting[]; now: number; coachingHour: number }) {
+  const [who, setWho] = useState(me.id);
+  const [seed, setSeed] = useState<Seed | null>(null);
+  const a = agents.find(x => x.id === who) ?? me;
+  useEffect(() => { let alive = true; setSeed(null); loadAgentData(a.id, now, TZ).then(x => { if (alive) setSeed(x); }); return () => { alive = false; }; }, [a.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const note = useMemo(() => (seed ? mondayNote({ name: a.name, log: seed.log, sales: seed.sales, noSales: seed.noSales, now, tz: TZ, goal: a.goal }) : null), [seed, a, now]);
+  return (
+    <div className="rgrid">
+      {agents.length > 1 && <div className="span4 notepick" role="group" aria-label="Whose note">
+        {agents.map(x => <button key={x.id} className={`chipbtn ${x.id === a.id ? 'on' : ''}`} onClick={() => setWho(x.id)}>{x.name}</button>)}</div>}
+      <Panel span={4} title={`Monday coaching note · ${a.name}`} meta={a.coaching ? `Mondays ${coachingHour} AM ET` : 'Off in Settings'}
+        foot="Written from their own numbers for last week. Your team's combined note is on the Team tab.">
+        {note ? <CoachCard n={note} /> : <div className="empty">Loading…</div>}
+      </Panel>
     </div>
   );
 }

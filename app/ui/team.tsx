@@ -15,6 +15,7 @@ import { addDays, startOfDay, parts, md } from '../../src/rules/time';
 import { TZ } from './shared';
 import { Panel, Kpi, Legend, Columns, fmt$, fmtK, pctTxt, type Hue } from './charts';
 import { useTips } from './results';
+import { TodayNow, DailyHistory } from './teamDaily';
 
 type RangeKind = 'week' | 'lastweek' | 'month' | '30d';
 const RANGES: [RangeKind, string][] = [['week', 'This week'], ['lastweek', 'Last week'], ['month', 'This month'], ['30d', 'Last 30 days']];
@@ -69,6 +70,7 @@ export function TeamPage({ t, now, live, onViewAs, onDial }: {
   const [data, setData] = useState<Partial<Record<AgentId, Seed>>>({});
   const [rk, setRk] = useState<RangeKind>('month');
   const [sel, setSel] = useState<AgentId>(agents[0]?.id ?? 'george');
+  const [view, setView] = useState<'overview' | 'daily'>('overview');
   const boss = t.role === 'boss';
   useTips();
 
@@ -118,6 +120,12 @@ export function TeamPage({ t, now, live, onViewAs, onDial }: {
   });
   const legend = series.map(x => [x.hue, x.name] as [Hue, string]);
   const selA = agents.find(a => a.id === sel) ?? agents[0];
+  // the viewer's own team: them and the people directly under them (George, 2026-11-27)
+  const myTeam = allVisible.filter(a => groupOf(a) === t.viewer && all[a.id]);
+  const myTeamName = t.role === 'admin' || t.role === 'lead' ? `${t.team.agents.find(a => a.id === t.viewer)?.name ?? 'My'}'s team` : 'My team';
+  const teamNote = myTeam.length ? mondayNote({ name: 'team', now, tz: TZ, goal: myTeam.reduce((n, a) => n + (a.goal || 0), 0),
+    log: myTeam.flatMap(a => all[a.id]!.log.map(e => ({ ...e, contactId: `${a.id}:${e.contactId}` }))),
+    sales: myTeam.flatMap(a => all[a.id]!.sales), noSales: myTeam.flatMap(a => all[a.id]!.noSales) }) : null;
 
   return (
     <div className="respage teampage">
@@ -131,11 +139,16 @@ export function TeamPage({ t, now, live, onViewAs, onDial }: {
             <option value="all">Everyone ({allVisible.length})</option>
             {groups.map(g => <option key={g} value={g}>{groupName(g, t.team.agents)} ({allVisible.filter(a => groupOf(a) === g).length})</option>)}
           </select></label>}
-          <div className="seg mini" role="group" aria-label="Date range">
-            {RANGES.map(([k, l]) => <button key={k} className={rk === k ? 'on' : ''} onClick={() => setRk(k)}>{l}</button>)}
+          <div className="seg mini" role="group" aria-label="Team view">
+            <button className={view === 'overview' ? 'on' : ''} onClick={() => setView('overview')}>Overview</button>
+            <button className={view === 'daily' ? 'on' : ''} onClick={() => setView('daily')}>Daily history</button>
           </div>
+          {view === 'overview' && <div className="seg mini" role="group" aria-label="Date range">
+            {RANGES.map(([k, l]) => <button key={k} className={rk === k ? 'on' : ''} onClick={() => setRk(k)}>{l}</button>)}
+          </div>}
         </div>
       </section>
+      {view === 'daily' ? <div className="rgrid"><DailyHistory agents={agents} all={all} now={now} /></div> :
       <div className="rgrid">
         <div className="span4 kgrid k6" aria-label="Team totals">
             <Kpi label="Team ALP" value={fmt$(tot.alp)} tone="c-sold" sub={`${r.label} · ${mdShort.format(r.from)} – ${mdShort.format(r.to - 1)}`} />
@@ -145,8 +158,9 @@ export function TeamPage({ t, now, live, onViewAs, onDial }: {
             <Kpi label="Dials" value={tot.dials.toLocaleString('en-US')} />
             <Kpi label="Reached" value={pctTxt(tot.connects, tot.dials)} sub={`${tot.connects} people`} />
         </div>
+        <TodayNow agents={agents} all={all} now={now} onPick={boss ? undefined : setSel} />
 
-        <Panel span={4} title="Leaderboard" meta={boss ? "Ranked by ALP" : "Ranked by ALP · click an agent for their health check and coaching note"}>
+        <Panel span={4} title="Leaderboard" meta={boss ? "Ranked by ALP" : "Ranked by ALP · click an agent for their health check"}>
           <div className="tscroll board">
             <table className="rt lb">
               <thead><tr><th>#</th>{th('name', 'Agent')}{th('alp', 'ALP', 'alpc', -1)}{th('sold', 'Sales', 'num')}{th('presented', 'Presented', 'num')}{th('close', 'Close', 'num')}
@@ -182,27 +196,26 @@ export function TeamPage({ t, now, live, onViewAs, onDial }: {
         </Panel>
 
         {!boss && selA && <AgentDetail key={selA.id} a={selA} s={all[selA.id]!} now={now} isLive={live?.id === selA.id}
-          onViewAs={onViewAs} onDial={onDial} t={t} />}
+          onViewAs={onViewAs} onDial={onDial} />}
+        {!boss && myTeam.length > 0 && <Panel span={2} title={`Monday coaching note · ${myTeamName}`} meta={`${myTeam.length} ${myTeam.length === 1 ? 'person' : 'people'} · Mondays ${t.team.coachingHour} AM ET`}
+          foot={<>The whole team&rsquo;s week together: {myTeam.map(a => a.name).join(', ')}. Each person&rsquo;s own note is in Coaching &gt; Monday notes.</>}>
+          <CoachCard n={teamNote!} />
+        </Panel>}
         {boss && <p className="hint span4 bossnote">You are seeing results and totals only. Contact names, numbers and notes stay with each agent.</p>}
-      </div>
+      </div>}
     </div>
   );
 }
 
-function AgentDetail({ a, s, now, isLive, onViewAs, onDial, t }: { a: AgentSetting; s: Seed; now: number; isLive: boolean; t: Team;
+function AgentDetail({ a, s, now, isLive, onViewAs, onDial }: { a: AgentSetting; s: Seed; now: number; isLive: boolean;
   onViewAs?: (id: AgentId) => void; onDial?: (id: string) => void }) {
   const findings = useMemo(() => healthCheck({ contacts: s.contacts, sales: s.sales, noSales: s.noSales, now, tz: TZ }), [s, now]);
-  const note = useMemo(() => mondayNote({ name: a.name, log: s.log, sales: s.sales, noSales: s.noSales, now, tz: TZ, goal: a.goal }), [s, now, a]);
   const byId = useMemo(() => new Map(s.contacts.map(c => [c.id, c])), [s.contacts]);
   const open = isLive ? onDial : undefined;
   return <>
     <Panel span={2} title={`Health check · ${a.name}`} meta={<HealthMeta f={findings} />}
       foot={isLive ? 'Runs every morning. Click a contact to open it in the dialer.' : <>Runs every morning. <button className="linkish" onClick={() => onViewAs?.(a.id)}>Open {a.name}&rsquo;s screen</button> to fix these.</>}>
       <HealthList findings={findings} name={id => { const c = byId.get(id); return c ? `${c.first} ${c.last}` : id; }} onOpen={open} />
-    </Panel>
-    <Panel span={2} title={`Monday coaching note · ${a.name}`} meta={a.coaching ? `Mondays ${t.team.coachingHour} AM ET` : 'Off in Settings'}
-      foot="Written from their own numbers. Goes out by email at go-live; this is the preview.">
-      <CoachCard n={note} />
     </Panel>
   </>;
 }
