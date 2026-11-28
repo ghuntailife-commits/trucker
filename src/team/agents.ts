@@ -29,6 +29,8 @@ export interface AgentSetting {
   /** Monday coaching note, for everybody (George, 2026-11-26). */
   coaching: boolean;
   active: boolean;
+  /** Calls through Dispatch itself (Twilio), instead of the Quo app (George, 2026-11-27). Off until turned on. */
+  twilio?: boolean;
 }
 
 /** The rules an admin can change from Settings. Everything else stays as approved in config.ts. */
@@ -44,6 +46,13 @@ export interface TeamSettings {
   coachingHour: number;
   /** Who gets a copy of every coaching note (the admin). */
   coachingCopyTo: AgentId | null;
+  /** The team's Twilio numbers, shared: each call goes out from the one local to the contact. */
+  twilioNumbers?: string;
+  /** Record Dispatch calls (default on), and play "This call may be recorded" to the contact first (default on). */
+  twilioRecord?: boolean;
+  twilioNotice?: boolean;
+  /** calls one number makes a day before it rests and the next-best number takes over (spam watch; default 100) */
+  twilioDailyCap?: number;
 }
 
 export const RULE_KEYS: RuleKey[] = ['retryDays', 'restDays', 'backupDials', 'callbackTries', 'noShowTries', 'listSize',
@@ -157,6 +166,7 @@ export function agentChanges(before: AgentSetting[], after: AgentSetting[]): str
     if (a.goal !== b.goal) out.push(`${a.name}: monthly goal $${b.goal.toLocaleString('en-US')} → $${a.goal.toLocaleString('en-US')}`);
     if (a.quo !== b.quo) out.push(`${a.name}: Quo ${a.quo ? 'on' : 'off'}`);
     if (a.quoNumber !== b.quoNumber) out.push(`${a.name}: Quo number ${a.quoNumber || '(none)'}`);
+    if (!!a.twilio !== !!b.twilio) out.push(`${a.name}: Dispatch calling ${a.twilio ? 'on' : 'off'}`);
     if (a.coaching !== b.coaching) out.push(`${a.name}: Monday coaching note ${a.coaching ? 'on' : 'off'}`);
     if (a.states.join() !== b.states.join()) out.push(`${a.name}: states ${a.states.join(', ') || '(none)'}`);
     if (a.active !== b.active) out.push(`${a.name}: ${a.active ? 'active' : 'paused'}`);

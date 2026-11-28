@@ -63,7 +63,8 @@ export function quoNote(e: { type: string; payload: Any; ai_note?: string | null
       const secs = typeof o.duration === 'number' ? o.duration
         : o.answeredAt && o.completedAt ? Math.max(0, Math.round((Date.parse(o.completedAt) - Date.parse(o.answeredAt)) / 1000)) : 0;
       const answered = o.status ? o.status === 'answered' || secs > 0 : !!o.answeredAt || secs > 0;
-      return `Quo ${out ? 'call' : 'call from them'}: ${answered ? `${Math.floor(secs / 60)}m ${String(secs % 60).padStart(2, '0')}s` : 'not answered'}`;
+      const who = o.source === 'twilio' || (e.payload as Any)?.source === 'twilio' ? 'Dispatch' : 'Quo';
+      return `${who} ${out ? 'call' : 'call from them'}: ${answered ? `${Math.floor(secs / 60)}m ${String(secs % 60).padStart(2, '0')}s` : 'not answered'}`;
     }
     // a text the agent sent from the Quo app (George, 2026-11-27); Dispatch's own sends are already in the notes
     case 'message.delivered': { const t = String(o.text ?? o.body ?? o.content ?? '').trim(); return t ? `Texted (Quo): "${t.slice(0, 300)}"` : ''; }
@@ -72,6 +73,7 @@ export function quoNote(e: { type: string; payload: Any; ai_note?: string | null
       const url = [...(Array.isArray(o.recordings) ? o.recordings : []), ...(Array.isArray(o.media) ? o.media : [])].map((m: Any) => m?.url).find(Boolean) ?? o.recordingUrl ?? '';
       return url ? `Call recording: ${url}` : '';
     }
+    case 'call.voicemail': { const url = rec(e.payload).recordingUrl; return url ? `Voicemail from them: ${url}` : ''; }
     case 'call.transcript.completed': return e.ai_note ? `Call notes (AI): ${e.ai_note.replace(/\s+/g, ' ')}` : '';
     case 'meet.presentation': return presNote(e.ai_note ?? '', (e as { ai_tags?: PresTags | null }).ai_tags);
     case 'call.summary.completed': return '';   // George 2026-11-26: Claude's call notes only, not Quo's summary too

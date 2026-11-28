@@ -71,7 +71,9 @@ import { isOpen as sheetOpen, needsLook as sheetLook } from '../src/numbers/shee
 import { healthCheck, healthCount } from '../src/team/health';
 import { suggestText, type TextKey } from '../src/quo/quo';
 import { useMyTexts } from '../src/app-store/useMyTexts';
+import { FollowUpEmailDialog, SignatureDialog, type EmailStart } from './ui/followUpEmail';
 import { useIncomingCall } from '../src/live/useIncomingCall';
+import { useTwilio } from '../src/live/useTwilio';
 import { MyTextsDialog } from './ui/myTexts';
 import { LIVE, signOut, type Person } from '../src/live/supabase';
 import { LiveGate, SwitchPage, useSaveStatus } from './ui/live';
@@ -181,7 +183,13 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const [quo, setQuo] = useState<QuoModal>(null);
   const [textsOpen, setTextsOpen] = useState(false);
   const myTexts = useMyTexts(agent);
-  const incoming = useIncomingCall(agent, !!me.quo);
+  // follow-up emails after a sale or no-sale, and the signature they end with (George, 2026-11-27)
+  const [fuMail, setFuMail] = useState<EmailStart | null>(null);
+  const [sigOpen, setSigOpen] = useState(false);
+  const mailFor = (c: Contact, kind: 'sale' | 'nosale', sale?: { email?: string; monthly?: number; wholeLife?: number; alpType?: string }) =>
+    setFuMail({ kind, contactId: c.id, first: c.first, last: c.last, email: sale?.email || c.email || '', company: c.company,
+      monthly: sale?.monthly, wholeLife: sale?.wholeLife, trial: sale?.alpType === 'Trial' });
+  const incoming = useIncomingCall(agent, !!me.quo && !me.twilio);   // Dispatch calling shows its own incoming card
   const [rowMenu, setRowMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [removeIds, setRemoveIds] = useState<string[] | null>(null);
   const [todaySet, setTodaySet] = useState(false);
@@ -193,7 +201,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const endRef = useRef<(id: string) => void>(() => {});
   const onCallRef = useRef(false);   // a call is going on this screen   // stops the call timer when Quo says the call ended
   useEffect(() => {
-    if (!LIVE || !quoOn || !d0.ready) return;
+    if (!LIVE || !(quoOn || me.twilio) || !d0.ready) return;
     let stop = false;
     const pull = async () => {
       const evs = await newQuoEvents(agent);
@@ -202,7 +210,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
         const c = matchContact(dRef.current.contacts ?? [], e.phone);
         // a text sent from Dispatch is already in the notes: Quo's delivered copy is not added again
         if (c && e.note && !(/^Texted \(Quo\)/.test(e.note) && c.notes.includes(e.note.slice(0, -1)))) dRef.current.noteFacts(c.id, e.note, e.facts, e.at);
-        if (c && /^Quo call: /.test(e.note)) { dRef.current.quoDialed(c.id, e.at); endRef.current(c.id); }   // an outgoing call counts as a dial (George, 2026-11-27)
+        if (c && /^(Quo|Dispatch) call: /.test(e.note)) { dRef.current.quoDialed(c.id, e.at); endRef.current(c.id); }   // an outgoing call counts as a dial (George, 2026-11-27)
         else if (e.note && /^Text from/.test(e.note)) dRef.current.say(`Quo: a text from ${e.phone}, who is not in your contacts.`, 'warn');
       }
       await markQuoApplied(evs.map(e => e.id));
@@ -243,6 +251,10 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const [q, setQ] = useState('');
   const [modal, setModal] = useState<Modal>(null);
   const [call, setCall] = useState<{ id: string; at: number } | null>(null);
+  // calling inside Dispatch (Twilio), for agents who have it on (George, 2026-11-27)
+  const callNow = useRef(call); callNow.current = call;
+  const tw = useTwilio(LIVE && !!me.twilio, () => { const c = callNow.current; if (c) endRef.current(c.id); });
+  const [keypad, setKeypad] = useState(false);
   const callRef = useRef(call); callRef.current = call;
   const infoRef = useRef({ viewing: '', page: '' });
   const stale = useUpdateCheck(() => !!callRef.current, () => infoRef.current);   // a newer Dispatch is live: reload between calls
@@ -292,9 +304,12 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
     const num = (useBackup && c.backup ? c.backup : c.phone || c.backup).replace(/[^\d+]/g, '');
     if (!num) return;
     setPicked(c.id); setCall({ id: c.id, at: Date.now() }); setCountdown(null);
-    try { const a = document.createElement('a'); a.href = `tel:${num}`; a.rel = 'noopener'; a.click(); } catch { /* the number is on screen */ }
+    const phoneApp = () => { try { const a = document.createElement('a'); a.href = `tel:${num}`; a.rel = 'noopener'; a.click(); } catch { /* the number is on screen */ } };
+    if (tw.ready) void tw.start(num).then(ok => { if (!ok) phoneApp(); });
+    else phoneApp();
   };
   const endCall = (id: string) => {
+    if (tw.onCall() && call?.id === id) tw.hangup();   // a result or End call hangs up a Dispatch call
     if (call && call.id === id) { d.logCall(id, Math.round((Date.now() - call.at) / 1000)); setCall(null); }
   };
   endRef.current = endCall;
@@ -568,6 +583,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
           </button>
           <ProfileMenu t={t} me={me} theme={theme} setTheme={setTheme} items={[
             { key: 'texts', label: 'My texts', sub: 'Reminders, confirmations and your own texts', onClick: () => setTextsOpen(true), hidden: !quoOn && !isAdmin },
+            { key: 'sig', label: 'My email signature', sub: 'Ends your policy summary and benefits emails', onClick: () => setSigOpen(true) },
             { key: 'settings', label: 'Settings', sub: 'Goals, rules, Quo, coaching', onClick: () => setPage('settings'), hidden: !pages.includes('settings') },
             { key: 'integrations', label: 'Integrations', sub: 'Quo, Google, Claude AI', onClick: () => setPage('integrations') },
             { key: 'catchup', label: 'Bring over sheet work', sub: 'For an agent who dialed in their old sheet today', onClick: () => setCatchOpen(true), hidden: !isAdmin },
@@ -592,7 +608,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       {!switching && page === 'home' && <HomePage note={note} stats={s} appts={homeAppts} nextAppts={nextAppts} nextLabel={nextLabel} waiting={{ ...waiting, newNumbers: newNums }} coach={coach}
         health={hc} sheet={{ waiting: sheetWaitN, look: sheetLookN, needs: needsN }} wins={wins} recent={recent} ago={x => ago(x, d.now, TZ)} monthDays={monthDays} daysInMonth={daysInMonth}
         go={setPage} openHealth={() => setHealthOpen(true)} onDial={id => { setPicked(id); setPage('today'); }} onAppt={(id, at) => { setOpenAppt({ id, at }); setPage('appts'); }} timeOnly={timeOnly} md={x => md(x, TZ)} />}
-      {!switching && page === 'contacts' && <ContactsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onText={textContact} agentName={me.name}
+      {!switching && page === 'contacts' && <ContactsPage d={d} onMail={mailFor} onDial={id => { setPicked(id); setPage('today'); }} onText={textContact} agentName={me.name}
         allAgents={isAdmin ? t.team.agents.map(a => ({ id: a.id, name: a.name })) : undefined} onMove={isAdmin ? ids => setMoveIds(ids) : undefined} />}
       {!switching && page === 'coach' && <CoachPage me={me} admin={t.role === 'admin'} agents={t.team.agents} contacts={d.contacts} now={d.now} cal={cal} />}
       {!switching && page === 'needs' && <NeedsPage d={d} ns={ns} states={me.states} agent={agent} />}
@@ -791,14 +807,15 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
               )}
               {call?.id === current.id ? (
                 <button className="callbtn live" title="Hung up? Click to end the call here, then pick how it went" onClick={() => endCall(current.id)}>
-                  <span className="wave"><i /><i /><i /><i /></span>
-                  <span>{dialNum}</span>
-                  <small>{fmtSecs(Math.round((Date.now() - call.at) / 1000))}</small>
-                  <span className="endcall">End call</span>
+                  <span className="cb-ico"><span className="wave"><i /><i /><i /><i /></span></span>
+                  <span className="cb-txt"><small className="cb-lbl">On the call <b>{fmtSecs(Math.round((Date.now() - call.at) / 1000))}</b></small><span className="cb-num">{dialNum}</span></span>
+                  <span className="endcall"><Ico d={IC.phone} size={16} /> End</span>
                 </button>
               ) : (
                 <button className="callbtn" disabled={!dialNum} onClick={() => startCall(current, backupMode)}>
-                  <Ico d={IC.phone} size={20} /><span>{dialNum || 'No number'}</span>{quoOn && dialNum && <small className="via" title={localLine(me, dialNum)?.title}>{localLine(me, dialNum)?.label ?? 'Quo'}</small>}
+                  <span className="cb-ico"><Ico d={IC.phone} size={22} /></span>
+                  <span className="cb-txt"><small className="cb-lbl">{dialNum ? `Call ${current.first || ''}`.trim() : 'No number to call'}</small><span className="cb-num">{dialNum || '—'}</span></span>{tw.ready && dialNum ? <small className="via" title="Calls through Dispatch from your local number">Dispatch</small>
+                    : quoOn && dialNum && <small className="via" title={localLine(me, dialNum)?.title}>{localLine(me, dialNum)?.label ?? 'Quo'}</small>}
                 </button>
               )}
               <div className="numline">
@@ -905,15 +922,22 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
           if (modal.amend) d.amend(modal.amend, modal.kind === 'reschedule' ? 'scheduled' : modal.kind, form);
           else d.outcome(modal.id, modal.kind, form);
           setModal(null);
+          // then the follow-up email, filled in from what was just saved
+          const fc = d.byId.get(modal.id) ?? whoContact(modal);
+          if (!modal.amend && fc && modal.kind === 'sold' && 'sale' in form && form.sale) mailFor(fc, 'sale', form.sale);
+          else if (!modal.amend && fc && modal.kind === 'presented' && 'noSale' in form && form.noSale && !form.noSale.again) mailFor(fc, 'nosale');
         }} />}
       {rowMenu && d.byId.get(rowMenu.id) && <CtxMenu at={rowMenu} onClose={() => setRowMenu(null)}
-        entries={contactEntries(d, d.byId.get(rowMenu.id)!, { onToday: d.today.some(r => r.contact.id === rowMenu.id && !r.done), askRemove: ids => setRemoveIds(ids) })
+        entries={contactEntries(d, d.byId.get(rowMenu.id)!, { onToday: d.today.some(r => r.contact.id === rowMenu.id && !r.done), askRemove: ids => setRemoveIds(ids), mail: (c, k) => mailFor(c, k) })
           .map(([l, run, tone]) => [l, () => { run(); if (picked === rowMenu.id && /Replace|Pause|Rest|Take off/.test(l)) setPicked(null); }, tone] as [string, () => void, string?])} />}
       {removeIds && <RemoveDialog d={d} ids={removeIds} agentName={me.name} onClose={() => { if (removeIds.includes(picked ?? '')) setPicked(null); setRemoveIds(null); }} />}
       {todaySet && <TodaySettings d={d} onClose={() => setTodaySet(false)} />}
       {quo && d.byId.get(quo.id) && <QuoText key={`${quo.id}-${quo.first}`} c={d.byId.get(quo.id)!} agent={me} apptAt={quo.afterBook ? d.byId.get(quo.id)!.callAt : quo.apptAt} first={quo.first}
         mine={myTexts.texts} onEditTexts={() => setTextsOpen(true)} onClose={() => setQuo(null)}
         onSent={body => { d.noteFacts(quo.id, `Texted (Quo): "${body.slice(0, 300)}"`, [], Date.now()); setQuo(null); }} />}
+      {fuMail && <FollowUpEmailDialog agent={agent} agentName={me.name} agentEmail={t.person?.agent_id === agent ? t.person?.email ?? undefined : undefined} start={fuMail}
+        onClose={() => setFuMail(null)} onSent={(note) => { if (d.byId.has(fuMail.contactId)) d.noteFacts(fuMail.contactId, note, [], Date.now()); d0.say(`${note.replace(/^Emailed: /, 'Sent ')}.`); }} />}
+      {sigOpen && <SignatureDialog agent={agent} name={me.name} email={t.person?.email ?? undefined} onClose={() => setSigOpen(false)} />}
       {textsOpen && <MyTextsDialog agentName={me.name} texts={myTexts.texts} onSave={t => { myTexts.save(t); d0.say('Your texts are saved.'); }} onClose={() => setTextsOpen(false)} />}
       {keysOpen && <ShortcutsDialog onClose={() => setKeysOpen(false)} />}
       {catchOpen && isAdmin && <CatchUpDialog say={d0.say} onClose={() => setCatchOpen(false)} />}
@@ -927,6 +951,30 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
             {z.name} <small>{new Intl.DateTimeFormat('en-US', { timeZone: z.tz, hour: 'numeric', minute: '2-digit' }).format(d.now)}</small></button>)}</div>
         </div>
       </Dialog>}
+      {(tw.live || tw.incoming) && (() => {
+        // the call bar for calls inside Dispatch: who, how long, mute, keypad, hang up; or answer an incoming call
+        const ph = tw.live?.phone ?? tw.incoming?.phone ?? '';
+        const c = (call && d.byId.get(call.id)) || matchContact(d.contacts, ph);
+        const p = ph.replace(/\D/g, '').slice(-10);
+        const num = p.length === 10 ? `(${p.slice(0, 3)}) ${p.slice(3, 6)}-${p.slice(6)}` : ph;
+        if (tw.incoming) return <div className="ringcard" role="alert">
+          <div className="ringhead"><span className="ringdot" />Incoming call · {num}</div>
+          {c ? <><div className="ringname">{c.first} {c.last}</div><div className="ringsub">{[c.company, c.job].filter(Boolean).join(' — ')}{c.tag ? ` · ${c.tag}` : ''}</div></> : <div className="ringsub">Not in your contacts</div>}
+          <div className="ringbar">
+            <button className="btn primary sm" onClick={() => { tw.answer(); if (c) { setPicked(c.id); setPage('today'); setCall({ id: c.id, at: Date.now() }); } }}>Answer</button>
+            <button className="btn sm" onClick={tw.decline}>Send to voicemail</button>
+          </div>
+        </div>;
+        const lv = tw.live!;
+        return <div className="callbar" role="status">
+          <span className="ringdot" />
+          <span className="cbwho"><b>{c ? `${c.first} ${c.last}` : num}</b><small>{lv.state === 'connecting' ? 'Connecting…' : lv.state === 'ringing' ? 'Ringing…' : call ? fmtSecs(Math.round((Date.now() - call.at) / 1000)) : 'On the call'}</small></span>
+          {keypad && <span className="cbkeys">{['1','2','3','4','5','6','7','8','9','*','0','#'].map(k => <button key={k} onClick={() => tw.digits(k)}>{k}</button>)}</span>}
+          <button className={`btn sm ${lv.muted ? 'primary' : ''}`} onClick={tw.mute}>{lv.muted ? 'Unmute' : 'Mute'}</button>
+          <button className="btn sm" onClick={() => setKeypad(k => !k)}>Keypad</button>
+          <button className="btn sm danger" onClick={() => { if (call) endCall(call.id); else tw.hangup(); }}>Hang up</button>
+        </div>;
+      })()}
       {incoming.ring && (() => {
         // who is calling the agent's Quo number (George, 2026-11-27)
         const c = matchContact(d.contacts, incoming.ring.phone);

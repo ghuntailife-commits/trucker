@@ -1421,3 +1421,80 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 .legal-foot { margin-top: 40px; border-top: 1px solid var(--line); padding-top: 16px; }
 .legal blockquote { margin: 8px 0; padding: 12px 16px; background: var(--panel2); border-left: 3px solid var(--accent); border-radius: 6px; }
 .legal a { color: var(--link); }
+
+/* Dispatch call bar (Twilio calling, George 2026-11-27) */
+.callbar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 90; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--panel); border: 1px solid var(--line); border-left: 4px solid #3f7d5a; border-radius: 12px; padding: 10px 14px; box-shadow: 0 12px 32px rgba(15, 25, 50, .18); max-width: calc(100vw - 32px); }
+.callbar .cbwho { display: flex; flex-direction: column; min-width: 120px; }
+.callbar .cbwho small { color: var(--muted); font-variant-numeric: tabular-nums; }
+.callbar .cbkeys { display: grid; grid-template-columns: repeat(3, 36px); gap: 4px; }
+.callbar .cbkeys button { height: 32px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel2); color: inherit; font-weight: 600; cursor: pointer; }
+.callbar .btn.danger { background: #b4413a; color: #fff; border-color: #b4413a; }
+
+/* Prettier call button (George, 2026-11-27): round phone icon, "Call Jordan" over the number, soft depth; live = pulsing */
+.callbtn:not(.sm) { position: relative; justify-content: flex-start; gap: 16px; padding: 14px 18px; border-radius: 16px; text-align: left;
+  background: linear-gradient(135deg, #2f9a5d 0%, #1f7a45 100%); box-shadow: 0 6px 18px -6px rgba(31,122,69,.55), inset 0 1px 0 rgba(255,255,255,.18);
+  transition: transform .12s ease, box-shadow .12s ease, filter .12s ease; }
+.callbtn:not(.sm):hover:not(:disabled) { filter: brightness(1.05); transform: translateY(-1px); box-shadow: 0 10px 24px -8px rgba(31,122,69,.6), inset 0 1px 0 rgba(255,255,255,.18); }
+.callbtn:not(.sm):active:not(:disabled) { transform: translateY(1px); box-shadow: 0 3px 10px -4px rgba(31,122,69,.5); }
+.callbtn:not(.sm):disabled { background: var(--panel2); color: var(--faint); box-shadow: none; border: 1px dashed var(--line); cursor: not-allowed; }
+.callbtn .cb-ico { flex: none; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; background: #fff; color: #1f7a45; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
+.callbtn:disabled .cb-ico { background: var(--line2); color: var(--faint); box-shadow: none; }
+.callbtn .cb-txt { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.15; }
+.callbtn .cb-lbl { font-size: 12px; font-weight: 600; line-height: 1.2; letter-spacing: .08em; text-transform: uppercase; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.callbtn .cb-num { font-size: 24px; font-weight: 700; letter-spacing: .02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.callbtn .via { flex: none; align-self: center; background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35); border-radius: 999px; padding: 3px 10px; }
+.callbtn.live:not(.sm) { background: linear-gradient(135deg, #1b5e38 0%, #134a2b 100%); color: #fff; border: 0; animation: cbpulse 1.8s ease-out infinite; }
+.callbtn.live .cb-ico { background: rgba(255,255,255,.14); color: #fff; box-shadow: none; }
+.callbtn.live .cb-ico .wave i { background: #7ee2a8; }
+.callbtn.live .cb-lbl { color: #9ff0c0; opacity: 1; font-family: var(--mono); letter-spacing: .04em; text-transform: none; font-size: 13px; }
+.callbtn.live .endcall { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 999px; font-size: 14px; background: #d6334a; }
+.callbtn.live .endcall svg { transform: rotate(135deg); }
+@keyframes cbpulse { 0% { box-shadow: 0 0 0 0 rgba(47,154,93,.5); } 70% { box-shadow: 0 0 0 10px rgba(47,154,93,0); } 100% { box-shadow: 0 0 0 0 rgba(47,154,93,0); } }
+@media (prefers-reduced-motion: reduce) { .callbtn.live:not(.sm) { animation: none; } }
+@media (max-width: 640px) { .callbtn .cb-num { font-size: 20px; } .callbtn .cb-ico { width: 40px; height: 40px; } }
+.callbtn:not(.sm) { gap: 12px; padding: 12px 14px; }
+.callbtn .cb-ico { width: 44px; height: 44px; }
+.callbtn .cb-txt { overflow: hidden; }
+.callbtn .cb-num { font-size: 22px; overflow: hidden; text-overflow: ellipsis; }
+.callbtn .via { font-size: 10px; padding: 2px 8px; }
+.callbtn.live .cb-lbl b { font-weight: 700; color: #fff; margin-left: 4px; }
+.callbtn.live .endcall { flex: none; padding: 8px 14px; margin-left: 0; }
+.callbtn.live .cb-num { font-size: 20px; }
+.callbtn.live .cb-ico { width: 40px; height: 40px; }
+.callbtn.live .endcall { padding: 8px 12px; }
+
+/* Get local numbers (George, 2026-11-27) */
+.localnums .lnopt { display: flex; gap: 10px; align-items: center; margin: 10px 0 4px; }
+.localnums .lnopt select { margin-left: auto; width: auto; }
+.localnums .chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 8px 26px; }
+.localnums .lnsum { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0; }
+.localnums .lnsum > div { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; }
+.localnums .lnsum b { font-size: 22px; font-variant-numeric: tabular-nums; } .localnums .lnsum small { color: var(--muted); }
+.localnums .lnlist { max-height: 46vh; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+.lnusage { margin-top: 8px; } .lnusage summary { cursor: pointer; color: var(--link); font-size: 13.5px; }
+@media (max-width: 640px) { .localnums .lnsum { grid-template-columns: repeat(2, 1fr); } }
+
+/* Follow-up emails (George, 2026-11-27) */
+.fuemail { display: grid; grid-template-columns: minmax(300px, 400px) 1fr; gap: 18px; align-items: start; }
+.fuform { max-height: 68vh; overflow: auto; padding-right: 6px; }
+.fuform .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.fuform .covline { width: 100%; margin: 0 0 6px; }
+.fuform .chk { display: flex; gap: 8px; align-items: center; margin: 8px 0; font-size: 14px; }
+.fuform .chips.mini { display: flex; flex-wrap: wrap; gap: 4px; margin: -4px 0 10px; }
+.fuform .chips.mini button { font-size: 12px; padding: 3px 9px; }
+.fubox { border: 1px solid var(--line); background: var(--panel2); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
+.fubox .seg { display: flex; gap: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-bottom: 8px; }
+.fubox .seg button { flex: 1; border: 0; background: var(--panel); padding: 7px 6px; font-size: 13px; cursor: pointer; color: var(--text); }
+.fubox .seg button + button { border-left: 1px solid var(--line); }
+.fubox .seg button.on { background: var(--accent); color: var(--accent-ink); }
+.fuprev { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #fff; }
+.fuprev .eyebrow { padding: 8px 12px; background: var(--panel2); border-bottom: 1px solid var(--line); margin: 0; }
+.fuprev iframe { width: 100%; height: 62vh; border: 0; display: block; background: #fff; }
+.okline { color: var(--green-ink); font-weight: 600; margin: 8px 0; }
+.sigform .sigphoto { display: flex; gap: 12px; align-items: center; margin: 8px 0 12px; }
+.sigform .sigphoto img, .sigform .sigph { width: 64px; height: 64px; border-radius: 6px; object-fit: cover; }
+.sigform .sigph { display: grid; place-items: center; background: var(--panel2); border: 1px dashed var(--line); color: var(--faint); font-size: 11px; }
+@media (max-width: 860px) { .fuemail { grid-template-columns: 1fr; } .fuprev iframe { height: 50vh; } .fuform { max-height: none; } }
+.fuform label.chk { display: flex !important; flex-direction: row; justify-content: flex-start; gap: 8px; color: var(--text); }
+.fuform label.chk input { width: auto; margin: 0; flex: none; }
