@@ -5,7 +5,7 @@ import type { Contact } from '../src/rules/types';
 import type { DialerKey } from '../src/rules/engine';
 import { notesNewestFirst, isHistoryNote } from '../src/rules/notes';
 import { tagShort, tagKind } from '../src/rules/tags';
-import { mdTime, md, sameDay } from '../src/rules/time';
+import { mdTime, md, sameDay, dayKey } from '../src/rules/time';
 import { parseWhen } from '../src/rules/parseWhen';
 import { reachByDial } from '../src/rules/stats';
 import { QUALIFIERS } from '../src/rules/engine';
@@ -66,6 +66,7 @@ import { useAiBrief } from '../src/live/useAiBrief';
 import { MENU_PAGES } from '../src/team/agents';
 import { Sidebar, useSidebar, Mark, Wordmark } from './ui/sidebar';
 import { HomePage } from './ui/home';
+import { useDialBoard } from '../src/live/useDialBoard';
 import { dailyNote, waitingCounts } from '../src/home/dailyNote';
 import { mondayNote } from '../src/team/coaching';
 import { needsGroup } from '../src/contacts/needs';
@@ -428,6 +429,10 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
 
   // today's events: called-into count, ALP and the hourly chart
   const todayLog = useMemo(() => d.log.filter(e => sameDay(e.at, d.now, TZ)), [d.log, d.now]);
+  // Top dialers today on Home (George, 2026-11-28)
+  const lastDial = useMemo(() => todayLog.reduce((m, e) => (e.kind === 'Dial' && e.at > m ? e.at : m), 0) || null, [todayLog]);
+  const boardRows = useDialBoard({ id: agent, name: me.name }, { dials: d.stats?.dials ?? 0, connects: d.stats?.connects ?? 0, booked: d.stats?.scheduled ?? 0, last: lastDial },
+    dayKey(d.now, TZ), !!d.ready);
   const calledInto = useMemo(() => new Set(todayLog.filter(e => e.kind === 'Tag' && e.tag.startsWith('CALLED INTO')).map(e => e.contactId)).size
     + d.appts.filter(a => tagKind(a.contact.tag) === 'calledInto').length, [todayLog, d.appts]);
   const salesToday = d.sales.filter(x => sameDay(x.at, d.now, TZ));
@@ -644,7 +649,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       </div>}
 
       {switching && <SwitchPage onDone={() => location.reload()} />}
-      {!switching && page === 'home' && <HomePage note={note} stats={s} appts={homeAppts} nextAppts={nextAppts} nextLabel={nextLabel} waiting={{ ...waiting, newNumbers: newNums }} coach={coach}
+      {!switching && page === 'home' && <HomePage board={{ rows: boardRows, me: agent, day: dayKey(d.now, TZ), now: d.now }} note={note} stats={s} appts={homeAppts} nextAppts={nextAppts} nextLabel={nextLabel} waiting={{ ...waiting, newNumbers: newNums }} coach={coach}
         health={hc} sheet={{ waiting: sheetWaitN, look: sheetLookN, needs: needsN }} wins={wins} recent={recent} ago={x => ago(x, d.now, TZ)} monthDays={monthDays} daysInMonth={daysInMonth}
         go={setPage} openHealth={() => setHealthOpen(true)} onDial={id => { setPicked(id); setPage('today'); }} onAppt={(id, at) => { setOpenAppt({ id, at }); setPage('appts'); }} timeOnly={timeOnly} md={x => md(x, TZ)} />}
       {!switching && page === 'contacts' && <ContactsPage d={d} onMail={mailFor} onDial={id => { setPicked(id); setPage('today'); }} onText={textContact} agentName={me.name}

@@ -6,6 +6,7 @@ import type { DailyNote } from '../../src/home/dailyNote';
 import type { CoachNote } from '../../src/team/coaching';
 import { NAV_ICON } from './sidebar';
 import type { Recent } from '../../src/home/recent';
+import { rankBoard, initials, isLive, type BoardRow } from '../../src/team/board';
 
 const money = (n: number) => '$' + Math.round(n).toLocaleString('en-US');
 const Icon = ({ p }: { p: Page }) => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={NAV_ICON[p]} /></svg>;
@@ -35,6 +36,8 @@ export interface HomeProps {
   onAppt?: (id: string, at: number | null) => void;
   timeOnly: (ms: number) => string;
   md: (ms: number) => string;
+  /** Top dialers today: everyone's numbers (George, 2026-11-28). */
+  board?: { rows: BoardRow[]; me: string; day: number; now: number };
 }
 
 export interface MonthDay { std: number; trial: number; daySales: number; dayAlp: number }
@@ -154,6 +157,8 @@ export function HomePage(h: HomeProps) {
           <button className="btn" onClick={() => h.go('results')}>See results</button></div>
       </section>
 
+      {h.board && <DialBoard {...h.board} />}
+
       <section className="hcard today">
         <header><Icon p="today" /><h2>Today</h2><button className="linkish" onClick={() => h.go('today')}>Open</button></header>
         <div className="hstats">
@@ -243,3 +248,46 @@ const TILE_PAGE: Record<string, [Page, string]> = {
   goal: ['results', 'Results'], vs: ['results', 'Results'], week: ['results', 'Results'],
   today: ['today', 'Today'], wait: ['today', 'Today'], appts: ['appts', 'Appointments'],
 };
+
+/** Top dialers today: a podium for the top three, then the rest, with a bar against the leader (George, 2026-11-28). */
+function DialBoard({ rows, me, day, now }: { rows: BoardRow[]; me: string; day: number; now: number }) {
+  const list = rankBoard(rows, day);
+  const top = list.slice(0, 3), rest = list.slice(3, 10);
+  const lead = Math.max(1, list[0]?.dials ?? 1);
+  const live = list.filter(r => isLive(r, now)).length;
+  const mine = list.findIndex(r => r.agent === me);
+  const podium = [top[1], top[0], top[2]];          // 2nd, 1st, 3rd, like a real podium
+  return (
+    <section className="hcard board">
+      <header><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4ZM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4" /></svg>
+        <h2>Top dialers today</h2>{live > 0 && <span className="blive"><i />{live} dialing now</span>}</header>
+      {!list.length ? <p className="hint">No dials yet today. The first dial takes the top spot.</p> : <>
+        <div className="podium">
+          {podium.map((r, i) => {
+            const place = i === 1 ? 1 : i === 0 ? 2 : 3;
+            if (!r) return <div key={i} className={`pod p${place} empty`} />;
+            return <div key={r.agent} className={`pod p${place} ${r.agent === me ? 'me' : ''}`} title={`${r.name}: ${r.dials} dials · ${r.connects} reached · ${r.booked} booked`}>
+              {place === 1 && <span className="crown" aria-hidden>♛</span>}
+              <span className="av">{initials(r.name)}{isLive(r, now) && <i className="ldot" />}</span>
+              <b className="nm">{r.agent === me ? 'You' : r.name.split(' ')[0]}</b>
+              <span className="dl">{r.dials}</span>
+              <small>{r.connects} reached{r.booked ? ` · ${r.booked} booked` : ''}</small>
+              <div className="step"><span>{place}</span></div>
+            </div>;
+          })}
+        </div>
+        {rest.length > 0 && <ol className="brest" start={4}>
+          {rest.map((r, i) => <li key={r.agent} className={r.agent === me ? 'me' : ''}>
+            <span className="rk">{i + 4}</span><span className="av sm">{initials(r.name)}{isLive(r, now) && <i className="ldot" />}</span>
+            <b>{r.agent === me ? 'You' : r.name}</b>
+            <span className="bbar"><i style={{ width: `${Math.max(4, (r.dials / lead) * 100)}%` }} /></span>
+            <span className="n">{r.dials}</span>
+          </li>)}
+        </ol>}
+        {mine > 9 && <p className="hint">You&rsquo;re #{mine + 1} with {list[mine].dials} dials. {list[9].dials - list[mine].dials + 1} more to reach the top 10.</p>}
+        {mine < 0 && <p className="hint">Make your first dial to get on the board.</p>}
+      </>}
+    </section>
+  );
+}
