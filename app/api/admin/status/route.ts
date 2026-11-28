@@ -17,7 +17,7 @@ export async function GET(req: Request) {
     if (me.role !== 'admin') return NextResponse.json({ error: 'Only the admin can see system status.' }, { status: 403 });
     const now = Date.now(), week = new Date(now - 7 * 86_400_000).toISOString();
 
-    const [people, saves, pings, inboxes, calStat, tokens, calRows, quo] = await Promise.all([
+    const [people, saves, pings, inboxes, calStat, tokens, calRows, quo, crashes] = await Promise.all([
       db.from('people').select('agent_id,email,role'),
       db.from('kv').select('owner,updated_at').like('key', 'dispatch-agent-%').order('updated_at', { ascending: false }).limit(3000),
       db.from('kv').select('part,value').eq('key', 'dispatch-status-ping'),
@@ -26,6 +26,7 @@ export async function GET(req: Request) {
       db.from('google_tokens').select('agent_id,email'),
       db.from('calendar_events').select('agent_id'),
       db.from('quo_events').select('agent_id,type,at,ai_note,applied').gte('at', week).order('at', { ascending: false }).limit(5000),
+      db.from('kv').select('value').eq('key', 'dispatch-status-error'),
     ]);
     const err = [people, saves, pings, inboxes, quo].find(r => r.error)?.error;
     if (err) return NextResponse.json({ error: err.message }, { status: 500 });
@@ -72,6 +73,7 @@ export async function GET(req: Request) {
     }));
     return NextResponse.json({
       now, build: process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_GIT_COMMIT_SHA ?? 'dev', agents,
+      crashes: ((crashes.data ?? []) as Any[]).map(r => r.value).filter(v => v && now - v.at < 7 * 86_400_000).sort((a, b) => b.at - a.at),
       setup: { anthropic: !!process.env.ANTHROPIC_API_KEY, google: !!(process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_OAUTH_CLIENT_ID), quo: ws.map(w => w.agent ?? 'george'),
         unassignedQuo: q.get('?')?.calls7 ?? 0 },
     }, { headers: { 'Cache-Control': 'no-store' } });
