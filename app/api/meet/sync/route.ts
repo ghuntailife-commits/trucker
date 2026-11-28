@@ -90,11 +90,12 @@ export async function POST(req: Request) {
     // newest first, so a presentation from today isn't stuck behind a year of older recordings (George, 2026-11-27: Philip)
     const startOf = (e: CalEvent) => Date.parse(e.start?.dateTime ?? `${e.start?.date}T12:00:00Z`) || 0;
     const todo = matched.filter(f => !done.has(`meet:${f.e.id}`)).sort((a, b) => startOf(b.e) - startOf(a.e));
-    if (!todo.length) return NextResponse.json({ connected: true, saved: 0, waiting: 0, found: events.length, unmatched });
+    if (!todo.length) return NextResponse.json({ connected: true, saved: 0, waiting: 0, found: events.length, unmatched, done: matched.length });
     if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: 'ANTHROPIC_API_KEY is not set on Vercel.' });
 
     const client = new Anthropic();
     let saved = 0;
+    const skipped: { title: string; why: string }[] = [];   // shown on the Presentations page, so a stuck one says why
     for (const { e, who } of todo.slice(0, PER_RUN)) {
       const doc = meetDocs(e)[0];
       const r = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(doc.fileId!)}/export?mimeType=text/plain`, { headers: { Authorization: `Bearer ${token}` } });
@@ -102,18 +103,19 @@ export async function POST(req: Request) {
         const t = await r.text();
         if (/insufficient|scope|permission/i.test(t)) return NextResponse.json({ connected: true, reconnect: true, needs: 'meet', saved });
         if (/has not been used|disabled/i.test(t)) return NextResponse.json({ error: 'Turn on the Google Drive API in Google Cloud (APIs & Services > Library > Google Drive API > Enable).', saved });
+        skipped.push({ title: e.summary ?? '', why: `Google wouldn't open the transcript (${r.status}): ${t.slice(0, 160)}` });
         continue;
       }
-      if (!r.ok) continue;
+      if (!r.ok) { skipped.push({ title: e.summary ?? '', why: `Google said ${r.status} opening the transcript: ${(await r.text()).slice(0, 160)}` }); continue; }
       const text = (await r.text()).trim();
-      if (text.length < 200) { console.log('meet sync: transcript too short', e.id, text.length); continue; }
+      if (text.length < 200) { skipped.push({ title: e.summary ?? '', why: `The transcript is almost empty (${text.length} characters).` }); continue; }
       // a long presentation's notes can run past 6,000 tokens, which cut the answer off (George, 2026-11-27: Philip)
       const msg = await client.messages.create({ model: 'claude-opus-5-5', max_tokens: 14000,
         system: `${PRES_PROMPT}\nAlways answer by calling the save_presentation tool exactly once.`,
         tools: [PRES_TOOL], tool_choice: { type: 'auto' },   // Opus 5.5 does not allow a forced tool choice
         messages: [{ role: 'user', content: `${/transcript/i.test(doc.title ?? '') ? 'Presentation transcript' : "Google Meet's notes on the presentation"} (${doc.title}):\n\n${text.slice(0, 150_000)}\n\nSave it with the save_presentation tool.` }] });
       const got = readPresTool((msg.content.find(b => b.type === 'tool_use') as { input: unknown } | undefined)?.input);
-      if (!got) console.error('meet sync: Claude gave no presentation for', e.id, msg.stop_reason);
+      if (!got) { console.error('meet sync: Claude gave no presentation for', e.id, msg.stop_reason); skipped.push({ title: e.summary ?? '', why: `Claude's notes didn't come back (${msg.stop_reason}). It tries again next check.` }); }
       const tried = (tries.get(`meet:${e.id}`) ?? 0) + (got ? 0 : 1);
       const at = Date.parse(e.start?.dateTime ?? `${e.start?.date}T12:00:00Z`);
       const { error } = await db.from('quo_events').upsert({ id: `meet:${e.id}`, agent_id: agent, type: PRES_TYPE, call_id: null, phone: who!.p,
@@ -122,6 +124,6 @@ export async function POST(req: Request) {
       if (error) return NextResponse.json({ error: error.message, saved });
       if (got) saved++;   // a transcript Claude could not read is still marked done, so it isn't paid for again every run
     }
-    return NextResponse.json({ connected: true, saved, waiting: todo.length - saved, found: events.length, more: todo.length > PER_RUN, unmatched });
+    return NextResponse.json({ connected: true, saved, waiting: todo.length - saved, found: events.length, more: todo.length > PER_RUN, unmatched, skipped });
   } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 500 }); }
 }
