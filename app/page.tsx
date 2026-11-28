@@ -181,6 +181,10 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
     [d0.contacts, d0.log, d0.sales, d0.noSales]);
   const feed = useTeamFeed({ id: agent, name: me.name }, feedSnap, !!d0.ready, isAdmin);
   const quoOn = me.quo;
+  /** Texts go through Dispatch's own numbers when that's on for the agent (George, 2026-11-27), else Quo. */
+  const textVia: 'dispatch' | 'quo' | null = me.twilioText ? 'dispatch' : quoOn ? 'quo' : null;
+  const textOn = !!textVia;
+  const textBtn = textVia === 'dispatch' ? 'Text' : 'Text with Quo';
   const [quo, setQuo] = useState<QuoModal>(null);
   const [textsOpen, setTextsOpen] = useState(false);
   const myTexts = useMyTexts(agent);
@@ -202,7 +206,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const endRef = useRef<(id: string) => void>(() => {});
   const onCallRef = useRef(false);   // a call is going on this screen   // stops the call timer when Quo says the call ended
   useEffect(() => {
-    if (!LIVE || !(quoOn || me.twilio) || !d0.ready) return;
+    if (!LIVE || !(quoOn || me.twilio || me.twilioText) || !d0.ready) return;
     let stop = false;
     const pull = async () => {
       const evs = await newQuoEvents(agent);
@@ -211,8 +215,8 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
         const c = matchContact(dRef.current.contacts ?? [], e.phone);
         // a text sent from Dispatch is already in the notes: Quo's delivered copy is not added again
         if (c && e.note && !(/^Texted \(Quo\)/.test(e.note) && c.notes.includes(e.note.slice(0, -1)))) dRef.current.noteFacts(c.id, e.note, e.facts, e.at);
-        if (c && /^(Quo|Dispatch) call: /.test(e.note)) { dRef.current.quoDialed(c.id, e.at); endRef.current(c.id); }   // an outgoing call counts as a dial (George, 2026-11-27)
-        else if (e.note && /^Text from/.test(e.note)) dRef.current.say(`Quo: a text from ${e.phone}, who is not in your contacts.`, 'warn');
+        if (c && /^(Quo|Dispatch) call: /.test(e.note)) { dRef.current.quoDialed(c.id, e.at, e.note.startsWith('Dispatch') ? 'Dispatch' : 'Quo'); endRef.current(c.id); }   // an outgoing call counts as a dial (George, 2026-11-27)
+        else if (e.note && /^Text from/.test(e.note)) dRef.current.say(`A text from ${e.phone}, who is not in your contacts.`, 'warn');
       }
       await markQuoApplied(evs.map(e => e.id));
     };
@@ -236,7 +240,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
     let n = 0;
     const id = setInterval(() => { n++; if (onCallRef.current || n % 3 === 0) void pull(); }, 3_000);
     return () => { stop = true; clearInterval(id); };
-  }, [agent, quoOn, d0.ready]);
+  }, [agent, quoOn, me.twilio, me.twilioText, d0.ready]);
   const [keysOpen, setKeysOpen] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
   // from Search every agent: once that agent's contacts have loaded, open the contact on Today
@@ -298,7 +302,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const textFirst = (c: Contact): TextKey => { const k = tagKind(c.tag), at = k === 'scheduled' ? c.callAt : null;
     return suggestText(at, d.now, k === 'noshow', at != null && sameDay(at, d.now, TZ)); };
   const quoFor = (c: Contact) => setQuo({ id: c.id, apptAt: tagKind(c.tag) === 'scheduled' ? c.callAt : null, first: textFirst(c) });
-  const textContact = quoOn ? (id: string) => { const c = d.byId.get(id); if (c) quoFor(c); } : undefined;
+  const textContact = textOn ? (id: string) => { const c = d.byId.get(id); if (c) quoFor(c); } : undefined;
 
   /** Call: opens the phone app (or the web dialer) and starts the call timer. */
   const startCall = (c: Contact, useBackup = false) => {
@@ -321,7 +325,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
     if ((key === 'callback' || key === 'appt') && !when.trim()) { setPending(key); setTimeout(() => whenRef.current?.focus(), 0); return; }
     d.press(current.id, key, { when: key === 'callback' || key === 'appt' ? when : '', email: key === 'appt' ? email : '', note: noteText, backupMode });
     // just booked: the confirmation text opens to check and send (nothing goes out without Send)
-    if (key === 'appt' && quoOn && (current.phone || current.backup)) { const id = current.id; setTimeout(() => setQuo({ id, first: 'booked', afterBook: true }), 0); }
+    if (key === 'appt' && textOn && (current.phone || current.backup)) { const id = current.id; setTimeout(() => setQuo({ id, first: 'booked', afterBook: true }), 0); }
     endCall(current.id);
     setPicked(null);
     if (auto) setCountdown(3);
@@ -586,7 +590,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
             <i />{hc.fix || hc.check ? `${hc.fix + hc.check} to check` : 'All clear'}
           </button>
           <ProfileMenu t={t} me={me} theme={theme} setTheme={setTheme} items={[
-            { key: 'texts', label: 'My texts', sub: 'Reminders, confirmations and your own texts', onClick: () => setTextsOpen(true), hidden: !quoOn && !isAdmin },
+            { key: 'texts', label: 'My texts', sub: 'Reminders, confirmations and your own texts', onClick: () => setTextsOpen(true), hidden: !textOn && !isAdmin },
             { key: 'sig', label: 'My email signature', sub: 'Ends your policy summary and benefits emails', onClick: () => setSigOpen(true) },
             { key: 'settings', label: 'Settings', sub: 'Goals, rules, Quo, coaching', onClick: () => setPage('settings'), hidden: !pages.includes('settings') },
             { key: 'integrations', label: 'Integrations', sub: 'Quo, Google, Claude AI', onClick: () => setPage('integrations') },
@@ -624,7 +628,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
       {!switching && page === 'status' && <StatusPage t={t} />}
       {!switching && page === 'results' && <ResultsPage d={d} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} onText={textContact} />}
       {!switching && page === 'appts' && <AppointmentsPage agent={agent} agentName={me.name} d={d} cal={cal} open={openAppt} onOpened={() => setOpenAppt(null)} onText={textContact} onDial={id => { setPicked(id); setPage('today'); }} onResult={(kind, id, extra) => setModal({ kind, id, ...extra })} 
-        onQuoText={quoOn ? (id, at, tomorrow) => setQuo({ id, apptAt: at, first: suggestText(at, d.now, false, !tomorrow) }) : undefined} />}
+        onQuoText={textOn ? (id, at, tomorrow) => setQuo({ id, apptAt: at, first: suggestText(at, d.now, false, !tomorrow) }) : undefined} />}
       {!switching && page === 'today' && <>
       <section className="hero">
         <div className="title">
@@ -715,8 +719,8 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
                   {a.open && (
                     <span className="aacts">
                       {a.confirm && <button className="cf" onClick={() => d.confirm(a.id)}>Confirmed</button>}
-                      {a.confirm && a.phone && a.at && quoOn && <button className="txt" onClick={() => setQuo({ id: a.id, apptAt: a.at, first: suggestText(a.at, d.now, false, !a.tomorrow) })}>Text with Quo</button>}
-                      {a.confirm && a.phone && a.at && !quoOn && <a className="txt" href={`sms:${a.phone.replace(/[^\d+]/g, '')}?&body=${encodeURIComponent(`Hi ${a.first}, just a reminder about our appointment ${a.tomorrow ? 'tomorrow' : 'today'} at ${timeOnly(a.at)} ${TZ_ABBR}. Talk soon!`)}`}>Text reminder</a>}
+                      {a.confirm && a.phone && a.at && textOn && <button className="txt" onClick={() => setQuo({ id: a.id, apptAt: a.at, first: suggestText(a.at, d.now, false, !a.tomorrow) })}>{textBtn}</button>}
+                      {a.confirm && a.phone && a.at && !textOn && <a className="txt" href={`sms:${a.phone.replace(/[^\d+]/g, '')}?&body=${encodeURIComponent(`Hi ${a.first}, just a reminder about our appointment ${a.tomorrow ? 'tomorrow' : 'today'} at ${timeOnly(a.at)} ${TZ_ABBR}. Talk soon!`)}`}>Text reminder</a>}
                       <button onClick={() => setModal({ kind: 'sold', id: a.id })}>Sold</button>
                       <button onClick={() => setModal({ kind: 'presented', id: a.id })}>Presented</button>
                       {!a.ci && <button onClick={() => d.outcome(a.id, 'noshow')}>No-show</button>}
@@ -831,7 +835,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
                     title="Ends this call and dials the other number"><Ico d={IC.phone} size={14} /> Call {backupMode ? 'main' : 'backup'} {otherNum}</button>
                   <button className="linkish" onClick={() => setBackupMode(!backupMode)} title="Switch number without calling (B)">switch</button>
                 </span> : <span />}
-                <span>{quoOn && dialNum && <button className="linkish quobtn" onClick={() => quoFor(current)}>Text with Quo</button>}
+                <span>{textOn && dialNum && <button className="linkish quobtn" onClick={() => quoFor(current)}>{textBtn}</button>}
                   {current.dials} dials · last {current.lastDialed ? md(current.lastDialed, TZ) : 'never'}</span>
               </div>
 
@@ -938,9 +942,9 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
           .map(([l, run, tone]) => [l, () => { run(); if (picked === rowMenu.id && /Replace|Pause|Rest|Take off/.test(l)) setPicked(null); }, tone] as [string, () => void, string?])} />}
       {removeIds && <RemoveDialog d={d} ids={removeIds} agentName={me.name} onClose={() => { if (removeIds.includes(picked ?? '')) setPicked(null); setRemoveIds(null); }} />}
       {todaySet && <TodaySettings d={d} onClose={() => setTodaySet(false)} />}
-      {quo && d.byId.get(quo.id) && <QuoText key={`${quo.id}-${quo.first}`} c={d.byId.get(quo.id)!} agent={me} apptAt={quo.afterBook ? d.byId.get(quo.id)!.callAt : quo.apptAt} first={quo.first}
+      {quo && d.byId.get(quo.id) && <QuoText key={`${quo.id}-${quo.first}`} c={d.byId.get(quo.id)!} agent={me} apptAt={quo.afterBook ? d.byId.get(quo.id)!.callAt : quo.apptAt} first={quo.first} via={textVia ?? 'quo'}
         mine={myTexts.texts} onEditTexts={() => setTextsOpen(true)} onClose={() => setQuo(null)}
-        onSent={body => { d.noteFacts(quo.id, `Texted (Quo): "${body.slice(0, 300)}"`, [], Date.now()); setQuo(null); }} />}
+        onSent={body => { d.noteFacts(quo.id, `Texted (${textVia === 'dispatch' ? 'Dispatch' : 'Quo'}): "${body.slice(0, 300)}"`, [], Date.now()); setQuo(null); }} />}
       {fuMail && <FollowUpEmailDialog agent={agent} agentName={me.name} agentEmail={t.person?.agent_id === agent ? t.person?.email ?? undefined : undefined} start={fuMail}
         onClose={() => setFuMail(null)} onSent={(note) => { if (d.byId.has(fuMail.contactId)) d.noteFacts(fuMail.contactId, note, [], Date.now()); d0.say(`${note.replace(/^Emailed: /, 'Sent ')}.`); }} />}
       {sigOpen && <SignatureDialog agent={agent} name={me.name} email={t.person?.email ?? undefined} onClose={() => setSigOpen(false)} />}

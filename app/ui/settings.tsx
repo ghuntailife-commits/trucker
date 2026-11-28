@@ -72,7 +72,7 @@ export function SettingsPage({ t }: { t: Team }) {
         <Panel span={4} title="Agents" meta="Goals, Quo and the Monday coaching note, per agent">
           <div className="tscroll">
             <table className="rt settable">
-              <thead><tr><th>Agent</th><th>Role</th><th>Under</th><th>Licensed states</th><th>Monthly goal</th><th>Quo</th><th>Quo number</th><th title="Calls through Dispatch itself (Twilio)">Dispatch calling</th><th>Monday note</th></tr></thead>
+              <thead><tr><th>Agent</th><th>Role</th><th>Under</th><th>Licensed states</th><th>Monthly goal</th><th>Quo</th><th>Quo number</th><th title="Calls through Dispatch itself (Twilio)">Dispatch calling</th><th title="Texts from Dispatch's local numbers instead of Quo; replies come into Dispatch">Dispatch texting</th><th>Monday note</th></tr></thead>
               <tbody>
                 {agents.map(a => (
                   <tr key={a.id}>
@@ -88,6 +88,7 @@ export function SettingsPage({ t }: { t: Team }) {
                     <td><input placeholder={a.quo ? 'One or more, with commas' : '—'} disabled={!a.quo} value={a.quoNumber} aria-label={`${a.name} Quo number`}
                       onChange={e => setA(a.id, { quoNumber: e.target.value })} /></td>
                     <td><Toggle on={!!a.twilio} label={`Dispatch calling for ${a.name}`} onChange={v => setA(a.id, { twilio: v })} /></td>
+                    <td><Toggle on={!!a.twilioText} label={`Dispatch texting for ${a.name}`} onChange={v => setA(a.id, { twilioText: v })} /></td>
                     <td><Toggle on={a.coaching} label={`Monday note for ${a.name}`} onChange={v => setA(a.id, { coaching: v })} /></td>
                   </tr>
                 ))}

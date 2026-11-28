@@ -31,6 +31,8 @@ export interface AgentSetting {
   active: boolean;
   /** Calls through Dispatch itself (Twilio), instead of the Quo app (George, 2026-11-27). Off until turned on. */
   twilio?: boolean;
+  /** Texts through Dispatch's own local numbers (Twilio) instead of Quo; replies come into Dispatch (George, 2026-11-27). Off until turned on. */
+  twilioText?: boolean;
 }
 
 /** The rules an admin can change from Settings. Everything else stays as approved in config.ts. */
@@ -169,6 +171,7 @@ export function agentChanges(before: AgentSetting[], after: AgentSetting[]): str
     if (a.quo !== b.quo) out.push(`${a.name}: Quo ${a.quo ? 'on' : 'off'}`);
     if (a.quoNumber !== b.quoNumber) out.push(`${a.name}: Quo number ${a.quoNumber || '(none)'}`);
     if (!!a.twilio !== !!b.twilio) out.push(`${a.name}: Dispatch calling ${a.twilio ? 'on' : 'off'}`);
+    if (!!a.twilioText !== !!b.twilioText) out.push(`${a.name}: Dispatch texting ${a.twilioText ? 'on' : 'off'}`);
     if (a.coaching !== b.coaching) out.push(`${a.name}: Monday coaching note ${a.coaching ? 'on' : 'off'}`);
     if (a.states.join() !== b.states.join()) out.push(`${a.name}: states ${a.states.join(', ') || '(none)'}`);
     if (a.active !== b.active) out.push(`${a.name}: ${a.active ? 'active' : 'paused'}`);

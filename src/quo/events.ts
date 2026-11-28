@@ -68,6 +68,7 @@ export function quoNote(e: { type: string; payload: Any; ai_note?: string | null
     }
     // a text the agent sent from the Quo app (George, 2026-11-27); Dispatch's own sends are already in the notes
     case 'message.delivered': { const t = String(o.text ?? o.body ?? o.content ?? '').trim(); return t ? `Texted (Quo): "${t.slice(0, 300)}"` : ''; }
+    case 'message.failed': return `Text not delivered: ${String(o.why ?? 'the carrier did not take it')}`;
     case 'message.received': return `Text from them: "${String(o.text ?? o.body ?? o.content ?? '').slice(0, 300)}"`;
     case 'call.recording.completed': {
       const url = [...(Array.isArray(o.recordings) ? o.recordings : []), ...(Array.isArray(o.media) ? o.media : [])].map((m: Any) => m?.url).find(Boolean) ?? o.recordingUrl ?? '';

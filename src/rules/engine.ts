@@ -71,14 +71,14 @@ function rest(x: Contact, n: number, why: string, now: number, cfg: Config, reco
 export const QUO_DIAL_WINDOW = 15 * 60_000;
 /** An outgoing Quo call counts one dial, even if the agent never taps a result. Calls within 15 minutes of the last
  *  dial (a second try right away, or the agent already tapped No answer) are one dial, not two. */
-export function quoDial(c: Contact, at: number, now: number): Result {
+export function quoDial(c: Contact, at: number, now: number, via: 'Quo' | 'Dispatch' = 'Quo'): Result {
   // an hour back, so a result tapped early in a long call (the event time is when the call ended) still covers it
   if (c.lastDialed != null && c.lastDialed >= at - 4 * QUO_DIAL_WINDOW) return { contact: c, events: [], ignored: true, message: '' };
   const x = clone(c);
   x.dials = c.dials + 1;
   x.lastDialed = at;
   x.quoDialAt = now;
-  return { contact: x, events: [ev(x, at, 'Dial')], message: `${c.first} ${c.last}: Quo call counted as a dial (${x.dials} total).` };
+  return { contact: x, events: [ev(x, at, 'Dial')], message: `${c.first} ${c.last}: ${via} call counted as a dial (${x.dials} total).` };
 }
 
 // ---------- Dial +1 (no answer / voicemail) ----------

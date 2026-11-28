@@ -281,7 +281,7 @@ export function useDialer(agent: AgentId = 'george', CFG: Config = DEFAULT_CONFI
     return facts.length ? { ...r, contact: { ...r.contact, profile: mergeFacts(r.contact.profile, facts, at) } } : r;
   }), [commit]);
   /** An outgoing Quo call counts as a dial (see quoDial). */
-  const quoDialed = useCallback((id: string, at: number) => commit(id, 'Quo call', (c, t) => quoDial(c, at, t)), [commit]);
+  const quoDialed = useCallback((id: string, at: number, via: 'Quo' | 'Dispatch' = 'Quo') => commit(id, `${via} call`, (c, t) => quoDial(c, at, t, via)), [commit]);
   const confirm = useCallback((id: string) => commit(id, 'confirm', (c, t) => confirmAppt(c, t, CFG)), [commit]);
   const qual = useCallback((id: string, q: string) => commit(id, 'tag', c => toggleQual(c, q)), [commit]);
 

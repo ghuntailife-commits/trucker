@@ -4,12 +4,13 @@ import { db } from './supabase';
 import { quoNote } from '../quo/events';
 import { readFacts, type Topic } from '../brief/profile';
 
-export async function sendQuoText(to: string, content: string): Promise<string | null> {
+/** via 'dispatch': from Dispatch's own local numbers (Twilio) instead of Quo. */
+export async function sendQuoText(to: string, content: string, via: 'quo' | 'dispatch' = 'quo'): Promise<string | null> {
   const { data } = await db().auth.getSession();
   const token = data.session?.access_token;
   if (!token) return 'Your sign-in ran out. Sign out and back in, then try again.';
   try {
-    const r = await fetch('/api/quo/send', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    const r = await fetch(via === 'dispatch' ? '/api/twilio/sms' : '/api/quo/send', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ to, content }) });
     if (r.ok) return null;
     const j = await r.json().catch(() => ({}));
