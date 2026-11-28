@@ -83,8 +83,10 @@ export async function POST(req: Request) {
     const unmatched = found.filter(f => !f.who).map(f => ({ eventId: f.e.id, title: f.e.summary ?? '(no title)', at: Date.parse(f.e.start?.dateTime ?? `${f.e.start?.date}T12:00:00Z`) }))
       .sort((a, b) => b.at - a.at).slice(0, 40);
     const ids = matched.map(f => `meet:${f.e.id}`);
-    const { data: have } = ids.length ? await db.from('quo_events').select('id').in('id', ids) : { data: [] };
-    const done = new Set((have ?? []).map(h => h.id));
+    const { data: have } = ids.length ? await db.from('quo_events').select('id,ai_tags,payload').in('id', ids) : { data: [] };
+    // read before but Claude's answer didn't save (George, 2026-11-27: Philip): try again, up to 3 times
+    const tries = new Map(((have ?? []) as { id: string; ai_tags: unknown; payload: { tries?: number } | null }[]).map(h => [h.id, h.ai_tags ? 99 : h.payload?.tries ?? 1]));
+    const done = new Set([...tries].filter(([, n]) => n >= 3).map(([id]) => id));
     // newest first, so a presentation from today isn't stuck behind a year of older recordings (George, 2026-11-27: Philip)
     const startOf = (e: CalEvent) => Date.parse(e.start?.dateTime ?? `${e.start?.date}T12:00:00Z`) || 0;
     const todo = matched.filter(f => !done.has(`meet:${f.e.id}`)).sort((a, b) => startOf(b.e) - startOf(a.e));
@@ -104,16 +106,19 @@ export async function POST(req: Request) {
       }
       if (!r.ok) continue;
       const text = (await r.text()).trim();
-      if (text.length < 200) continue;
-      const msg = await client.messages.create({ model: 'claude-opus-5-5', max_tokens: 6000,
+      if (text.length < 200) { console.log('meet sync: transcript too short', e.id, text.length); continue; }
+      // a long presentation's notes can run past 6,000 tokens, which cut the answer off (George, 2026-11-27: Philip)
+      const msg = await client.messages.create({ model: 'claude-opus-5-5', max_tokens: 14000,
         system: `${PRES_PROMPT}\nAlways answer by calling the save_presentation tool exactly once.`,
         tools: [PRES_TOOL], tool_choice: { type: 'auto' },   // Opus 5.5 does not allow a forced tool choice
         messages: [{ role: 'user', content: `${/transcript/i.test(doc.title ?? '') ? 'Presentation transcript' : "Google Meet's notes on the presentation"} (${doc.title}):\n\n${text.slice(0, 150_000)}\n\nSave it with the save_presentation tool.` }] });
       const got = readPresTool((msg.content.find(b => b.type === 'tool_use') as { input: unknown } | undefined)?.input);
+      if (!got) console.error('meet sync: Claude gave no presentation for', e.id, msg.stop_reason);
+      const tried = (tries.get(`meet:${e.id}`) ?? 0) + (got ? 0 : 1);
       const at = Date.parse(e.start?.dateTime ?? `${e.start?.date}T12:00:00Z`);
       const { error } = await db.from('quo_events').upsert({ id: `meet:${e.id}`, agent_id: agent, type: PRES_TYPE, call_id: null, phone: who!.p,
         at: new Date(Number.isFinite(at) ? at : now).toISOString(), applied: !got || !who!.id, ai_note: got?.note ?? '', ai_tags: got?.tags ?? null,
-        payload: { source: 'Google Meet', title: e.summary ?? '', eventId: e.id, contactId: who!.id, doc: doc.fileUrl ?? '', docTitle: doc.title ?? '' } });
+        payload: { source: 'Google Meet', title: e.summary ?? '', eventId: e.id, contactId: who!.id, doc: doc.fileUrl ?? (doc.fileId ? `https://docs.google.com/document/d/${doc.fileId}/edit` : ''), docTitle: doc.title ?? '', ...(got ? {} : { tries: tried }) } });
       if (error) return NextResponse.json({ error: error.message, saved });
       if (got) saved++;   // a transcript Claude could not read is still marked done, so it isn't paid for again every run
     }
