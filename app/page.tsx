@@ -817,8 +817,10 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
               ) : (
                 <button className="callbtn" disabled={!dialNum} onClick={() => startCall(current, backupMode)}>
                   <span className="cb-ico"><Ico d={IC.phone} size={22} /></span>
-                  <span className="cb-txt"><small className="cb-lbl">{dialNum ? `Call ${current.first || ''}`.trim() : 'No number to call'}</small><span className="cb-num">{dialNum || '—'}</span></span>{tw.ready && dialNum ? <small className="via" title="Calls through Dispatch from your local number">Dispatch</small>
-                    : quoOn && dialNum && <small className="via" title={localLine(me, dialNum)?.title}>{localLine(me, dialNum)?.label ?? 'Quo'}</small>}
+                  <span className="cb-txt"><small className="cb-lbl">{dialNum ? `Call ${current.first || ''}`.trim() : 'No number to call'}
+                    {tw.ready && dialNum ? <span className="via" title="Calls through Dispatch from your local number">Dispatch</span>
+                      : quoOn && dialNum && <span className="via" title={localLine(me, dialNum)?.title}>{localLine(me, dialNum)?.label ?? 'Quo'}</span>}</small>
+                    <span className="cb-num">{dialNum || '—'}</span></span>
                 </button>
               )}
               <div className="numline">

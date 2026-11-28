@@ -1498,3 +1498,4 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 @media (max-width: 860px) { .fuemail { grid-template-columns: 1fr; } .fuprev iframe { height: 50vh; } .fuform { max-height: none; } }
 .fuform label.chk { display: flex !important; flex-direction: row; justify-content: flex-start; gap: 8px; color: var(--text); }
 .fuform label.chk input { width: auto; margin: 0; flex: none; }
+.callbtn .cb-lbl .via { margin-left: 8px; font-size: 9.5px; padding: 1px 7px; vertical-align: 1px; letter-spacing: .06em; }
