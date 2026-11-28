@@ -189,7 +189,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const mailFor = (c: Contact, kind: 'sale' | 'nosale', sale?: { email?: string; monthly?: number; wholeLife?: number; alpType?: string }) =>
     setFuMail({ kind, contactId: c.id, first: c.first, last: c.last, email: sale?.email || c.email || '', company: c.company,
       monthly: sale?.monthly, wholeLife: sale?.wholeLife, trial: sale?.alpType === 'Trial' });
-  const incoming = useIncomingCall(agent, !!me.quo && !me.twilio);   // Dispatch calling shows its own incoming card
+  const incoming = useIncomingCall(agent, !!me.quo);   // Quo calls still ring in Quo; Dispatch calling has its own card for its numbers
   const [rowMenu, setRowMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [removeIds, setRemoveIds] = useState<string[] | null>(null);
   const [todaySet, setTodaySet] = useState(false);
