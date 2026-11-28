@@ -18,7 +18,11 @@ export async function readTwilio(req: Request): Promise<{ p: Record<string, stri
   const { base, full } = publicUrl(req);
   const form = new URLSearchParams(await req.text());
   const p: Record<string, string> = {}; for (const [k, v] of form) p[k] = v;
-  if (!validTwilio(env.authToken, full, p, req.headers.get('x-twilio-signature'))) { console.error('twilio: bad signature for', full); return null; }
+  // Twilio signs the exact URL it was given; behind Vercel the host can differ (www, the vercel.app name), so try each
+  const u = new URL(req.url); const path = `${u.pathname}${u.search}`;
+  const hosts = [...new Set([new URL(full).host, req.headers.get('host') ?? '', u.host, 'dispatchdialer.com', 'www.dispatchdialer.com'].filter(Boolean))];
+  const sig = req.headers.get('x-twilio-signature');
+  if (!hosts.some(h => validTwilio(env.authToken, `https://${h}${path}`, p, sig))) { console.error('twilio: bad signature for', full, 'tried', hosts.join(', ')); return null; }
   return { p, base, q: new URL(req.url).searchParams };
 }
 
