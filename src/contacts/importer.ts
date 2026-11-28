@@ -2,15 +2,24 @@
 // Columns: First, Last, Phone, Job, Company, City, State, LinkedIn, Backup, Notes.
 import { zoneFor } from './zones';
 import type { Contact } from '../rules/types';
-import { tagKind } from '../rules/tags';
+import { tagKind, TAGS, tagShort } from '../rules/tags';
 import { digits10, norm, splitPhones } from './phones';
 import { parseState } from './states';
 
 export const IMPORT_COLUMNS = ['First', 'Last', 'Phone', 'Job', 'Company', 'City', 'State', 'LinkedIn', 'Backup', 'Notes'] as const;
 
-export interface ImportLine { line: number; name: string; result: string; ok: boolean; contact?: Contact }
+/** Optional columns after Notes, for bringing in contacts someone already worked elsewhere (George, 2026-11-28):
+ *  Result, Dials, Last dialed, Call at. Dates are ISO times (2026-11-30T14:00:00-06:00). */
+export const WORKED_COLUMNS = ['Result', 'Dials', 'Last dialed', 'Call at'] as const;
+const RESULTS: Record<string, string> = {
+  '': '', 'no answer': '', 'voicemail': '', 'hung up': TAGS.notInterested, 'not interested': TAGS.notInterested, 'bad number': TAGS.bad,
+  'callback': TAGS.callback, 'scheduled': TAGS.scheduled, 'no-show': TAGS.noshow, 'no show': TAGS.noshow, 'do not call': TAGS.dnc,
+};
+const isoTime = (v: string) => { const t = v ? Date.parse(v) : NaN; return isNaN(t) ? null : t; };
 
-interface Hit { where: string; tag: string }
+export interface ImportLine { line: number; name: string; result: string; ok: boolean; contact?: Contact; /** fills in results on a contact already here */ update?: boolean }
+
+interface Hit { where: string; tag: string; mine?: Contact }
 
 /** Who already has each phone number and name, across every list. */
 /** Someone on another agent's Dispatch, for the admin's import check (George, 2026-11-27). */
@@ -24,7 +33,7 @@ export function buildIndex(contacts: Contact[], others: OtherHolder[] = []) {
     names.set(`${norm(o.first)}|${norm(o.last)}|${norm(o.company)}`, hit);
   }
   for (const c of contacts) {
-    const hit = { where: `${c.first} ${c.last} (${c.list})`, tag: c.tag };
+    const hit = { where: `${c.first} ${c.last} (${c.list})`, tag: c.tag, mine: c };
     for (const p of [c.phone, c.backup]) { const d = digits10(p); if (d.length === 10) phones.set(d, hit); }
     names.set(`${norm(c.first)}|${norm(c.last)}|${norm(c.company)}`, hit);
   }
@@ -58,6 +67,18 @@ export function planImport(rows: string[][], existing: Contact[], opts: { now: n
     let hit: Hit | undefined;
     for (const p of [...phones, ...backup]) { hit = idx.phones.get(digits10(p)); if (hit) break; }
     hit ??= idx.names.get(key);
+    // already imported here without its results (never dialed, no result): fill them in (George, 2026-11-28)
+    const res0 = g(10).toLowerCase();
+    if (hit?.mine && res0 in RESULTS && !hit.mine.tag && !hit.mine.dials && (parseInt(g(11), 10) || 0) > 0) {
+      const c = hit.mine, tag = RESULTS[res0], callAt = isoTime(g(13));
+      if ((tagKind(tag) === 'scheduled' || tagKind(tag) === 'callback') && callAt == null)
+        return { line: i + 1, name, ok: false, result: `Skipped - ${tagShort(tag)} needs a Call at time` };
+      const dials = parseInt(g(11), 10) || 0;
+      const contact: Contact = { ...c, tag, dials, lastDialed: isoTime(g(12)), callAt: callAt ?? c.callAt,
+        notes: c.notes || notes, backup: c.backup || (phones[1] ?? backup[0] ?? '') };
+      return { line: i + 1, name, ok: true, update: true, contact,
+        result: `Will fill in results on ${hit.where} · ${tag ? tagShort(tag) : 'No answer'}, ${dials} dial${dials === 1 ? '' : 's'}` };
+    }
     if (hit) {
       const k = tagKind(hit.tag);
       return { line: i + 1, name, ok: false,
@@ -71,10 +92,20 @@ export function planImport(rows: string[][], existing: Contact[], opts: { now: n
       zone: zoneFor({ city: g(5), state: st.abbr, phone: phones[0] ?? '', backup: phones[1] ?? backup[0] ?? '' }).zone || st.zone,
       newNumberMark: null, callbackTries: 0, noShowTries: 0, swapMemo: null, seq,
     };
+    // already worked: result, dial count and times come along
+    const res = g(10).toLowerCase();
+    if (res in RESULTS) {
+      contact.tag = RESULTS[res];
+      contact.dials = Math.max(0, parseInt(g(11), 10) || 0);
+      contact.lastDialed = contact.dials ? isoTime(g(12)) : null;
+      contact.callAt = isoTime(g(13));
+      if ((tagKind(contact.tag) === 'scheduled' || tagKind(contact.tag) === 'callback') && contact.callAt == null)
+        return { line: i + 1, name, ok: false, result: `Skipped - ${tagShort(contact.tag)} needs a Call at time` };
+    } else if (g(10)) return { line: i + 1, name, ok: false, result: `Skipped - unknown result "${g(10)}"` };
     const rec = { where: `${name} (this import)`, tag: '' };
     for (const p of [...phones, ...backup]) idx.phones.set(digits10(p), rec);
     idx.names.set(key, rec);
     return { line: i + 1, name, ok: true, contact,
-      result: `Will import to ${list}${contact.phone ? '' : ' (no number yet: goes to Needs Number)'}` };
+      result: `Will import to ${list}${contact.phone ? '' : ' (no number yet: goes to Needs Number)'}${contact.dials ? ` · ${contact.tag ? tagShort(contact.tag) : 'No answer'}, ${contact.dials} dial${contact.dials === 1 ? '' : 's'}` : ''}` };
   });
 }

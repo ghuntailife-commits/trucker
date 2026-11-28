@@ -7,7 +7,7 @@ import { tagKind, tagShort } from '../../src/rules/tags';
 import { md, mdTime } from '../../src/rules/time';
 import { notesNewestFirst } from '../../src/rules/notes';
 import { parseTable, toCsv } from '../../src/contacts/csv';
-import { IMPORT_COLUMNS, planImport, type ImportLine, type OtherHolder } from '../../src/contacts/importer';
+import { IMPORT_COLUMNS, WORKED_COLUMNS, planImport, type ImportLine, type OtherHolder } from '../../src/contacts/importer';
 import { loadAllContacts } from '../../src/live/allContacts';
 import { useRangePick } from './rangePick';
 import { needsGroup } from '../../src/contacts/needs';
@@ -321,11 +321,12 @@ function ImportDialog({ d, onClose, allAgents }: { d: D; onClose: () => void; al
   };
   const good = plan?.filter(x => x.ok) ?? [];
   const run = () => {
-    const added = good.map(x => x.contact!);
+    const added = good.filter(x => !x.update).map(x => x.contact!);
+    const changed = good.filter(x => x.update).map(x => x.contact!);
     const byList = new Map<string, number>();
     for (const c of added) byList.set(c.list, (byList.get(c.list) ?? 0) + 1);
     const events = [...byList].map(([list, n]) => ({ at: Date.now(), contactId: '', list, first: '', last: '', phone: '', kind: 'Import' as const, count: n, tag: '', dials: 0 }));
-    d.batch('import', { added, events }, `Imported ${added.length}, skipped ${(plan?.length ?? 0) - added.length}.`);
+    d.batch('import', { added, changed, events }, `Imported ${added.length}${changed.length ? `, filled in results on ${changed.length}` : ''}, skipped ${(plan?.length ?? 0) - good.length}.`);
     onClose();
   };
   return (
@@ -333,6 +334,7 @@ function ImportDialog({ d, onClose, allAgents }: { d: D; onClose: () => void; al
       {!plan ? <>
         <p className="hint">Paste rows from a spreadsheet, or pick a CSV file. Columns in this order (a header row is fine):</p>
         <p className="cols">{IMPORT_COLUMNS.join(' · ')}</p>
+        <p className="hint">Already worked somewhere else? Add {WORKED_COLUMNS.join(' · ')} after Notes, and each contact keeps its result and dials.</p>
         <textarea rows={9} value={text} onChange={e => setText(e.target.value)} placeholder={'Avery\tCalloway\t214-555-0101\tDriver\tLonestar Freight\tDallas\tTX'} />
         <div className="bar left">
           <label className="filepick btn">Choose a file<input type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" onChange={async e => {
