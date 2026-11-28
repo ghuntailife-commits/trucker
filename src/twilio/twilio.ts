@@ -45,12 +45,14 @@ export { e164 as twilioE164 };
 export const recKey = (secret: string, sid: string) => createHmac('sha256', secret).update(`rec:${sid}`).digest('hex').slice(0, 24);
 
 /** What Twilio does when the agent calls a contact: dial them from callerId, record both sides, report the result. */
-export function outboundTwiml(o: { to: string; callerId: string; base: string; agent: string; contactPhone: string; record: boolean; notice: boolean }): string {
+export function outboundTwiml(o: { to: string; callerId: string; base: string; agent: string; contactPhone: string; record: boolean; notice: boolean; amdRef?: string }): string {
   const q = `a=${encodeURIComponent(o.agent)}&p=${encodeURIComponent(o.contactPhone)}`;
   const rec = o.record ? ` record="record-from-answer-dual" recordingStatusCallback="${esc(`${o.base}/api/twilio/recording?${q}`)}" recordingStatusCallbackEvent="completed"` : '';
   const whisper = o.record && o.notice ? ` url="${esc(`${o.base}/api/twilio/notice`)}"` : '';
+  // auto-dial: Twilio listens in the background for a voicemail machine (the contact hears the agent right away)
+  const amd = o.amdRef ? ` machineDetection="Enable" machineDetectionTimeout="8" amdStatusCallbackMethod="POST" amdStatusCallback="${esc(`${o.base}/api/twilio/amd?${q}&r=${encodeURIComponent(o.amdRef)}`)}"` : '';
   return `<?xml version="1.0" encoding="UTF-8"?><Response><Dial callerId="${esc(o.callerId)}" answerOnBridge="true" timeout="30"${rec}>` +
-    `<Number statusCallback="${esc(`${o.base}/api/twilio/status?${q}`)}" statusCallbackEvent="initiated ringing answered completed"${whisper}>${esc(o.to)}</Number></Dial></Response>`;
+    `<Number statusCallback="${esc(`${o.base}/api/twilio/status?${q}`)}" statusCallbackEvent="initiated ringing answered completed"${whisper}${amd}>${esc(o.to)}</Number></Dial></Response>`;
 }
 
 /** Someone calls one of the team's numbers: ring the agent who talked with them last in Dispatch, else take a message. */
@@ -86,4 +88,14 @@ export function recordingRow(p: Record<string, string>, agent: string, phone: st
   return { id: `call.recording.completed:${sid}`, agent_id: agent || null, type: voicemail ? 'call.voicemail' : 'call.recording.completed', call_id: p.CallSid ?? null, phone,
     at: new Date().toISOString(), applied: false,
     payload: { source: 'twilio', type: 'call.recording.completed', data: { object: { id: sid, recordingUrl: url, duration: Number(p.RecordingDuration ?? 0) || 0 } } } };
+}
+
+/** Who picked up, from Twilio's voicemail check: a machine (or fax) is a voicemail; anything else is treated as a person. */
+export const isMachine = (answeredBy: string | null | undefined) => /^(machine|fax)/.test(String(answeredBy ?? ''));
+
+/** The voicemail check's answer as a stored event the screen looks up by the call's own reference. */
+export function amdRow(p: Record<string, string>, agent: string, ref: string, phone: string): Record<string, unknown> | null {
+  if (!ref || !p.AnsweredBy) return null;
+  return { id: `call.amd:${ref}`, agent_id: agent || null, type: 'call.amd', call_id: p.CallSid ?? null, phone, at: new Date().toISOString(), applied: true,
+    payload: { source: 'twilio', answeredBy: p.AnsweredBy, secs: Number(p.MachineDetectionDuration ?? 0) / 1000 || null } };
 }

@@ -82,6 +82,9 @@ import { LiveGate, SwitchPage, useSaveStatus } from './ui/live';
 import { newQuoEvents, markQuoApplied } from '../src/live/quoClient';
 import { matchContact } from '../src/quo/quo';
 
+/** Auto-dial when a voicemail machine answers: 'hangup' logs it as No answer and dials the next contact; 'stay' keeps the agent on to leave a message. */
+const AUTO_VOICEMAIL: 'hangup' | 'stay' = 'hangup';
+
 const PAGE_LABEL: Record<Page, string> = { home: 'Home', today: 'Today', appts: 'Appointments', contacts: 'Contacts', needs: 'Needs Number', results: 'Results', coach: 'Coaching', team: 'Team', library: 'Contact library', settings: 'Settings', integrations: 'Integrations', status: 'System status' };
 const ROLE_LABEL = { admin: 'admin', lead: 'team lead', agent: 'agent', boss: 'results only' } as const;
 
@@ -263,12 +266,23 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
   const [call, setCall] = useState<{ id: string; at: number } | null>(null);
   // calling inside Dispatch (Twilio), for agents who have it on (George, 2026-11-27)
   const callNow = useRef(call); callNow.current = call;
-  const tw = useTwilio(LIVE && !!me.twilio, () => { const c = callNow.current; if (c) endRef.current(c.id); }, cellPref.ready);
+  // auto-dial logs the calls nobody picks up, and voicemail machines, by itself; it only asks when a person answers (George, 2026-11-28)
+  const autoRef = useRef(false);
+  const autoLog = useRef<(id: string, machine: boolean) => void>(() => {});
+  const tw = useTwilio(LIVE && !!me.twilio, (end) => {
+    const c = callNow.current; if (!c) return;
+    endRef.current(c.id); callNow.current = null;
+    if (end?.auto && autoRef.current && !end.byMe && (!end.answered || end.machine)) autoLog.current(c.id, end.machine);
+  }, cellPref.ready, () => {
+    const c = callNow.current;
+    if (c && autoRef.current && AUTO_VOICEMAIL === 'hangup') autoLog.current(c.id, true);
+  }, me.id);
   const [keypad, setKeypad] = useState(false);
   const callRef = useRef(call); callRef.current = call;
   const infoRef = useRef({ viewing: '', page: '' });
   const stale = useUpdateCheck(() => !!callRef.current, () => infoRef.current);   // a newer Dispatch is live: reload between calls
   const [auto, setAuto] = useState(false);
+  autoRef.current = auto;
   const [countdown, setCountdown] = useState<number | null>(null);
   const [filter, setFilter] = useState<Filter>('All');
   const [page, setPage0] = useState<Page>('home');
@@ -315,7 +329,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
     if (!num) return;
     setPicked(c.id); setCall({ id: c.id, at: Date.now() }); setCountdown(null);
     const phoneApp = () => { try { const a = document.createElement('a'); a.href = `tel:${num}`; a.rel = 'noopener'; a.click(); } catch { /* the number is on screen */ } };
-    if (tw.ready) void tw.start(num, `${c.first} ${c.last}`.trim()).then(ok => { if (!ok && !cellPref.ready) phoneApp(); });
+    if (tw.ready) void tw.start(num, `${c.first} ${c.last}`.trim(), autoRef.current).then(ok => { if (!ok && !cellPref.ready) phoneApp(); });
     else phoneApp();
   };
   const endCall = (id: string) => {
@@ -323,6 +337,12 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
     if (call && call.id === id) { d.logCall(id, Math.round((Date.now() - call.at) / 1000)); setCall(null); }
   };
   endRef.current = endCall;
+  autoLog.current = (id, machine) => {
+    d.press(id, 'noanswer', { note: machine ? 'Voicemail picked up (auto-dial hung up)' : '', backupMode });
+    endCall(id); callNow.current = null;
+    setPicked(null);
+    if (autoRef.current) setCountdown(3);
+  };
   onCallRef.current = !!call;
 
   const act = (key: DialerKey) => {
@@ -665,8 +685,8 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
               </div>
               <div className="tbtns">
                 <button className={`btn auto ${auto ? 'on' : ''}`} onClick={() => {
-                  if (auto) { setAuto(false); setCountdown(null); }
-                  else { setAuto(true); if (current && !call) startCall(current); }
+                  if (auto) { autoRef.current = false; setAuto(false); setCountdown(null); }
+                  else { autoRef.current = true; setAuto(true); if (current && !call) startCall(current); }
                 }}><span className="led" />{auto ? (countdown != null ? `Next in ${countdown}…` : 'Auto-dial on') : 'Auto-dial'}</button>
                 <button className="btn" onClick={d.reSort}>Re-sort</button>
                 <button className="btn" onClick={() => setTodaySet(true)} title="How many contacts, the mix, fresh or retries, time zones, companies first and which lists">My Today</button>
@@ -985,7 +1005,7 @@ function Today({ t, agent, theme, setTheme }: { t: Team; agent: AgentId; theme: 
         const lv = tw.live!;
         return <div className="callbar" role="status">
           <span className="ringdot" />
-          <span className="cbwho"><b>{c ? `${c.first} ${c.last}` : num}</b><small>{lv.state === 'connecting' ? 'Connecting…' : lv.state === 'ringing' ? 'Ringing…' : call ? fmtSecs(Math.round((Date.now() - call.at) / 1000)) : 'On the call'}</small></span>
+          <span className="cbwho"><b>{c ? `${c.first} ${c.last}` : num}</b><small>{lv.machine ? 'Voicemail picked up' : lv.state === 'connecting' ? 'Connecting…' : lv.state === 'ringing' ? 'Ringing…' : call ? fmtSecs(Math.round((Date.now() - call.at) / 1000)) : 'On the call'}</small></span>
           {keypad && <span className="cbkeys">{['1','2','3','4','5','6','7','8','9','*','0','#'].map(k => <button key={k} onClick={() => tw.digits(k)}>{k}</button>)}</span>}
           <button className={`btn sm ${lv.muted ? 'primary' : ''}`} onClick={tw.mute}>{lv.muted ? 'Unmute' : 'Mute'}</button>
           <button className="btn sm" onClick={() => setKeypad(k => !k)}>Keypad</button>

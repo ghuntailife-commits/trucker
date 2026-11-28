@@ -15,7 +15,7 @@ type TwDevice = {
 };
 
 export type TwStatus = 'off' | 'loading' | 'ready' | 'error';
-export interface TwState { status: TwStatus; error: string; live: null | { phone: string; state: 'connecting' | 'ringing' | 'open'; muted: boolean; incoming: boolean; cell?: boolean };
+export interface TwState { status: TwStatus; error: string; live: null | { phone: string; state: 'connecting' | 'ringing' | 'open'; muted: boolean; incoming: boolean; cell?: boolean; machine?: boolean };
   incoming: null | { phone: string } }
 
 async function getToken(): Promise<string> {
@@ -26,26 +26,56 @@ async function getToken(): Promise<string> {
   return j.token;
 }
 
+/** How a call ended, for auto-dial: did anyone pick up, did the agent hang up, and was it a voicemail machine. */
+export interface CallEnd { answered: boolean; byMe: boolean; machine: boolean; auto: boolean }
+
 /** onEnded: the call hung up (either side), so the screen can stop the timer and log it. */
+/** onMachine: an auto-dial call reached a voicemail machine (Twilio's background check, a few seconds in). */
 /** cell: ring the agent's own phone for outgoing calls instead of the computer (George, 2026-11-27). */
-export function useTwilio(on: boolean, onEnded: () => void, cell = false) {
+export function useTwilio(on: boolean, onEnded: (end?: CallEnd) => void, cell = false, onMachine?: () => void, agent = '') {
   const [st, setSt] = useState<TwState>({ status: 'off', error: '', live: null, incoming: null });
   const dev = useRef<TwDevice | null>(null);
   const call = useRef<TwCall | null>(null);
   const ring = useRef<TwCall | null>(null);
   const ended = useRef(onEnded); ended.current = onEnded;
+  const machineCb = useRef(onMachine); machineCb.current = onMachine;
+  /** this call: was it answered, did the agent hang up, auto-dial's reference for the voicemail check */
+  const info = useRef({ answered: false, byMe: false, machine: false, ref: '' });
   /** how loud each side is right now (0 to 1), for the sound bars: i = the agent's mic, o = the contact */
   const level = useRef({ i: 0, o: 0 });
   const bridge = useRef<string | null>(null);   // the call to the agent's cell, while it lasts
 
-  const watch = useCallback((c: TwCall, phone: string, incoming: boolean) => {
+  /** Auto-dial: look for Twilio's voicemail answer for about 15 seconds after pick-up. */
+  const listenForMachine = async (c: TwCall, ref: string) => {
+    for (let k = 0; k < 15 && call.current === c; k++) {
+      await new Promise(r => setTimeout(r, 1000));
+      if (call.current !== c) return;
+      const { data } = await db().from('quo_events').select('payload').eq('id', `call.amd:${ref}`).limit(1);
+      const by = (data?.[0] as { payload?: { answeredBy?: string } } | undefined)?.payload?.answeredBy;
+      if (!by) continue;
+      if (/^(machine|fax)/.test(by) && call.current === c) {
+        info.current.machine = true;
+        setSt(s => (s.live ? { ...s, live: { ...s.live, machine: true } } : s));
+        machineCb.current?.();
+      }
+      return;
+    }
+  };
+
+  const watch = useCallback((c: TwCall, phone: string, incoming: boolean, ref = '') => {
     call.current = c;
+    info.current = { answered: incoming, byMe: false, machine: false, ref };
     setSt(s => ({ ...s, live: { phone, state: incoming ? 'open' : 'connecting', muted: false, incoming }, incoming: null }));
     c.on('ringing', () => setSt(s => (s.live ? { ...s, live: { ...s.live, state: 'ringing' } } : s)));
-    c.on('accept', () => setSt(s => (s.live ? { ...s, live: { ...s.live, state: 'open' } } : s)));
+    c.on('accept', () => {
+      info.current.answered = true;
+      setSt(s => (s.live ? { ...s, live: { ...s.live, state: 'open' } } : s));
+      if (ref) void listenForMachine(c, ref);
+    });
     c.on('volume', (i, o) => { level.current = { i: Number(i) || 0, o: Number(o) || 0 }; });
     c.on('mute', (m) => setSt(s => (s.live ? { ...s, live: { ...s.live, muted: !!m } } : s)));
-    const done = () => { if (call.current !== c) return; call.current = null; level.current = { i: 0, o: 0 }; setSt(s => ({ ...s, live: null })); ended.current(); };
+    const done = () => { if (call.current !== c) return; call.current = null; level.current = { i: 0, o: 0 }; setSt(s => ({ ...s, live: null }));
+      const n = info.current; ended.current({ answered: n.answered, byMe: n.byMe, machine: n.machine, auto: !!n.ref }); };
     c.on('disconnect', done); c.on('cancel', done); c.on('reject', done);
     c.on('error', (e) => { setSt(s => ({ ...s, error: (e as Error)?.message ?? 'Call failed' })); done(); });
   }, []);
@@ -80,7 +110,7 @@ export function useTwilio(on: boolean, onEnded: () => void, cell = false) {
   }, [on]);
 
   /** Calls a number. Returns false when calling isn't ready (the screen falls back to the phone app). */
-  const start = useCallback(async (to: string, name = ''): Promise<boolean> => {
+  const start = useCallback(async (to: string, name = '', auto = false): Promise<boolean> => {
     if (cell) {
       if (bridge.current || call.current) return false;
       try {
@@ -94,9 +124,10 @@ export function useTwilio(on: boolean, onEnded: () => void, cell = false) {
       } catch (e) { setSt(s => ({ ...s, error: (e as Error).message })); return false; }
     }
     const d = dev.current; if (!d || call.current) return false;
-    try { watch(await d.connect({ params: { To: to } }), to, false); return true; }
+    const ref = auto ? `${agent || 'a'}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}` : '';
+    try { watch(await d.connect({ params: auto ? { To: to, Auto: '1', Ref: ref } : { To: to } }), to, false, ref); return true; }
     catch (e) { setSt(s => ({ ...s, error: (e as Error).message })); return false; }
-  }, [watch, cell]);
+  }, [watch, cell, agent]);
   const hangup = useCallback(() => {
     const sid = bridge.current;
     if (sid) {
@@ -104,6 +135,7 @@ export function useTwilio(on: boolean, onEnded: () => void, cell = false) {
       void db().auth.getSession().then(({ data }) => fetch('/api/twilio/bridge', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session?.access_token ?? ''}` }, body: JSON.stringify({ hangup: sid }) })).catch(() => {});
       return;
     }
+    if (call.current) info.current.byMe = true;
     call.current?.disconnect();
   }, []);
   const mute = useCallback(() => { const c = call.current; if (c) c.mute(!c.isMuted()); }, []);
