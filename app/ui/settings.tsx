@@ -22,6 +22,7 @@ export function SettingsPage({ t }: { t: Team }) {
   const [twRec, setTwRec] = useState(t.team.twilioRecord !== false);
   const [twNotice, setTwNotice] = useState(t.team.twilioNotice !== false);
   const [twCap, setTwCap] = useState(String(t.team.twilioDailyCap ?? 100));
+  const [twTx, setTwTx] = useState(t.team.twilioTranscribe !== false);
   const [getNums, setGetNums] = useState(false);
   // numbers bought from "Get local numbers" are saved straight away (they're already paid for)
   const addNums = (nums: string[]) => setTwNums(cur => {
@@ -40,6 +41,7 @@ export function SettingsPage({ t }: { t: Team }) {
   const changes = [...agentChanges(t.team.agents, agents), ...ruleChanges(rules, t.team.rules),
     ...(hour !== t.team.coachingHour ? [`Monday coaching note goes out at ${hourOpt(hour)} (was ${hourOpt(t.team.coachingHour)})`] : []),
     ...(twNums !== (t.team.twilioNumbers ?? '') ? [`Dispatch calling numbers: ${twNums || '(none)'}`] : []),
+    ...(twTx !== (t.team.twilioTranscribe !== false) ? [`Transcribe Dispatch calls: ${twTx ? 'on' : 'off'}`] : []),
     ...(Number(twCap) !== (t.team.twilioDailyCap ?? 100) && Number(twCap) > 0 ? [`Calls per number per day: ${Number(twCap)} (was ${t.team.twilioDailyCap ?? 100})`] : []),
     ...(twRec !== (t.team.twilioRecord !== false) ? [`Record Dispatch calls: ${twRec ? 'on' : 'off'}`] : []),
     ...(twNotice !== (t.team.twilioNotice !== false) ? [`"This call may be recorded" notice: ${twNotice ? 'on' : 'off'}`] : [])];
@@ -50,11 +52,11 @@ export function SettingsPage({ t }: { t: Team }) {
   const save = () => {
     for (const a of agents) t.setAgent(a.id, a);
     t.setRules(rules);
-    t.setTeamField({ coachingHour: hour, twilioNumbers: twNums.trim(), twilioRecord: twRec, twilioNotice: twNotice, ...(Number(twCap) > 0 ? { twilioDailyCap: Math.round(Number(twCap)) } : {}) });
+    t.setTeamField({ coachingHour: hour, twilioNumbers: twNums.trim(), twilioRecord: twRec, twilioNotice: twNotice, twilioTranscribe: twTx, ...(Number(twCap) > 0 ? { twilioDailyCap: Math.round(Number(twCap)) } : {}) });
     setReview(false);
   };
   const undoAll = () => { setAgents(structuredClone(t.team.agents)); setRules(structuredClone(t.team.rules)); setHour(t.team.coachingHour);
-    setTwNums(t.team.twilioNumbers ?? ''); setTwRec(t.team.twilioRecord !== false); setTwNotice(t.team.twilioNotice !== false); setTwCap(String(t.team.twilioDailyCap ?? 100));
+    setTwNums(t.team.twilioNumbers ?? ''); setTwRec(t.team.twilioRecord !== false); setTwNotice(t.team.twilioNotice !== false); setTwCap(String(t.team.twilioDailyCap ?? 100)); setTwTx(t.team.twilioTranscribe !== false);
     setGoalText(Object.fromEntries(t.team.agents.map(a => [a.id, String(a.goal)]))); };
 
   return (
@@ -154,6 +156,9 @@ export function SettingsPage({ t }: { t: Team }) {
             <label>Tell them first</label>
             <Toggle on={twNotice} label="Play This call may be recorded" onChange={setTwNotice} />
             <p className="hint">When on, the contact hears &ldquo;This call may be recorded&rdquo; as they pick up. Some states require both sides to agree to recording.</p>
+            <label>Transcribe calls</label>
+            <Toggle on={twTx} label="Transcribe Dispatch calls" onChange={setTwTx} />
+            <p className="hint">Recorded calls of 5 seconds or more are transcribed by Twilio, then Claude writes the call notes and coaching tags, as for Quo calls. About a minute after the call.</p>
           </div>
         </Panel>
 

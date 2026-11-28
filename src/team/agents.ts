@@ -53,6 +53,8 @@ export interface TeamSettings {
   twilioNotice?: boolean;
   /** calls one number makes a day before it rests and the next-best number takes over (spam watch; default 100) */
   twilioDailyCap?: number;
+  /** transcribe recorded Dispatch calls for notes and coaching (Twilio Voice Intelligence; default on) */
+  twilioTranscribe?: boolean;
 }
 
 export const RULE_KEYS: RuleKey[] = ['retryDays', 'restDays', 'backupDials', 'callbackTries', 'noShowTries', 'listSize',
