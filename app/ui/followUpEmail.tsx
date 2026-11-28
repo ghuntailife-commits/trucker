@@ -8,6 +8,7 @@ import { loadState, saveState } from '../../src/app-store/store';
 import { BLANK_CERT_AMOUNT, GEORGE_SIGNATURE, blankSignature, buildFollowUp, emailProblems, type FollowUp, type MetWhen,
   type NoSaleCert, type SaleCert, type Signature } from '../../src/email/followUp';
 import { Dialog } from './shared';
+import { money, tidyCoverage, tidyDay, tidyMonth, tidyMonthly } from '../../src/email/tidy';
 
 // ---------- signature ----------
 const sigKey = (agent: string) => `dispatch-sig-${agent}`;
@@ -73,7 +74,7 @@ export interface EmailStart {
 }
 
 const pdfToB64 = (f: File) => new Promise<string>((ok, bad) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1] ?? ''); r.onerror = bad; r.readAsDataURL(f); });
-const num = (v: string) => Number(String(v).replace(/[$,\s]/g, '')) || 0;
+const num = (v: string) => money(v) || Number(String(v).replace(/[$,\s]/g, '')) || 0;   // "4k" works too
 const defaultWhen = (): MetWhen => { const h = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hourCycle: 'h23' }).format(Date.now())); return h >= 17 ? 'this evening' : 'today'; };
 
 export function FollowUpEmailDialog({ agent, agentName, agentEmail, start, onClose, onSent }: {
@@ -113,7 +114,7 @@ export function FollowUpEmailDialog({ agent, agentName, agentEmail, start, onClo
 
   const cert = sale ? saleCert : noCert;
   const email: FollowUp = sale
-    ? { kind: 'sale', first, to, cc, when: when === 'this evening' ? 'today' : when, opening, coverage, monthly: num(monthly), draftDay, startMonth, trial,
+    ? { kind: 'sale', first, to, cc, when: when === 'this evening' ? 'today' : when, opening, coverage: coverage.map(tidyCoverage), monthly: num(monthly), draftDay: tidyDay(draftDay), startMonth: tidyMonth(startMonth), trial,
       add: hasAdd ? { amount: num(amount), group, cert: saleCert } : null, childKit, willKit }
     : { kind: 'nosale', first, to, cc, when, amount: num(amount), group, cert: noCert, childKit };
   const problems = emailProblems(email, { hasUpload: !!file });
@@ -157,13 +158,14 @@ export function FollowUpEmailDialog({ agent, agentName, agentEmail, start, onClo
             ['Married, kids', 'You made a great decision for your financial future and for your wife and kids.'], ['Both covered', "You both made a great decision for your family's financial future."]]
             .map(([l, t]) => <button type="button" key={l} className={opening === t ? 'on' : ''} onClick={() => setOpening(t)}>{l}</button>)}</div>
           <label className="fld"><span>Coverage</span></label>
-          {coverage.map((c, i) => <input key={i} className="covline" value={c} placeholder={i === 0 ? '$25,000 guaranteed whole life coverage' : '$100,000 of temporary death benefit'}
+          {coverage.map((c, i) => <input key={i} className="covline" value={c} placeholder={i === 0 ? '25k wl  →  $25,000 guaranteed whole life coverage' : '100k term  →  $100,000 of temporary death benefit'}
+            onBlur={e => { const t = tidyCoverage(e.target.value); setCoverage(cs => { const n = [...cs]; n[i] = t; return n; }); }}
             onChange={e => setCoverage(cs => { const n = [...cs]; n[i] = e.target.value; return n; })} />)}
           <button type="button" className="linkish" onClick={() => setCoverage(cs => [...cs, ''])}>+ Another line</button>
           <div className="grid3">
-            <label className="fld"><span>Monthly total</span><input inputMode="decimal" value={monthly} onChange={e => setMonthly(e.target.value)} placeholder="61.94" /></label>
-            <label className="fld"><span>Draft day</span><input value={draftDay} onChange={e => setDraftDay(e.target.value)} placeholder="12" /></label>
-            <label className="fld"><span>First month <em>optional</em></span><input value={startMonth} onChange={e => setStartMonth(e.target.value)} placeholder="December" /></label>
+            <label className="fld"><span>Monthly total</span><input inputMode="decimal" value={monthly} onChange={e => setMonthly(e.target.value)} onBlur={e => setMonthly(tidyMonthly(e.target.value))} placeholder="61.94" /></label>
+            <label className="fld"><span>Draft day</span><input value={draftDay} onChange={e => setDraftDay(e.target.value)} onBlur={e => setDraftDay(tidyDay(e.target.value))} placeholder="12" /></label>
+            <label className="fld"><span>First month <em>optional</em></span><input value={startMonth} onChange={e => setStartMonth(e.target.value)} onBlur={e => setStartMonth(tidyMonth(e.target.value))} placeholder="dec or December" /></label>
           </div>
           <label className="chk"><input type="checkbox" checked={trial} onChange={e => setTrial(e.target.checked)} /> Trialed (pending underwriting)</label>
           <label className="chk"><input type="checkbox" checked={hasAdd} onChange={e => setHasAdd(e.target.checked)} /> Include their AD&amp;D benefit</label>
@@ -171,7 +173,7 @@ export function FollowUpEmailDialog({ agent, agentName, agentEmail, start, onClo
 
         {hasAdd && <div className="fubox">
           <div className="grid2">
-            <label className="fld"><span>AD&amp;D amount</span><input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="4,000" /></label>
+            <label className="fld"><span>AD&amp;D amount</span><input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} onBlur={e => { const n = num(e.target.value); if (n) setAmount(n.toLocaleString('en-US')); }} placeholder="4k or 4,000" /></label>
             <label className="fld"><span>Union or group <em>optional</em></span><input value={group} onChange={e => setGroup(e.target.value)} placeholder={sale ? 'e.g. SEIU 205' : 'blank = "your union"'} /></label>
           </div>
           {num(amount) > 0 && <p className="hint">Pays {`$${num(amount).toLocaleString('en-US')}`} in full, half ({`$${(num(amount) / 2).toLocaleString('en-US')}`}) for one hand, foot or eye.</p>}

@@ -43,6 +43,8 @@ export interface NoSaleRecord {
 /** "$1,200.50" → 1200.5. null when it isn't a plain dollar amount (at most 2 decimals). */
 export function money(v: string | number | null | undefined): number | null {
   const x = String(v ?? '').replace(/[$,\s]/g, '');
+  const k = /^(\d+(?:\.\d+)?)([km])$/i.exec(x);   // "25k", "1.5m" (George, 2026-11-27)
+  if (k) return Math.round(parseFloat(k[1]) * (k[2].toLowerCase() === 'k' ? 1_000 : 1_000_000) * 100) / 100;
   if (!/^\d+(\.\d{1,2})?$/.test(x)) return null;
   return Math.round(parseFloat(x) * 100) / 100;
 }

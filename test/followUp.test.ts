@@ -114,3 +114,22 @@ describe('buildMime', () => {
     expect(buildMime({ from: 'a@b.co', to: 'c@d.co', subject: 'Résumé', html: '', text: '', inline: [], files: [] })).toContain('Subject: =?UTF-8?B?');
   });
 });
+
+import { money, tidyCoverage, tidyDay, tidyMonth, tidyMonthly } from '../src/email/tidy';
+describe('quick typing', () => {
+  it('money', () => { expect(money('25k')).toBe(25000); expect(money('$25,000')).toBe(25000); expect(money('1.5m')).toBe(1500000); expect(money('2,000')).toBe(2000); expect(money('abc')).toBe(0); });
+  it('coverage lines', () => {
+    expect(tidyCoverage('25k wl')).toBe('$25,000 guaranteed whole life coverage');
+    expect(tidyCoverage('100k term')).toBe('$100,000 of temporary death benefit');
+    expect(tidyCoverage('25000 whole life')).toBe('$25,000 guaranteed whole life coverage');
+    expect(tidyCoverage('$10k child rider')).toBe('$10,000 child rider');
+    expect(tidyCoverage('Whole life 25k')).toBe('Whole life $25,000');
+    expect(tidyCoverage('$25,000 guaranteed whole life coverage')).toBe('$25,000 guaranteed whole life coverage');
+    expect(tidyCoverage('Cancer policy')).toBe('Cancer policy');
+  });
+  it('monthly, month and day', () => {
+    expect(tidyMonthly('61.9')).toBe('61.90'); expect(tidyMonthly('$61.94/mo')).toBe('61.94');
+    expect(tidyMonth('dec')).toBe('December'); expect(tidyMonth('12')).toBe('December'); expect(tidyMonth('Jan.')).toBe('January');
+    expect(tidyDay('12th')).toBe('12'); expect(tidyDay('the 3rd')).toBe('3');
+  });
+});

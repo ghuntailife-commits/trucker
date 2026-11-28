@@ -3,7 +3,7 @@
 'use client';
 import { useState } from 'react';
 import type { Contact } from '../../src/rules/types';
-import { OBJECTIONS, SOURCE_LABEL, checkSale, checkNoSale, outsideSale, saleNote, noSaleNote, type SaleRecord, type NoSaleRecord, type SaleSource } from '../../src/rules/results';
+import { money, OBJECTIONS, SOURCE_LABEL, checkSale, checkNoSale, outsideSale, saleNote, noSaleNote, type SaleRecord, type NoSaleRecord, type SaleSource } from '../../src/rules/results';
 import { parseWhen } from '../../src/rules/parseWhen';
 import { DAY_MS, zoned } from '../../src/rules/time';
 import { Dialog, TZ } from './shared';
@@ -30,7 +30,8 @@ function Money({ label, value, set, hint, autoFocus }: { label: string; value: s
   return (
     <label className="fld">
       <span>{label}{hint && <em> {hint}</em>}</span>
-      <span className="money"><i>$</i><input inputMode="decimal" autoComplete="off" value={value} onChange={e => set(e.target.value)} autoFocus={autoFocus} /></span>
+      <span className="money"><i>$</i><input inputMode="decimal" autoComplete="off" value={value} onChange={e => set(e.target.value)} autoFocus={autoFocus}
+        onBlur={e => { const n = money(e.target.value); if (n != null && /[km]/i.test(e.target.value)) set(String(n)); }} /></span>
     </label>
   );
 }
